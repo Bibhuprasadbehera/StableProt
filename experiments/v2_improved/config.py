@@ -8,10 +8,11 @@ Key differences from V1:
 """
 
 CONFIG = {
-    # Architecture
+    # Architecture — same base as V0/V1 for fair comparison
+    # The improvements come from regularization + loss, not bigger layers
     'input_size': 1024,
-    'hidden_size_1': 512,
-    'hidden_size_2': 256,
+    'hidden_size_1': 256,
+    'hidden_size_2': 128,
     'dropout_1': 0.3,
     'dropout_2': 0.2,
 

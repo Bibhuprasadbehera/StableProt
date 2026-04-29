@@ -14,15 +14,19 @@ source /home/bibhu/miniconda3/etc/profile.d/conda.sh && conda activate temstapro
 cd /home/bibhu/Documents/temstampto/experiments
 python prepare_data.py --train-sample 5000 --val-sample 1000 --test-sample 2000
 
-# 3. Train V1 Baseline
-cd v1_baseline
+# 3. Evaluate V0 Original (pre-trained models, no retraining)
+cd v0_original
+python evaluate.py
+
+# 4. Train V1 Baseline
+cd ../v1_baseline
 python train.py
 
-# 4. Train V2 Improved
+# 5. Train V2 Improved
 cd ../v2_improved
 python train.py
 
-# 5. Compare results
+# 6. Compare ALL results
 cd ..
 python compare_results.py
 ```
@@ -36,23 +40,36 @@ experiments/
 ├── common/                    # Shared code
 │   ├── data_utils.py          # FASTA parsing, embedding generation, dataset creation
 │   └── metrics.py             # AUC-ROC, F1, MCC, plotting functions
-├── v1_baseline/               # Baseline: standard BCE, no regularization
+├── v0_original/               # Original pre-trained models (NO retraining)
+│   ├── evaluate.py            # Loads StableProt/models/ and evaluates
+│   └── results/               # [generated] Metrics, predictions, plots
+├── v1_baseline/               # Retrained: standard BCE, no regularization
 │   ├── model.py               # MLP_Baseline (original architecture)
 │   ├── config.py              # Hyperparameters
 │   ├── train.py               # Training script
 │   └── results/               # [generated] Checkpoints, metrics, plots
-├── v2_improved/               # Improved: weighted loss + balanced sampling + dropout
-│   ├── model.py               # MLP_Improved (BatchNorm + Dropout)
+├── v2_improved/               # Builds on V1 + weighted loss + balanced sampling + dropout
+│   ├── model.py               # MLP_Improved (adds BatchNorm + Dropout to V1)
 │   ├── config.py              # Hyperparameters
 │   ├── train.py               # Training script
 │   └── results/               # [generated] Checkpoints, metrics, plots
-├── comparison/                # [generated] V1 vs V2 comparison plots
+├── comparison/                # [generated] Multi-experiment comparison plots
 ├── embeddings_cache/          # [generated] Cached ProtT5 embeddings
 ├── prepared_data.pt           # [generated] Preprocessed data
 ├── prepare_data.py            # Data preparation script
-├── compare_results.py         # Results comparison script
+├── compare_results.py         # Results comparison script (auto-discovers all vX folders)
 ├── suggestions.md             # Future improvement ideas
 └── help.md                    # This file
+```
+
+### Experiment Progression (incremental improvements)
+
+```
+V0 Original       → Pre-trained models as-is (baseline benchmark)
+    ↓
+V1 Baseline        → Same architecture, retrained on your data split (BCELoss, no regularization)
+    ↓  (adds: weighted loss + balanced sampling + dropout + batchnorm + weight decay)
+V2 Improved        → Everything from V1 + all improvements
 ```
 
 ---
@@ -107,9 +124,27 @@ python prepare_data.py --output /path/to/my_data.pt
 
 ---
 
-## Step 2: Training
+## Step 2: Evaluate & Train
 
-### V1 Baseline (Standard Binary Classification)
+### V0 Original (Pre-trained models — evaluation only)
+
+```bash
+cd /home/bibhu/Documents/temstampto/experiments/v0_original
+
+# Evaluate all thresholds (40, 45, 50, 55, 60, 65°C)
+python evaluate.py
+
+# Evaluate specific thresholds only
+python evaluate.py --thresholds 40 65
+```
+
+**V0 is:**
+- The original pre-trained models from `StableProt/models/`
+- NO retraining — just loads and evaluates
+- Uses the original `MLP_C2H2` class with PyTorch Lightning state dict remapping
+- This is your true baseline benchmark
+
+### V1 Baseline (Retrained, Standard Binary Classification)
 
 ```bash
 cd /home/bibhu/Documents/temstampto/experiments/v1_baseline
@@ -189,28 +224,39 @@ results/
 
 ## Step 3: Compare Results
 
+The comparison script **auto-discovers** all `vX_*` folders that have a `results/` directory.
+
 ```bash
 cd /home/bibhu/Documents/temstampto/experiments
+
+# Compare ALL experiments (auto-discovers v0, v1, v2, and any future vN)
 python compare_results.py
 
-# Compare specific thresholds
+# Compare specific thresholds only
 python compare_results.py --thresholds 40 65
 
-# Compare custom result directories
-python compare_results.py --v1-dir /path/to/v1/results --v2-dir /path/to/v2/results
+# Compare specific experiments only
+python compare_results.py --experiments v0_original v2_improved
 ```
 
 ### What It Generates
 
 ```
 comparison/
-├── roc_comparison_t40.png       # Side-by-side ROC curves for 40°C
+├── roc_comparison_t40.png       # Multi-experiment ROC curves for 40°C
 ├── roc_comparison_t45.png       # ... for 45°C
 ├── ...
-├── metrics_comparison_t40.png   # Bar chart: V1 vs V2 key metrics
+├── metrics_comparison_t40.png   # Bar chart: all experiments' key metrics
 ├── metrics_comparison_t45.png   # ...
 └── comparison.json              # Full comparison data
 ```
+
+### Console Output Includes
+
+- Per-threshold metric table with all experiments side-by-side
+- Delta (Δ) between first and last experiment with ↑/↓ arrows
+- Grand summary tables for AUC-ROC and MCC across all thresholds
+- Best score indicator per threshold
 
 ---
 
@@ -304,7 +350,9 @@ To create a new experiment version (e.g., v3 with Focal Loss):
 2. Modify `model.py` and/or `config.py`
 3. Update loss function in `train.py`
 4. Run: `cd v3_focal_loss && python train.py`
-5. Compare: `python compare_results.py --v2-dir v3_focal_loss/results`
+5. Compare: `python compare_results.py`  ← auto-discovers v3!
+
+The `compare_results.py` script auto-discovers ANY folder starting with `v` that has a `results/` subdirectory. Just name your folder `v3_*`, `v4_*`, etc. and it will be picked up automatically.
 
 See `suggestions.md` for specific strategies to try.
 

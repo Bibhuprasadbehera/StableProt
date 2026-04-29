@@ -3,10 +3,11 @@ V1 Baseline — Hyperparameters and configuration.
 """
 
 CONFIG = {
-    # Architecture
+    # Architecture — matches original pre-trained TemStaPro models (v0)
+    # Change to 512/256 to experiment with a larger network
     'input_size': 1024,
-    'hidden_size_1': 512,
-    'hidden_size_2': 256,
+    'hidden_size_1': 256,
+    'hidden_size_2': 128,
 
     # Training
     'learning_rate': 1e-3,

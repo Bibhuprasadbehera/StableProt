@@ -1,0 +1,5 @@
+ProtTrans/
+__pycache__/
+update_tests.sh
+experiments/embeddings_cache/
+experiments/prepared_data.pt

@@ -99,21 +99,28 @@ def _preprocess_sequence(seq):
     return seq
 
 
-def generate_embeddings(records, model_dir=None, cache_dir=None, device='cpu'):
+def generate_embeddings(records, model_dir=None, cache_dir=None, device=None,
+                        chunk_size=10000):
     """
     Generate ProtT5 mean embeddings for a list of (seq_id, sequence, temp) records.
+
+    Processes in chunks to handle large datasets (900K+ sequences).
+    Caches individual embeddings so the process is resumable.
 
     Args:
         records: list of (seq_id, sequence, temperature) tuples
         model_dir: path to ProtTrans model directory (default: StableProt/ProtTrans)
         cache_dir: directory to cache individual embeddings (optional)
-        device: 'cpu' or 'cuda'
+        device: 'cpu', 'cuda', or None (auto-detect)
+        chunk_size: number of sequences to process per chunk (default: 10000)
 
     Returns:
         torch.Tensor of shape (n_seqs, 1024) — mean embeddings
     """
     if model_dir is None:
         model_dir = PROTTRANS_DIR
+    if device is None:
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     if cache_dir:
         os.makedirs(cache_dir, exist_ok=True)
@@ -122,6 +129,7 @@ def generate_embeddings(records, model_dir=None, cache_dir=None, device='cpu'):
     embeddings_dict = {}
     needs_generation = []
 
+    print("  Checking cache for %d sequences..." % len(records))
     for seq_id, seq, temp in records:
         clean_seq = _preprocess_sequence(seq)
         seq_hash = sha256(clean_seq.encode('utf-8')).hexdigest()
@@ -130,7 +138,7 @@ def generate_embeddings(records, model_dir=None, cache_dir=None, device='cpu'):
         if cache_dir:
             cache_path = os.path.join(cache_dir, "mean_%s.pt" % seq_hash)
             if os.path.exists(cache_path):
-                cached = torch.load(cache_path)
+                cached = torch.load(cache_path, map_location='cpu')
                 embeddings_dict[seq_id] = cached['mean_representations'].flatten()
                 continue
 
@@ -141,57 +149,91 @@ def generate_embeddings(records, model_dir=None, cache_dir=None, device='cpu'):
     if needs_generation:
         # Import ProtTrans
         sys.path.insert(0, STABLEPROT_DIR)
-        from prottrans_models import load_model_and_tokenizer, get_embeddings, save_embeddings
+        from prottrans_models import load_model_and_tokenizer, get_embeddings
 
         print("  Loading ProtT5 model from %s ..." % model_dir)
+        print("  Device: %s" % device)
         model, tokenizer = load_model_and_tokenizer(
             model_dir,
             "Rostlab/prot_t5_xl_half_uniref50-enc"
         )
-        print("  Model loaded. Generating embeddings...")
+        # Move model to correct device (load_model_and_tokenizer auto-detects)
+        print("  Model loaded on: %s" % next(model.parameters()).device)
 
-        # Build sequences dict for get_embeddings
-        seqs_dict = {}
-        for seq_id, clean_seq, temp, _ in needs_generation:
-            seqs_dict[seq_id] = clean_seq
+        total_seqs = len(needs_generation)
+        total_generated = 0
+        overall_start = time.time()
 
-        start_time = time.time()
-        results = get_embeddings(
-            model, tokenizer, seqs_dict,
-            per_residue=False, per_protein=True
-        )
-        elapsed = time.time() - start_time
-        print("  Generated %d embeddings in %.1f seconds (%.2f sec/seq)" % (
-            len(results['mean_representations']), elapsed,
-            elapsed / max(1, len(results['mean_representations']))
-        ))
+        # Process in chunks
+        n_chunks = (total_seqs + chunk_size - 1) // chunk_size
+        print("  Processing %d sequences in %d chunks of %d..." % (
+            total_seqs, n_chunks, chunk_size))
 
-        # Collect results and optionally cache
-        for seq_id, clean_seq, temp, cache_path in needs_generation:
-            if seq_id in results['mean_representations']:
-                emb = torch.from_numpy(results['mean_representations'][seq_id]).flatten()
-                embeddings_dict[seq_id] = emb
+        for chunk_idx in range(n_chunks):
+            chunk_start = chunk_idx * chunk_size
+            chunk_end = min(chunk_start + chunk_size, total_seqs)
+            chunk = needs_generation[chunk_start:chunk_end]
 
-                if cache_path:
-                    torch.save({
-                        'label': seq_id,
-                        'sequence': clean_seq,
-                        'mean_representations': emb,
-                    }, cache_path)
+            # Build sequences dict for this chunk
+            seqs_dict = {}
+            for seq_id, clean_seq, temp, _ in chunk:
+                seqs_dict[seq_id] = clean_seq
 
-        # Free GPU/CPU memory
+            chunk_time_start = time.time()
+            results = get_embeddings(
+                model, tokenizer, seqs_dict,
+                per_residue=False, per_protein=True
+            )
+            chunk_elapsed = time.time() - chunk_time_start
+            total_generated += len(results['mean_representations'])
+
+            # Cache results
+            for seq_id, clean_seq, temp, cache_path in chunk:
+                if seq_id in results['mean_representations']:
+                    emb = torch.from_numpy(results['mean_representations'][seq_id]).flatten()
+                    embeddings_dict[seq_id] = emb
+
+                    if cache_path:
+                        torch.save({
+                            'label': seq_id,
+                            'sequence': clean_seq,
+                            'mean_representations': emb,
+                        }, cache_path)
+
+            # Progress report
+            elapsed_total = time.time() - overall_start
+            rate = total_generated / max(elapsed_total, 1)
+            remaining = total_seqs - total_generated
+            eta_seconds = remaining / max(rate, 0.01)
+            eta_min = eta_seconds / 60
+
+            print("  [Chunk %d/%d] %d/%d done (%.1f seq/s) | "
+                  "Chunk: %.0fs | Elapsed: %.0fs | ETA: %.0f min" % (
+                      chunk_idx + 1, n_chunks,
+                      total_generated, total_seqs,
+                      rate, chunk_elapsed, elapsed_total, eta_min))
+
+        # Free GPU memory
         del model, tokenizer
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
 
+        total_time = time.time() - overall_start
+        print("  DONE! Generated %d embeddings in %.1f seconds (%.1f min)" % (
+            total_generated, total_time, total_time / 60))
+
     # Assemble in original order
     embedding_list = []
+    missing_count = 0
     for seq_id, seq, temp in records:
         if seq_id in embeddings_dict:
             embedding_list.append(embeddings_dict[seq_id])
         else:
-            print("  WARNING: Missing embedding for %s, using zeros" % seq_id)
+            missing_count += 1
             embedding_list.append(torch.zeros(1024))
+
+    if missing_count > 0:
+        print("  WARNING: %d sequences missing embeddings (using zeros)" % missing_count)
 
     return torch.stack(embedding_list)
 

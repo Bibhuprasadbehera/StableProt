@@ -63,7 +63,10 @@ def compute_all_metrics(y_true, y_prob, threshold=0.5):
     metrics['f1_macro'] = float(f1_score(y_true, y_pred, average='macro', zero_division=0))
 
     # MCC
-    metrics['mcc'] = float(matthews_corrcoef(y_true, y_pred))
+    import warnings
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        metrics['mcc'] = float(matthews_corrcoef(y_true, y_pred))
 
     # Balanced Accuracy
     metrics['balanced_accuracy'] = float(balanced_accuracy_score(y_true, y_pred))

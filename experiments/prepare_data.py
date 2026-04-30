@@ -160,7 +160,9 @@ def main():
         }
     }
 
-    os.makedirs(os.path.dirname(args.output), exist_ok=True)
+    output_dir = os.path.dirname(args.output)
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
     torch.save(save_data, args.output)
     file_size = os.path.getsize(args.output) / (1024 * 1024)
     print("\n  Data saved to: %s (%.1f MB)" % (args.output, file_size))

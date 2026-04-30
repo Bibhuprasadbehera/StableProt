@@ -1,41 +1,42 @@
 """
-Compare results across ALL experiment versions (v0, v1, v2, and any future ones).
+Compare results across ALL experiment versions (Binary and Regression).
 
-Automatically discovers experiment directories and generates:
-  - Side-by-side ROC curve comparisons per threshold
-  - Bar chart comparison of key metrics
-  - Summary comparison table with improvement deltas
+Converts binary classifications across thresholds into continuous OGT estimates,
+allowing direct comparison with regression models.
 
-Usage:
-    python compare_results.py                              # Auto-discover all vX_* folders
-    python compare_results.py --thresholds 40 65           # Specific thresholds only
-    python compare_results.py --experiments v0_original v2_improved  # Specific experiments
+Generates:
+  - Grand unified comparison table (MAE, RMSE, Spearman)
+  - Binned performance (Psychro, Meso, Thermo, Hyperthermo)
+  - Scatter plots (True OGT vs Predicted OGT)
 """
 
 import argparse
-import glob
-import json
 import os
 import sys
 import torch
 import numpy as np
+import scipy.stats
+import matplotlib.pyplot as plt
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, SCRIPT_DIR)
 
-from common.metrics import (
-    load_metrics, plot_comparison_roc, plot_metrics_bar_comparison,
-    compute_all_metrics, print_metrics
-)
-
-
 # ── Display names for experiment folders ──
 DISPLAY_NAMES = {
     'v0_original': 'V0 Original (pre-trained)',
-    'v1_baseline': 'V1 Baseline (retrained, no reg.)',
-    'v2_improved': 'V2 Improved (weighted+balanced+dropout)',
+    'v1_baseline': 'V1 Baseline (0-100 binary)',
+    'v2_improved': 'V2 Improved (0-100 binary)',
+    'v3_regression': 'V3 Regression (continuous)',
 }
 
+def get_temperature_bins():
+    return [
+        ('Psychrophiles (<20°C)', lambda t: t < 20),
+        ('Mesophiles (20-40°C)', lambda t: (t >= 20) and (t < 40)),
+        ('Thermophiles (40-60°C)', lambda t: (t >= 40) and (t < 60)),
+        ('Extreme (60-80°C)', lambda t: (t >= 60) and (t < 80)),
+        ('Hyperthermo (>=80°C)', lambda t: t >= 80),
+    ]
 
 def discover_experiments(experiments_dir):
     """Auto-discover experiment directories that have results."""
@@ -45,226 +46,182 @@ def discover_experiments(experiments_dir):
         results_path = os.path.join(full_path, 'results')
         if os.path.isdir(full_path) and entry.startswith('v') and os.path.isdir(results_path):
             display_name = DISPLAY_NAMES.get(entry, entry)
+            # Determine if it's regression or binary
+            is_regression = os.path.exists(os.path.join(results_path, 'ensemble', 'predictions.pt'))
             experiments[entry] = {
                 'dir': results_path,
                 'name': display_name,
+                'is_regression': is_regression
             }
     return experiments
 
+def load_and_convert_predictions(exp_info):
+    """
+    Loads predictions.
+    If binary: converts probabilities across thresholds to a single expected OGT.
+    E[T] = \int P(T > t) dt \approx \sum P(T > t_i) * \Delta t
+    """
+    results_dir = exp_info['dir']
+    
+    if exp_info['is_regression']:
+        preds_path = os.path.join(results_dir, 'ensemble', 'predictions.pt')
+        if not os.path.exists(preds_path):
+            return None, None
+        data = torch.load(preds_path)
+        return data['y_true'].numpy(), data['y_pred'].numpy()
+    
+    else:
+        # Binary experiment
+        thresholds = []
+        for t_dir in os.listdir(results_dir):
+            if t_dir.startswith('t') and t_dir[1:].isdigit():
+                thresholds.append(int(t_dir[1:]))
+        thresholds.sort()
+        
+        if not thresholds:
+            return None, None
+            
+        # We need the true temperatures, we can get them from the original data
+        # But wait, binary predictions only saved y_true (binary labels) and y_prob.
+        # We need the actual test temperatures. 
+        # Let's load the full prepared data to get true test temps.
+        try:
+            data = torch.load(os.path.join(SCRIPT_DIR, 'prepared_data_full.pt'))
+            y_true_temp = np.array(data['test_temps'])
+        except:
+            try:
+                data = torch.load(os.path.join(SCRIPT_DIR, 'prepared_data.pt'))
+                y_true_temp = np.array(data['test_temps'])
+            except:
+                print("ERROR: Cannot load prepared_data.pt to get true temperatures.")
+                return None, None
 
-def load_experiment_results(results_dir, thresholds):
-    """Load ensemble predictions and metrics from an experiment directory."""
-    results = {}
-    for t in thresholds:
-        ensemble_dir = os.path.join(results_dir, "t%d" % t, "ensemble")
-        metrics_path = os.path.join(ensemble_dir, 'metrics.json')
-        preds_path = os.path.join(ensemble_dir, 'predictions.pt')
+        # Build matrix of probabilities: (num_samples, num_thresholds)
+        n_samples = len(y_true_temp)
+        prob_matrix = np.zeros((n_samples, len(thresholds)))
+        
+        valid_thresholds = []
+        for i, t in enumerate(thresholds):
+            preds_path = os.path.join(results_dir, f't{t}', 'ensemble', 'predictions.pt')
+            if os.path.exists(preds_path):
+                pred_data = torch.load(preds_path)
+                probs = pred_data['y_prob'].numpy()
+                if len(probs) == n_samples:
+                    prob_matrix[:, i] = probs
+                    valid_thresholds.append(t)
+        
+        if not valid_thresholds:
+            return None, None
+            
+        # Convert to OGT. 
+        # E[T] = Base_Temp + sum(P(T > t) * step)
+        # We assume base temp is around the first threshold (e.g. 5 or 40)
+        # A simple approximation: just use the sum of probabilities * step size, plus offset.
+        # If thresholds are 40, 45, 50... step=5. Base=35? 
+        # To be robust, let's just do numerical integration of the survival function P(T>t)
+        # T = \int_{0}^{\infty} P(T>t) dt. 
+        # Let's assume P(T>0) = 1 up to the first threshold.
+        
+        step_sizes = np.diff(valid_thresholds)
+        # Assume uniform step size for the ends
+        step = step_sizes[0] if len(step_sizes) > 0 else 5
+        
+        base_temp = max(0, valid_thresholds[0] - step)
+        
+        # Expected value
+        y_pred_temp = np.full(n_samples, base_temp, dtype=float)
+        for i, t in enumerate(valid_thresholds):
+            # For each threshold, add prob * step to the expected value
+            # This works precisely if probabilities are monotonically decreasing
+            y_pred_temp += prob_matrix[:, i] * step
+            
+        return y_true_temp, y_pred_temp
 
-        if os.path.exists(metrics_path) and os.path.exists(preds_path):
-            results[t] = {
-                'metrics': load_metrics(metrics_path),
-                'predictions': torch.load(preds_path),
-            }
-    return results
-
+def compute_metrics(y_true, y_pred):
+    mae = np.mean(np.abs(y_true - y_pred))
+    rmse = np.sqrt(np.mean((y_true - y_pred)**2))
+    spearman, _ = scipy.stats.spearmanr(y_true, y_pred)
+    return {'mae': mae, 'rmse': rmse, 'spearman': spearman}
 
 def main():
-    parser = argparse.ArgumentParser(description='Compare all experiment versions')
-    parser.add_argument('--thresholds', type=int, nargs='+',
-                        default=[40, 45, 50, 55, 60, 65],
-                        help='Thresholds to compare (default: 40 45 50 55 60 65)')
-    parser.add_argument('--experiments', type=str, nargs='+', default=None,
-                        help='Specific experiment folder names (default: auto-discover all)')
-    args = parser.parse_args()
-
+    print("=" * 80)
+    print("  UNIFIED EXPERIMENT COMPARISON (OGT Metric)")
+    print("=" * 80)
+    
+    experiments = discover_experiments(SCRIPT_DIR)
+    
+    results = {}
+    for key, info in experiments.items():
+        y_true, y_pred = load_and_convert_predictions(info)
+        if y_true is not None:
+            results[key] = {
+                'name': info['name'],
+                'y_true': y_true,
+                'y_pred': y_pred
+            }
+            
+    if not results:
+        print("No results found to compare.")
+        return
+        
+    print("\nOVERALL PERFORMANCE:")
+    print("-" * 80)
+    print(f"{'Experiment':<35} | {'MAE (°C)':<10} | {'RMSE (°C)':<10} | {'Spearman ρ':<10}")
+    print("-" * 80)
+    
+    overall_metrics = {}
+    for key, data in results.items():
+        m = compute_metrics(data['y_true'], data['y_pred'])
+        overall_metrics[key] = m
+        print(f"{data['name']:<35} | {m['mae']:<10.2f} | {m['rmse']:<10.2f} | {m['spearman']:<10.3f}")
+        
+    print("\n\nBINNED MAE PERFORMANCE (How models perform at extremes):")
+    print("-" * 105)
+    
+    bins = get_temperature_bins()
+    
+    header = f"{'Experiment':<30}"
+    for name, _ in bins:
+        # Abbreviate header
+        abbr = name.split(' ')[0]
+        header += f" | {abbr:<12}"
+    print(header)
+    print("-" * 105)
+    
+    for key, data in results.items():
+        y_t = data['y_true']
+        y_p = data['y_pred']
+        
+        row = f"{data['name'][:30]:<30}"
+        
+        for _, condition in bins:
+            mask = np.array([condition(t) for t in y_t])
+            if np.sum(mask) > 0:
+                bin_mae = np.mean(np.abs(y_t[mask] - y_p[mask]))
+                row += f" | {bin_mae:<12.1f}"
+            else:
+                row += f" | {'N/A':<12}"
+        print(row)
+        
+    # Generate scatter plots
     output_dir = os.path.join(SCRIPT_DIR, 'comparison')
     os.makedirs(output_dir, exist_ok=True)
-
-    # ── Discover or select experiments ──
-    all_experiments = discover_experiments(SCRIPT_DIR)
-
-    if args.experiments:
-        # Filter to requested experiments
-        selected = {}
-        for name in args.experiments:
-            if name in all_experiments:
-                selected[name] = all_experiments[name]
-            else:
-                print("WARNING: Experiment '%s' not found or has no results/ directory." % name)
-                print("  Available: %s" % list(all_experiments.keys()))
-        experiments = selected
-    else:
-        experiments = all_experiments
-
-    if len(experiments) < 2:
-        print("ERROR: Need at least 2 experiments to compare.")
-        print("  Found: %s" % list(experiments.keys()))
-        print("\nMake sure you have run at least 2 experiments:")
-        print("  cd v0_original && python evaluate.py")
-        print("  cd v1_baseline && python train.py")
-        print("  cd v2_improved && python train.py")
-        sys.exit(1)
-
-    print("=" * 75)
-    print("  EXPERIMENT COMPARISON")
-    print("=" * 75)
-    print("  Experiments found:")
-    for key, info in experiments.items():
-        print("    • %-20s → %s" % (key, info['name']))
-    print("  Thresholds: %s" % args.thresholds)
-    print("=" * 75)
-
-    # ── Load all results ──
-    loaded = {}
-    for key, info in experiments.items():
-        print("\nLoading %s from: %s" % (key, info['dir']))
-        results = load_experiment_results(info['dir'], args.thresholds)
-        if results:
-            loaded[key] = {'results': results, 'name': info['name']}
-            print("  → Loaded %d threshold(s): %s" % (
-                len(results), sorted(results.keys())))
-        else:
-            print("  → WARNING: No results found!")
-
-    if len(loaded) < 2:
-        print("\nERROR: Only %d experiment(s) have results. Need ≥ 2." % len(loaded))
-        sys.exit(1)
-
-    # ── Per-threshold comparison ──
-    comparison = {}
-    exp_keys = list(loaded.keys())  # Ordered list of experiment names
-    exp_names = [loaded[k]['name'] for k in exp_keys]
-
-    for t in args.thresholds:
-        # Check which experiments have results for this threshold
-        available = [k for k in exp_keys if t in loaded[k]['results']]
-        if len(available) < 2:
-            print("\nSkipping threshold %d°C — only %d experiment(s) have results." % (
-                t, len(available)))
-            continue
-
-        print("\n" + "─" * 75)
-        print("  Threshold: %d°C" % t)
-        print("─" * 75)
-
-        # Build header
-        header = "  %-22s" % "Metric"
-        for k in available:
-            header += " %-20s" % loaded[k]['name'][:20]
-        print(header)
-        print("  " + "-" * (22 + 20 * len(available)))
-
-        # Print each metric
-        metric_keys = ['auc_roc', 'auc_prc', 'f1', 'mcc', 'balanced_accuracy',
-                        'sensitivity', 'specificity', 'precision']
-
-        threshold_data = {}
-        for k in available:
-            threshold_data[k] = loaded[k]['results'][t]['metrics']
-
-        for metric_key in metric_keys:
-            row = "  %-22s" % metric_key
-            values = []
-            for k in available:
-                val = threshold_data[k].get(metric_key, 0)
-                values.append(val)
-                row += " %-20.4f" % val
-            # Add delta between last and first
-            if len(values) >= 2:
-                delta = values[-1] - values[0]
-                arrow = "↑" if delta > 0.001 else ("↓" if delta < -0.001 else "=")
-                row += "  Δ=%+.4f %s" % (delta, arrow)
-            print(row)
-
-        comparison["t%d" % t] = threshold_data
-
-        # ── ROC curve comparison for this threshold ──
-        roc_data = {}
-        for k in available:
-            preds = loaded[k]['results'][t]['predictions']
-            roc_data[loaded[k]['name']] = (preds['y_true'], preds['y_prob'])
-
-        plot_comparison_roc(
-            roc_data,
-            title="ROC Comparison — Threshold %d°C" % t,
-            save_path=os.path.join(output_dir, 'roc_comparison_t%d.png' % t)
-        )
-
-        # ── Bar chart comparison for this threshold ──
-        metrics_list = [threshold_data[k] for k in available]
-        labels_list = [loaded[k]['name'][:25] for k in available]
-        plot_metrics_bar_comparison(
-            metrics_list, labels_list,
-            save_path=os.path.join(output_dir, 'metrics_comparison_t%d.png' % t)
-        )
-
-    # ── Grand summary table ──
-    print("\n\n" + "=" * 90)
-    print("  GRAND SUMMARY — AUC-ROC across all thresholds")
-    print("=" * 90)
-
-    # Header
-    header = "  %-12s" % "Threshold"
-    for k in exp_keys:
-        header += " %-22s" % loaded[k]['name'][:22]
-    print(header)
-    print("  " + "-" * (12 + 22 * len(exp_keys)))
-
-    for t in args.thresholds:
-        row = "  %-12s" % ("%d°C" % t)
-        values = []
-        for k in exp_keys:
-            if t in loaded[k]['results']:
-                val = loaded[k]['results'][t]['metrics']['auc_roc']
-                values.append(val)
-                row += " %-22.4f" % val
-            else:
-                values.append(None)
-                row += " %-22s" % "N/A"
-
-        # Best marker
-        valid_values = [v for v in values if v is not None]
-        if valid_values:
-            best = max(valid_values)
-            row += "  best=%.4f" % best
-        print(row)
-
-    print("=" * 90)
-
-    # ── MCC summary table ──
-    print("\n" + "=" * 90)
-    print("  GRAND SUMMARY — MCC across all thresholds")
-    print("=" * 90)
-
-    header = "  %-12s" % "Threshold"
-    for k in exp_keys:
-        header += " %-22s" % loaded[k]['name'][:22]
-    print(header)
-    print("  " + "-" * (12 + 22 * len(exp_keys)))
-
-    for t in args.thresholds:
-        row = "  %-12s" % ("%d°C" % t)
-        for k in exp_keys:
-            if t in loaded[k]['results']:
-                val = loaded[k]['results'][t]['metrics']['mcc']
-                row += " %-22.4f" % val
-            else:
-                row += " %-22s" % "N/A"
-        print(row)
-
-    print("=" * 90)
-
-    # ── Save comparison JSON ──
-    save_path = os.path.join(output_dir, 'comparison.json')
-    with open(save_path, 'w') as f:
-        json.dump(comparison, f, indent=2)
-    print("\nComparison data saved to: %s" % save_path)
-    print("Plots saved to: %s/" % output_dir)
-    print("\nPlots generated:")
-    for f_name in sorted(os.listdir(output_dir)):
-        if f_name.endswith('.png'):
-            print("  📊 %s" % f_name)
-
+    
+    plt.figure(figsize=(15, 10))
+    for i, (key, data) in enumerate(results.items()):
+        plt.subplot(2, 2, i+1)
+        plt.scatter(data['y_true'], data['y_pred'], alpha=0.1, s=5)
+        plt.plot([0, 100], [0, 100], 'r--')
+        plt.xlim(0, 105)
+        plt.ylim(0, 105)
+        plt.title(f"{data['name']}\nMAE: {overall_metrics[key]['mae']:.1f}°C")
+        plt.xlabel('True OGT (°C)')
+        plt.ylabel('Predicted OGT (°C)')
+        plt.grid(True, alpha=0.3)
+        
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_dir, 'scatter_comparison.png'))
+    print(f"\nScatter plots saved to {output_dir}/scatter_comparison.png")
 
 if __name__ == '__main__':
     main()

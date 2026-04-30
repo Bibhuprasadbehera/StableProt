@@ -113,3 +113,57 @@ FASTA Input
 2. **Data format**: Embeddings stored as PyTorch tensors with `{"label": seq_id, "sequence": str, "mean_representations": tensor}`
 3. **Model loading**: Checks for local `pytorch_model.bin` first, then downloads from server path
 4. **Batch processing**: Sorts sequences by length (descending) for efficient batching
+
+---
+## 2026-04-30 — Experimentation Framework (V0, V1, V2)
+
+We have established a structured framework in the `experiments/` directory to compare different training strategies and models.
+
+### 1. Data Preparation
+
+Before training or evaluation, data must be parsed and embeddings generated.
+- **Script**: `experiments/prepare_data.py`
+- **Full Data**: Generates embeddings for all ~1M sequences in the dataset.
+  ```bash
+  python prepare_data.py --full --output prepared_data_full.pt
+  ```
+- **Caching**: Individual embeddings are cached in `experiments/embeddings_cache/` to allow resumption and reuse across experiments.
+
+### 2. Version Details
+
+| Version | Name | Key Features | Purpose |
+|---------|------|--------------|---------|
+| **V0** | **Original** | Pre-trained TemStaPro models (40-80°C) | Gold standard benchmark. |
+| **V1** | **Baseline** | MLP, BCELoss, Thresholds 5-95°C | Baseline for local retraining on full range. |
+| **V2** | **Improved** | Weighted Loss, Balanced Sampling, Dropout, BatchNorm, 5-95°C | Advanced training for class imbalance. |
+| **V3** | **Regression** | MLP (outputs raw temp), MSE Loss | Direct continuous OGT prediction. |
+
+### 3. How to Run & Compare
+
+Each version is contained in its own subdirectory.
+
+#### Evaluate / Train
+```bash
+cd experiments/v0_original && python evaluate.py
+cd experiments/v1_baseline && python train.py
+cd experiments/v2_improved && python train.py
+cd experiments/v3_regression && python train.py
+```
+
+#### Unified Comparison
+```bash
+cd experiments
+python compare_results.py
+```
+This script unifies all models by converting binary outputs (V0, V1, V2) into continuous OGT estimates (Expected Value) to compare directly against V3 Regression.
+
+### 4. Key Metrics for Comparison
+
+Comparison focuses on continuous OGT accuracy across the entire 0-100°C range:
+- **MAE / RMSE**: Overall error in degrees Celsius.
+- **Spearman ρ**: Rank correlation (biologically relevant).
+- **Per-Bin MAE**: Error broken down by extremity (Psychrophiles <20°C, Mesophiles 20-40°C, Thermophiles 40-60°C, Extreme 60-80°C, Hyperthermophiles >80°C).
+
+### 5. Current Findings
+- Training on the **Full Dataset** (900k sequences) is essential. GPU acceleration cuts embedding generation from days to ~12 hours.
+- Binary classifiers naturally struggle at extreme bounds. Regression (V3) aims to solve this.

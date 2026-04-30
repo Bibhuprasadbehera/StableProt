@@ -20,12 +20,12 @@ CONFIG = {
     'loss_type': 'bce',        # Standard BCELoss (unweighted)
     'balanced_sampling': False, # No balanced sampling in baseline
 
-    # Temperature thresholds to train classifiers for
-    'thresholds': [40, 45, 50, 55, 60, 65],
+    # Temperature thresholds to train classifiers for (0-100 range)
+    'thresholds': list(range(5, 100, 5)),
 
     # Seeds for ensemble
     'seeds': [1, 2, 3, 4, 5],
 
     # Data
-    'data_path': 'prepared_data.pt',
+    'data_path': 'prepared_data_full.pt',
 }

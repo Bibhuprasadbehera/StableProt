@@ -24,5 +24,5 @@ CONFIG = {
     'seeds': [1, 2, 3, 4, 5],
 
     # Data
-    'data_path': '../prepared_data_full.pt',  # Default to full dataset if available
+    'data_path': 'prepared_data_full.pt',  # Default to full dataset if available
 }

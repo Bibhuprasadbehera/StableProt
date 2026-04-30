@@ -77,7 +77,7 @@ def run_evaluation(args):
     output_dir = os.path.join(SCRIPT_DIR, 'results')
     os.makedirs(output_dir, exist_ok=True)
 
-    data_path = args.data if args.data else os.path.join(EXPERIMENTS_DIR, 'prepared_data.pt')
+    data_path = args.data if args.data else os.path.join(EXPERIMENTS_DIR, 'prepared_data_full.pt')
     models_dir = os.path.join(STABLEPROT_DIR, 'models')
 
     if not os.path.exists(data_path):

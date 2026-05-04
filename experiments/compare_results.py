@@ -30,13 +30,20 @@ DISPLAY_NAMES = {
 }
 
 def get_temperature_bins():
-    return [
-        ('Psychrophiles (<20°C)', lambda t: t < 20),
-        ('Mesophiles (20-40°C)', lambda t: (t >= 20) and (t < 40)),
-        ('Thermophiles (40-60°C)', lambda t: (t >= 40) and (t < 60)),
-        ('Extreme (60-80°C)', lambda t: (t >= 60) and (t < 80)),
-        ('Hyperthermo (>=80°C)', lambda t: t >= 80),
-    ]
+    bins = []
+    for i in range(0, 100, 10):
+        start = i
+        end = i + 10
+        if i == 0:
+            name = f"0-10°C"
+            bins.append((name, lambda t, s=start, e=end: t < e))
+        elif i == 90:
+            name = f"90-100°C"
+            bins.append((name, lambda t, s=start: t >= s))
+        else:
+            name = f"{start}-{end}°C"
+            bins.append((name, lambda t, s=start, e=end: (t >= s) and (t < e)))
+    return bins
 
 def discover_experiments(experiments_dir):
     """Auto-discover experiment directories that have results."""
@@ -203,25 +210,127 @@ def main():
                 row += f" | {'N/A':<12}"
         print(row)
         
-    # Generate scatter plots
+    # ==========================================
+    # GENERATE PUBLICATION-GRADE PLOTS
+    # ==========================================
     output_dir = os.path.join(SCRIPT_DIR, 'comparison')
     os.makedirs(output_dir, exist_ok=True)
+    import matplotlib.colors as mcolors
+    import seaborn as sns
+
+    # Set publication style
+    try:
+        plt.style.use('seaborn-whitegrid')
+    except OSError:
+        pass # Fallback to default if not found
+    sns.set_context("paper", font_scale=1.2)
     
-    plt.figure(figsize=(15, 10))
+    # 1. Hexbin Scatter Plots (solves overplotting of 200k points)
+    fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+    axes = axes.flatten()
+    
     for i, (key, data) in enumerate(results.items()):
-        plt.subplot(2, 2, i+1)
-        plt.scatter(data['y_true'], data['y_pred'], alpha=0.1, s=5)
-        plt.plot([0, 100], [0, 100], 'r--')
-        plt.xlim(0, 105)
-        plt.ylim(0, 105)
-        plt.title(f"{data['name']}\nMAE: {overall_metrics[key]['mae']:.1f}°C")
-        plt.xlabel('True OGT (°C)')
-        plt.ylabel('Predicted OGT (°C)')
-        plt.grid(True, alpha=0.3)
+        ax = axes[i]
+        hb = ax.hexbin(data['y_true'], data['y_pred'], gridsize=50, cmap='viridis', 
+                       mincnt=1, norm=mcolors.LogNorm())
+        ax.plot([0, 100], [0, 100], 'r--', linewidth=2, alpha=0.8)
+        ax.set_xlim(0, 105)
+        ax.set_ylim(0, 105)
         
+        # Calculate R-squared and MAE for title
+        mae = overall_metrics[key]['mae']
+        spearman = overall_metrics[key]['spearman']
+        
+        ax.set_title(f"{data['name']}\nMAE: {mae:.2f}°C | Spearman ρ: {spearman:.2f}", fontweight='bold')
+        ax.set_xlabel('True OGT (°C)', fontweight='bold')
+        ax.set_ylabel('Predicted OGT (°C)', fontweight='bold')
+        
+        cb = fig.colorbar(hb, ax=ax)
+        cb.set_label('Count (log scale)')
+
     plt.tight_layout()
-    plt.savefig(os.path.join(output_dir, 'scatter_comparison.png'))
-    print(f"\nScatter plots saved to {output_dir}/scatter_comparison.png")
+    scatter_path = os.path.join(output_dir, 'scatter_hexbin_comparison.png')
+    plt.savefig(scatter_path, dpi=300, bbox_inches='tight')
+    plt.close()
+    
+    # 2. Binned MAE Grouped Bar Chart
+    plt.figure(figsize=(14, 6))
+    
+    bin_labels = [name.split(' ')[0] for name, _ in bins]
+    n_bins = len(bins)
+    n_models = len(results)
+    
+    bar_width = 0.8 / n_models
+    x = np.arange(n_bins)
+    
+    colors = ['#4f46e5', '#10b981', '#f59e0b', '#ec4899']
+    
+    for i, (key, data) in enumerate(results.items()):
+        y_t = data['y_true']
+        y_p = data['y_pred']
+        
+        bin_maes = []
+        for _, condition in bins:
+            mask = np.array([condition(t) for t in y_t])
+            if np.sum(mask) > 0:
+                bin_maes.append(np.mean(np.abs(y_t[mask] - y_p[mask])))
+            else:
+                bin_maes.append(0)
+                
+        plt.bar(x + i*bar_width - (0.8/2) + bar_width/2, bin_maes, 
+                width=bar_width, label=data['name'], color=colors[i % len(colors)], alpha=0.85)
+                
+    plt.xticks(x, bin_labels, rotation=45, ha='right', fontweight='bold')
+    plt.xlabel('True Temperature Range', fontweight='bold')
+    plt.ylabel('Mean Absolute Error (°C)', fontweight='bold')
+    plt.title('Error Profile Across Temperature Bins', fontweight='bold', fontsize=14)
+    plt.legend(title='Model', bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.grid(axis='y', linestyle='--', alpha=0.7)
+    
+    plt.tight_layout()
+    bar_path = os.path.join(output_dir, 'binned_mae_barplot.png')
+    plt.savefig(bar_path, dpi=300, bbox_inches='tight')
+    plt.close()
+
+    # 3. Error Distribution Violin Plot
+    plt.figure(figsize=(10, 6))
+    
+    plot_data = []
+    labels = []
+    
+    for key, data in results.items():
+        errors = data['y_pred'] - data['y_true']
+        plot_data.append(errors)
+        labels.append(data['name'].split(' ')[0]) # Short name
+        
+    parts = plt.violinplot(plot_data, showmeans=True, showmedians=False, showextrema=True)
+    
+    # Color violins
+    for i, pc in enumerate(parts['bodies']):
+        pc.set_facecolor(colors[i % len(colors)])
+        pc.set_edgecolor('black')
+        pc.set_alpha(0.6)
+        
+    for partname in ('cbars', 'cmins', 'cmaxes', 'cmeans'):
+        vp = parts[partname]
+        vp.set_edgecolor('black')
+        vp.set_linewidth(1)
+        
+    plt.axhline(0, color='red', linestyle='--', alpha=0.7, label='Zero Error')
+    plt.xticks(np.arange(1, len(labels) + 1), labels, fontweight='bold')
+    plt.ylabel('Prediction Error (Pred - True) °C', fontweight='bold')
+    plt.title('Distribution of Prediction Errors', fontweight='bold', fontsize=14)
+    plt.grid(axis='y', linestyle='--', alpha=0.7)
+    
+    plt.tight_layout()
+    violin_path = os.path.join(output_dir, 'error_distribution_violin.png')
+    plt.savefig(violin_path, dpi=300, bbox_inches='tight')
+    plt.close()
+
+    print(f"\nPublication-grade plots saved to {output_dir}/")
+    print(f"  - {os.path.basename(scatter_path)}")
+    print(f"  - {os.path.basename(bar_path)}")
+    print(f"  - {os.path.basename(violin_path)}")
 
 if __name__ == '__main__':
     main()

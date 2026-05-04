@@ -3,3 +3,6 @@ __pycache__/
 update_tests.sh
 experiments/embeddings_cache/
 experiments/prepared_data.pt
+experiments/v0_original/results
+experiments/v2_improved/results
+experiments/v3_regression/results

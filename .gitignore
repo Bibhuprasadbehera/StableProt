@@ -11,13 +11,11 @@ experiments/v3_regression/results
 *.pth
 *.bin
 
-# Ignore plots
-*.png
-*.jpg
-*.pdf
-
 # Cache
 __pycache__/
 *.pyc
 embeddings_cache/
 results/
+
+# Datasets
+*.fasta

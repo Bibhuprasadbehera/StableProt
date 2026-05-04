@@ -6,3 +6,18 @@ experiments/prepared_data.pt
 experiments/v0_original/results
 experiments/v2_improved/results
 experiments/v3_regression/results
+# Ignore model and data files
+*.pt
+*.pth
+*.bin
+
+# Ignore plots
+*.png
+*.jpg
+*.pdf
+
+# Cache
+__pycache__/
+*.pyc
+embeddings_cache/
+results/

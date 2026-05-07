@@ -19,3 +19,8 @@ results/
 
 # Datasets
 *.fasta
+experiments/esm2_tm_embed.log
+experiments/protherm_embed.log
+experiments/cdhit.log
+experiments/esm2_train_embed.log
+experiments/tembert_embed.log

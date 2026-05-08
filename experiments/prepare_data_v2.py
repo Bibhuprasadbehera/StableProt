@@ -41,7 +41,8 @@ def main():
     # 1. Load OGT Training Data (Cleaned after CD-HIT)
     # The IDs in OGT fasta look like: >taxid|uniprotid|ogt
     print("Processing OGT data...")
-    ogt_records = load_embeddings_for_fasta("new_data/ogt_cleaned.fasta", cache_dir)
+    # Update to the deduplicated fasta file
+    ogt_records = load_embeddings_for_fasta("new_data/ogt_training_dedup.fasta", cache_dir)
     
     train_ogt = {
         "ids": [],
@@ -54,7 +55,8 @@ def main():
         parts = r["id"].split("|")
         if len(parts) >= 3:
             try:
-                ogt_val = float(parts[2])
+                # header is OGT|taxid|uniprotid|ogt
+                ogt_val = float(parts[-1])
                 train_ogt["ids"].append(r["id"])
                 train_ogt["sequences"].append(r["seq"])
                 train_ogt["labels"].append(ogt_val)
@@ -98,12 +100,13 @@ def main():
         "ids": [], "sequences": [], "labels": [], "embeddings": [], "source": []
     }
     
-    # We need to split TemBERTure into train and val using the original CSVs or just use them all as train
-    # since we have ProThermDB as test. But TemBERTure has its own val set. 
-    # Let's read the CSV to know which is train and which is val
-    tembert_train_df = pd.read_csv("new_data/tembert_train.csv")
-    tembert_val_df = pd.read_csv("new_data/tembert_val.csv")
-    val_ids = set(tembert_val_df["Protein_ID"].astype(str))
+    # We need to split TemBERTure into train and val using the original files
+    try:
+        tembert_val_df = pd.read_csv("TemBERTure_repo/data/TemBERTureVal_reg.txt")
+        val_ids = set(tembert_val_df["Protein_ID"].astype(str))
+    except Exception as e:
+        print(f"Warning: Could not load TemBERTure validation split: {e}. Will put all in train.")
+        val_ids = set()
     
     val_tm = {
         "ids": [], "sequences": [], "labels": [], "embeddings": [], "source": []

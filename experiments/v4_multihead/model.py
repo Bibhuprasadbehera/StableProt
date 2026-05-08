@@ -2,9 +2,27 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+class AttentionPool(nn.Module):
+    def __init__(self, dim=2560):
+        super().__init__()
+        self.attn = nn.Linear(dim, 1)
+        
+    def forward(self, x):
+        # x shape: (batch, seq_len, dim)
+        # if x is already (batch, dim) from mean pooling, we just return x
+        if x.dim() == 2:
+            return x
+        weights = F.softmax(self.attn(x), dim=1) # (batch, seq_len, 1)
+        return (x * weights).sum(dim=1) # (batch, dim)
+
 class MultiHead_TmPredictor(nn.Module):
-    def __init__(self, input_size=2560, hidden1=512, hidden2=256, dropout1=0.3, dropout2=0.2):
+    def __init__(self, input_size=2560, hidden1=512, hidden2=256, dropout1=0.3, dropout2=0.2, use_attention=False):
         super(MultiHead_TmPredictor, self).__init__()
+        
+        # Optional Attention Pooling for sequence-level features
+        self.use_attention = use_attention
+        if self.use_attention:
+            self.attention_pool = AttentionPool(input_size)
         
         # Shared backbone
         self.fc1 = nn.Linear(input_size, hidden1)
@@ -23,6 +41,9 @@ class MultiHead_TmPredictor(nn.Module):
         self.head_tm = nn.Linear(hidden2, 1)   # Head B: Tm
 
     def forward_backbone(self, x):
+        if hasattr(self, 'use_attention') and self.use_attention and x.dim() == 3:
+            x = self.attention_pool(x)
+            
         # First layer
         x1 = self.fc1(x)
         x1 = self.bn1(x1)

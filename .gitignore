@@ -24,3 +24,5 @@ experiments/protherm_embed.log
 experiments/cdhit.log
 experiments/esm2_train_embed.log
 experiments/tembert_embed.log
+new_data/
+experiments/meltome_embed.log

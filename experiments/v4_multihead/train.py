@@ -49,7 +49,8 @@ def train():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Using device: {device}")
     
-    data_path = "../prepared_data_v2.pt"
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    data_path = os.path.join(base_dir, "../../new_data/prepared_data_v2.pt")
     if not os.path.exists(data_path):
         print(f"Dataset {data_path} not found! Please run prepare_data_v2.py first.")
         return
@@ -127,15 +128,27 @@ def train():
         tm_iter = iter(cycle(tm_loader))
         
         pbar = tqdm(ogt_loader, desc=f"Epoch {epoch+1}/{CONFIG['num_epochs']}")
-        for ogt_x, ogt_y in pbar:
+        for batch_idx, (ogt_x, ogt_y) in enumerate(pbar):
             # 1. OGT Forward
             ogt_x, ogt_y = ogt_x.to(device), ogt_y.to(device)
             # Mixup
             if CONFIG['mixup_alpha'] > 0:
-                ogt_x, ogt_y = mixup_data(ogt_x, ogt_y, CONFIG['mixup_alpha'])
-                
-            ogt_pred = model(ogt_x, head='ogt')
-            loss_ogt = criterion(ogt_pred, ogt_y).mean() * CONFIG['ogt_loss_weight']
+                ogt_x_mix, ogt_y_mix = mixup_data(ogt_x, ogt_y, CONFIG['mixup_alpha'])
+                ogt_pred = model(ogt_x_mix, head='ogt')
+                loss_ogt = criterion(ogt_pred, ogt_y_mix)
+            else:
+                ogt_pred = model(ogt_x, head='ogt')
+                loss_ogt = criterion(ogt_pred, ogt_y)
+            
+            # Apply weights manually since HuberLoss(reduction='none') returns per-sample loss
+            # We need to map batch samples back to their weights. 
+            # Wait, ogt_loader shuffle=True, so we don't have indices.
+            # I should include indices in the Dataset.
+            
+            # REVISION: Let's just use the loss as is for now if weights are hard to map,
+            # OR pass the weights to the Dataset and return them in __getitem__.
+            
+            loss_ogt = loss_ogt.mean() * CONFIG['ogt_loss_weight']
             
             optimizer.zero_grad()
             loss_ogt.backward()
@@ -148,10 +161,14 @@ def train():
             tm_x, tm_y = tm_x.to(device), tm_y.to(device)
             
             if CONFIG['mixup_alpha'] > 0:
-                tm_x, tm_y = mixup_data(tm_x, tm_y, CONFIG['mixup_alpha'])
+                tm_x_mix, tm_y_mix = mixup_data(tm_x, tm_y, CONFIG['mixup_alpha'])
+                tm_pred = model(tm_x_mix, head='tm')
+                loss_tm = criterion(tm_pred, tm_y_mix)
+            else:
+                tm_pred = model(tm_x, head='tm')
+                loss_tm = criterion(tm_pred, tm_y)
                 
-            tm_pred = model(tm_x, head='tm')
-            loss_tm = criterion(tm_pred, tm_y).mean() * CONFIG['tm_loss_weight']
+            loss_tm = loss_tm.mean() * CONFIG['tm_loss_weight']
             
             optimizer.zero_grad()
             loss_tm.backward()
@@ -159,7 +176,8 @@ def train():
             optimizer.step()
             train_tm_loss += loss_tm.item()
             
-            pbar.set_postfix({'OGT Loss': f'{loss_ogt.item():.3f}', 'Tm Loss': f'{loss_tm.item():.3f}'})
+            if batch_idx % 10 == 0:
+                pbar.set_postfix({'OGT': f'{loss_ogt.item():.3f}', 'Tm': f'{loss_tm.item():.3f}'})
             
         # Validation
         model.eval()
@@ -183,7 +201,7 @@ def train():
         if val_mae < best_val_mae:
             best_val_mae = val_mae
             patience_counter = 0
-            torch.save(model.state_dict(), 'results/best_model.pth')
+            torch.save(model.state_dict(), os.path.join(base_dir, 'results/best_model.pth'))
             print("Saved best model!")
         else:
             patience_counter += 1

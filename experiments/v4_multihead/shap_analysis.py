@@ -6,7 +6,11 @@ from model import MultiHead_TmPredictor
 from config import CONFIG
 import numpy as np
 
-def run_shap_analysis(model_path, data_path="../prepared_data_v2.pt"):
+def run_shap_analysis(model_path, data_path="../../new_data/prepared_data_v2.pt"):
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    if not os.path.isabs(data_path):
+        data_path = os.path.join(base_dir, data_path)
+    
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
     print(f"Loading data from {data_path}...")
@@ -50,21 +54,28 @@ def run_shap_analysis(model_path, data_path="../prepared_data_v2.pt"):
             
     wrapped_model = TmHeadWrapper(model)
     
-    explainer = shap.DeepExplainer(wrapped_model, background)
+    explainer = shap.GradientExplainer(wrapped_model, background)
     
     print("Calculating SHAP values... This may take a few minutes.")
     shap_values = explainer.shap_values(x_test)
+    
+    # GradientExplainer for regression returns a list [values] or array (num_samples, num_features)
+    if isinstance(shap_values, list):
+        shap_values = shap_values[0]
     
     print("Generating Beeswarm plot...")
     plt.figure(figsize=(10, 6))
     shap.summary_plot(shap_values, x_test.cpu().numpy(), show=False)
     
-    os.makedirs("results", exist_ok=True)
-    plt.savefig("results/shap_summary.png", bbox_inches='tight', dpi=300)
-    print("Saved SHAP summary plot to results/shap_summary.png")
+    os.makedirs(os.path.join(base_dir, "results"), exist_ok=True)
+    out_plot = os.path.join(base_dir, "results/shap_summary.png")
+    plt.savefig(out_plot, bbox_inches='tight', dpi=300)
+    print(f"Saved SHAP summary plot to {out_plot}")
 
 if __name__ == "__main__":
-    if os.path.exists("results/best_model.pth"):
-        run_shap_analysis("results/best_model.pth")
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    model_path = os.path.join(base_dir, "results/best_model.pth")
+    if os.path.exists(model_path):
+        run_shap_analysis(model_path)
     else:
-        print("Model not trained yet!")
+        print(f"Model not trained yet at {model_path}!")

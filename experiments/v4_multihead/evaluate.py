@@ -79,7 +79,11 @@ def evaluate_model(model_path, data_path="../prepared_data_v2.pt"):
         print(f"{t}°C{' '*(8-len(str(t)))} | {auc:.3f} | {f1:.3f} | {mcc:.3f}")
 
 if __name__ == "__main__":
-    if os.path.exists("results/best_model.pth"):
-        evaluate_model("results/best_model.pth")
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    model_path = os.path.join(base_dir, "results/best_model.pth")
+    data_path = os.path.join(base_dir, "../../new_data/prepared_data_v2.pt")
+    
+    if os.path.exists(model_path):
+        evaluate_model(model_path, data_path)
     else:
-        print("No trained model found at results/best_model.pth!")
+        print(f"No trained model found at {model_path}!")

@@ -5,8 +5,10 @@ import hashlib
 from Bio import SeqIO
 from tqdm import tqdm
 
-def get_seq_hash(seq):
-    return hashlib.sha256(seq.encode()).hexdigest()
+def get_seq_hash(seq, max_len=1500):
+    # ESM-2 generation uses SHA-256 on truncated sequence
+    truncated_seq = seq[:max_len]
+    return hashlib.sha256(truncated_seq.encode()).hexdigest()
 
 def load_embeddings_for_fasta(fasta_path, cache_dir="esm2_embeddings_cache"):
     """
@@ -16,26 +18,37 @@ def load_embeddings_for_fasta(fasta_path, cache_dir="esm2_embeddings_cache"):
     print(f"Loading embeddings for {fasta_path}...")
     records = []
     missing = 0
+    total = 0
     for record in tqdm(SeqIO.parse(fasta_path, "fasta")):
+        total += 1
         seq = str(record.seq)
         seq_hash = get_seq_hash(seq)
         emb_path = os.path.join(cache_dir, f"esm2_{seq_hash}.pt")
         
         if os.path.exists(emb_path):
-            emb = torch.load(emb_path, weights_only=True)
-            records.append({
-                "id": record.id,
-                "seq": seq,
-                "embedding": emb
-            })
+            try:
+                emb = torch.load(emb_path, weights_only=True)
+                if torch.isnan(emb).any():
+                    print(f"Warning: NaN detected in embedding {emb_path}. Skipping.")
+                    missing += 1
+                    continue
+                records.append({
+                    "id": record.id,
+                    "seq": seq,
+                    "embedding": emb
+                })
+            except Exception as e:
+                print(f"Error loading {emb_path}: {e}")
+                missing += 1
         else:
             missing += 1
             
-    print(f"Loaded {len(records)} sequences. Missing embeddings for {missing}.")
+    print(f"Loaded {len(records)}/{total} sequences. Missing: {missing}.")
     return records
 
 def main():
-    cache_dir = "esm2_embeddings_cache"
+    cache_dir = "experiments/esm2_embeddings_cache"
+    os.makedirs("experiments", exist_ok=True)
     output_path = "new_data/prepared_data_v2.pt"
     
     # 1. Load OGT Training Data (Cleaned after CD-HIT)

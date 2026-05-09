@@ -8,8 +8,9 @@ from config import CONFIG
 import pandas as pd
 
 def generate_plots(model_path, data_path="../prepared_data_v2.pt"):
+    base_dir = os.path.dirname(os.path.abspath(__file__))
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    os.makedirs("results", exist_ok=True)
+    os.makedirs(os.path.join(base_dir, "results"), exist_ok=True)
     
     print(f"Loading data from {data_path}...")
     data = torch.load(data_path, weights_only=True)
@@ -60,7 +61,7 @@ def generate_plots(model_path, data_path="../prepared_data_v2.pt"):
     plt.xlim(min_val, max_val)
     plt.ylim(min_val, max_val)
     plt.title("Actual vs Predicted Tm (Test Set)")
-    plt.savefig("results/scatter_plot.png", dpi=300, bbox_inches='tight')
+    plt.savefig(os.path.join(base_dir, "results/scatter_plot.png"), dpi=300, bbox_inches='tight')
     plt.close()
     
     # 2. Binned MAE Heatmap/Bar chart
@@ -78,7 +79,7 @@ def generate_plots(model_path, data_path="../prepared_data_v2.pt"):
     for i, v in enumerate(binned_mae['Absolute Error']):
         if not np.isnan(v):
             plt.text(i, v + 0.2, f"{v:.2f}", ha='center')
-    plt.savefig("results/binned_mae.png", dpi=300, bbox_inches='tight')
+    plt.savefig(os.path.join(base_dir, "results/binned_mae.png"), dpi=300, bbox_inches='tight')
     plt.close()
     
     # 3. Violin plot of Absolute Errors
@@ -87,13 +88,17 @@ def generate_plots(model_path, data_path="../prepared_data_v2.pt"):
     sns.violinplot(data=df, x='Tm Bin', y='Absolute Error', inner="quartile", palette='muted')
     plt.title("Error Distribution by Temperature Bin")
     plt.ylabel("Absolute Error (°C)")
-    plt.savefig("results/error_violin.png", dpi=300, bbox_inches='tight')
+    plt.savefig(os.path.join(base_dir, "results/error_violin.png"), dpi=300, bbox_inches='tight')
     plt.close()
     
     print("All plots generated and saved to results/ directory!")
 
 if __name__ == "__main__":
-    if os.path.exists("results/best_model.pth"):
-        generate_plots("results/best_model.pth")
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    model_path = os.path.join(base_dir, "results/best_model.pth")
+    data_path = os.path.join(base_dir, "../../new_data/prepared_data_v2.pt")
+    
+    if os.path.exists(model_path):
+        generate_plots(model_path, data_path)
     else:
-        print("Model not trained yet!")
+        print(f"Model not found at {model_path}!")

@@ -191,7 +191,7 @@ Create `experiments/prepare_data_v2.py`:
 |---------|--------|--------|------|---------|
 | OGT train/val/test | TemStaPro FASTA | OGT (4-100°C) | ~1.4M | Head A training |
 | Tm train/val | TemBERTureDB reg OR Meltome | Tm (27-99°C) | ~25K | Head B training |
-| Tm test | ProThermDB | Tm (40-91°C) | ~3.5K | Final validation |
+| Tm test | ProThermDB | Tm (0-100°C) | ~3.5K | Final validation |
 
 - Saves as `prepared_data_esm2_v2.pt`:
 ```python
@@ -357,7 +357,7 @@ For regression:
 
 For comparison with binary classifiers (TemStaPro):
 - Convert Tm predictions to binary labels at each threshold
-- Compute AUC-ROC, F1, MCC at thresholds 40, 45, 50, 55, 60, 65°C
+- Compute AUC-ROC, F1, MCC at thresholds 0, 5, 10, ..., 100°C
 
 ---
 

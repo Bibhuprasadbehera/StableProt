@@ -89,19 +89,33 @@ def load_and_convert_predictions(exp_info):
             return None, None
             
         # We need the true temperatures, we can get them from the original data
-        # But wait, binary predictions only saved y_true (binary labels) and y_prob.
-        # We need the actual test temperatures. 
-        # Let's load the full prepared data to get true test temps.
-        try:
-            data = torch.load(os.path.join(SCRIPT_DIR, 'prepared_data_full.pt'))
-            y_true_temp = np.array(data['test_temps'])
-        except:
-            try:
-                data = torch.load(os.path.join(SCRIPT_DIR, 'prepared_data.pt'))
-                y_true_temp = np.array(data['test_temps'])
-            except:
-                print("ERROR: Cannot load prepared_data.pt to get true temperatures.")
-                return None, None
+        # Check multiple locations for prepared data
+        data_paths = [
+            os.path.join(os.path.dirname(SCRIPT_DIR), 'new_data', 'prepared_data_v2.pt'),
+            os.path.join(os.path.dirname(SCRIPT_DIR), 'prepared_data_full.pt'),
+            os.path.join(os.path.dirname(SCRIPT_DIR), 'prepared_data.pt'),
+            os.path.join(SCRIPT_DIR, 'prepared_data_full.pt'),
+            os.path.join(SCRIPT_DIR, 'prepared_data.pt')
+        ]
+        
+        y_true_temp = None
+        for dp in data_paths:
+            if os.path.exists(dp):
+                try:
+                    data = torch.load(dp, weights_only=True)
+                    if 'test_tm' in data:
+                        y_true_temp = data['test_tm']['labels'].numpy()
+                    elif 'test_temps' in data:
+                        y_true_temp = np.array(data['test_temps'])
+                    if y_true_temp is not None:
+                        print(f"Loaded true temperatures from {dp}")
+                        break
+                except Exception as e:
+                    print(f"Failed to load {dp}: {e}")
+                    
+        if y_true_temp is None:
+            print("ERROR: Cannot load prepared_data to get true temperatures.")
+            return None, None
 
         # Build matrix of probabilities: (num_samples, num_thresholds)
         n_samples = len(y_true_temp)
@@ -155,7 +169,7 @@ def main():
     print("  UNIFIED EXPERIMENT COMPARISON (OGT Metric)")
     print("=" * 80)
     
-    experiments = discover_experiments(SCRIPT_DIR)
+    experiments = discover_experiments(os.path.dirname(SCRIPT_DIR))
     
     results = {}
     for key, info in experiments.items():

@@ -78,14 +78,16 @@ def main():
     with open(comp_json_path, 'r') as f:
         comp_data = json.load(f)
         
-    thresholds = sorted(comp_data.keys())
-    print(f"Thresholds found: {thresholds}")
+    thresholds = [f"t{t}" for t in range(0, 101, 5)]
+    print(f"Thresholds to evaluate: {thresholds}")
     
     print("Evaluating V4 model...")
     v4_metrics = evaluate_v4(v4_model_path, data_path, thresholds)
     
-    # Merge v4 into comparison data
+    # Ensure all thresholds exist in comp_data
     for t in thresholds:
+        if t not in comp_data:
+            comp_data[t] = {}
         comp_data[t]["v4_multihead"] = v4_metrics[t]
         
     # Save final comparison
@@ -98,33 +100,59 @@ def main():
     plot_comparison(comp_data, base_dir)
 
 def plot_comparison(comp_data, base_dir):
-    thresholds = sorted(comp_data.keys())
-    models = ["v0_original", "v1_baseline", "v2_improved", "v4_multihead"]
+    thresholds_int = sorted([int(t[1:]) for t in comp_data.keys()])
+    # Pick a subset of thresholds for cleaner bars (every 10 degrees)
+    plot_thresholds_int = [t for t in thresholds_int if t % 10 == 0]
+    plot_thresholds = [f"t{t}" for t in plot_thresholds_int]
     
-    # AUC Comparison
-    plt.figure(figsize=(10, 6))
-    for model in models:
-        aucs = [comp_data[t][model]["auc_roc"] for t in thresholds]
-        plt.plot([int(t[1:]) for t in thresholds], aucs, marker='o', label=model)
+    models = ["v0_original", "v1_baseline", "v2_improved", "v4_multihead"]
+    colors = ['#94a3b8', '#64748b', '#475569', '#3b82f6'] # Slate to Blue (V4 is bright blue)
+    
+    n_thresholds = len(plot_thresholds)
+    n_models = len(models)
+    x = np.arange(n_thresholds)
+    bar_width = 0.8 / n_models
+    
+    # 1. AUC Grouped Bar Chart
+    plt.figure(figsize=(14, 7))
+    for i, model in enumerate(models):
+        aucs = []
+        for t in plot_thresholds:
+            val = comp_data[t].get(model, {}).get("auc_roc", 0)
+            aucs.append(val)
         
-    plt.title("AUC-ROC across Temperature Thresholds")
-    plt.xlabel("Threshold (°C)")
-    plt.ylabel("AUC-ROC")
-    plt.legend()
-    plt.grid(True, linestyle='--', alpha=0.7)
+        plt.bar(x + i*bar_width - (0.8/2) + bar_width/2, aucs, 
+                width=bar_width, label=model, color=colors[i], alpha=0.9, edgecolor='white')
+        
+    plt.title("AUC-ROC Comparison (Higher is Better)", fontsize=16, fontweight='bold')
+    plt.xlabel("Temperature Threshold (°C)", fontsize=12, fontweight='bold')
+    plt.ylabel("AUC-ROC Score", fontsize=12, fontweight='bold')
+    plt.xticks(x, [f"{t}°C" for t in plot_thresholds_int], fontweight='bold')
+    plt.ylim(0, 1.1)
+    plt.legend(title="Model Version", bbox_to_anchor=(1.02, 1), loc='upper left')
+    plt.grid(axis='y', linestyle='--', alpha=0.3)
+    plt.tight_layout()
     plt.savefig(os.path.join(base_dir, "../comparison/auc_comparison_v4.png"), dpi=300)
     
-    # F1 Comparison
-    plt.figure(figsize=(10, 6))
-    for model in models:
-        f1s = [comp_data[t][model]["f1"] for t in thresholds]
-        plt.plot([int(t[1:]) for t in thresholds], f1s, marker='s', label=model)
+    # 2. F1 Grouped Bar Chart
+    plt.figure(figsize=(14, 7))
+    for i, model in enumerate(models):
+        f1s = []
+        for t in plot_thresholds:
+            val = comp_data[t].get(model, {}).get("f1", 0)
+            f1s.append(val)
+            
+        plt.bar(x + i*bar_width - (0.8/2) + bar_width/2, f1s, 
+                width=bar_width, label=model, color=colors[i], alpha=0.9, edgecolor='white')
         
-    plt.title("F1-Score across Temperature Thresholds")
-    plt.xlabel("Threshold (°C)")
-    plt.ylabel("F1-Score")
-    plt.legend()
-    plt.grid(True, linestyle='--', alpha=0.7)
+    plt.title("F1-Score Comparison (Higher is Better)", fontsize=16, fontweight='bold')
+    plt.xlabel("Temperature Threshold (°C)", fontsize=12, fontweight='bold')
+    plt.ylabel("F1-Score", fontsize=12, fontweight='bold')
+    plt.xticks(x, [f"{t}°C" for t in plot_thresholds_int], fontweight='bold')
+    plt.ylim(0, 1.1)
+    plt.legend(title="Model Version", bbox_to_anchor=(1.02, 1), loc='upper left')
+    plt.grid(axis='y', linestyle='--', alpha=0.3)
+    plt.tight_layout()
     plt.savefig(os.path.join(base_dir, "../comparison/f1_comparison_v4.png"), dpi=300)
     
     print("Plots saved to experiments/comparison/")

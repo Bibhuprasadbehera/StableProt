@@ -27,6 +27,8 @@ DISPLAY_NAMES = {
     'v1_baseline': 'V1 Baseline (0-100 binary)',
     'v2_improved': 'V2 Improved (0-100 binary)',
     'v3_regression': 'V3 Regression (continuous)',
+    'v4_improved': 'V4 Improved Regression',
+    'v5_multihead': 'V5 Multi-Head (OGT Head)',
 }
 
 def get_temperature_bins():
@@ -71,11 +73,17 @@ def load_and_convert_predictions(exp_info):
     results_dir = exp_info['dir']
     
     if exp_info['is_regression']:
-        preds_path = os.path.join(results_dir, 'ensemble', 'predictions.pt')
+        ogt_eval_path = os.path.join(results_dir, 'ensemble', 'ogt_eval', 'predictions.pt')
+        preds_path = ogt_eval_path if os.path.exists(ogt_eval_path) else os.path.join(results_dir, 'ensemble', 'predictions.pt')
         if not os.path.exists(preds_path):
             return None, None
-        data = torch.load(preds_path)
-        return data['y_true'].numpy(), data['y_pred'].numpy()
+        data = torch.load(preds_path, weights_only=False)
+        y_true = data['y_true'].numpy() if hasattr(data['y_true'], 'numpy') else np.array(data['y_true'])
+        y_pred = data['y_pred'].numpy() if hasattr(data['y_pred'], 'numpy') else np.array(data['y_pred'])
+        # Only return if it evaluates on the 210K OGT test set to keep comparison consistent
+        if len(y_true) < 100000:
+            return None, None
+        return y_true, y_pred
     
     else:
         # Binary experiment
@@ -240,7 +248,10 @@ def main():
     sns.set_context("paper", font_scale=1.2)
     
     # 1. Hexbin Scatter Plots (solves overplotting of 200k points)
-    fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+    n_models = len(results)
+    cols = 2
+    rows = int(np.ceil(n_models / cols))
+    fig, axes = plt.subplots(rows, cols, figsize=(12, 5 * rows))
     axes = axes.flatten()
     
     for i, (key, data) in enumerate(results.items()):
@@ -262,22 +273,26 @@ def main():
         cb = fig.colorbar(hb, ax=ax)
         cb.set_label('Count (log scale)')
 
+    # Hide extra unused subplots
+    for j in range(n_models, len(axes)):
+        axes[j].set_visible(False)
+
     plt.tight_layout()
     scatter_path = os.path.join(output_dir, 'scatter_hexbin_comparison.png')
     plt.savefig(scatter_path, dpi=300, bbox_inches='tight')
     plt.close()
     
+    # Premium curated colors palette for publication
+    colors = ['#4f46e5', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4', '#eab308', '#f43f5e']
+    
     # 2. Binned MAE Grouped Bar Chart
-    plt.figure(figsize=(14, 6))
+    plt.figure(figsize=(16, 7))
     
     bin_labels = [name.split(' ')[0] for name, _ in bins]
     n_bins = len(bins)
-    n_models = len(results)
     
     bar_width = 0.8 / n_models
     x = np.arange(n_bins)
-    
-    colors = ['#4f46e5', '#10b981', '#f59e0b', '#ec4899']
     
     for i, (key, data) in enumerate(results.items()):
         y_t = data['y_true']
@@ -307,7 +322,7 @@ def main():
     plt.close()
 
     # 3. Error Distribution Violin Plot
-    plt.figure(figsize=(10, 6))
+    plt.figure(figsize=(12, 6))
     
     plot_data = []
     labels = []
@@ -315,7 +330,9 @@ def main():
     for key, data in results.items():
         errors = data['y_pred'] - data['y_true']
         plot_data.append(errors)
-        labels.append(data['name'].split(' ')[0]) # Short name
+        # Handle wrapping/shortening for x-axis label clarity
+        short_name = data['name'].replace('Regression', 'Regr.').replace('Original', 'Orig.').replace('Baseline', 'Base.').replace('Improved', 'Impr.')
+        labels.append(short_name)
         
     parts = plt.violinplot(plot_data, showmeans=True, showmedians=False, showextrema=True)
     
@@ -331,7 +348,7 @@ def main():
         vp.set_linewidth(1)
         
     plt.axhline(0, color='red', linestyle='--', alpha=0.7, label='Zero Error')
-    plt.xticks(np.arange(1, len(labels) + 1), labels, fontweight='bold')
+    plt.xticks(np.arange(1, len(labels) + 1), labels, rotation=15, ha='right', fontweight='bold')
     plt.ylabel('Prediction Error (Pred - True) °C', fontweight='bold')
     plt.title('Distribution of Prediction Errors', fontweight='bold', fontsize=14)
     plt.grid(axis='y', linestyle='--', alpha=0.7)

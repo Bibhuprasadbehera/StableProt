@@ -61,40 +61,42 @@ def create_data_loaders(data_path, batch_size, train_temps_for_weights=None):
     val_dataset = TemStaProDataset(data['val_embeddings'], val_labels)
     test_dataset = TemStaProDataset(data['test_embeddings'], test_labels)
 
-    # Weighted sampler for imbalanced temperature distribution
-    sample_weights = get_binned_weights(data['train_temps'])
-    sampler = WeightedRandomSampler(sample_weights, num_samples=len(sample_weights), replacement=True)
-
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, sampler=sampler, drop_last=True)
+    # No weighted sampling — hurts overall MAE. Use plain shuffle.
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
     return train_loader, val_loader, test_loader, data['test_temps'], data['train_temps']
 
 
-def evaluate(model, loader, criterion, device, mean=0.0, std=1.0, denorm=False):
+
+def evaluate(model, loader, criterion, device, mean=0.0, std=1.0, normalize=False):
+    """Evaluate model. If normalize=True, targets are raw and need normalization for loss."""
     model.eval()
     total_loss = 0.0
-    all_preds, all_targets = [], []
+    all_preds_raw, all_targets_raw = [], []
 
     with torch.no_grad():
-        for inputs, targets in loader:
-            inputs, targets = inputs.to(device).float(), targets.to(device).float()
+        for inputs, targets_raw in loader:
+            inputs, targets_raw = inputs.to(device).float(), targets_raw.to(device).float()
             outputs = model(inputs).squeeze(-1)
-            loss = criterion(outputs, targets)
+
+            # Normalize targets to match model output space for loss
+            if normalize:
+                targets_norm = (targets_raw - mean) / std
+                loss = criterion(outputs, targets_norm)
+                # Denormalize predictions for MAE
+                preds_raw = outputs.cpu() * std + mean
+            else:
+                loss = criterion(outputs, targets_raw)
+                preds_raw = outputs.cpu()
+
             total_loss += loss.item() * inputs.size(0)
-
-            preds = outputs.cpu()
-            tgts = targets.cpu()
-            if denorm:
-                preds = preds * std + mean
-                tgts = tgts * std + mean
-
-            all_preds.extend(preds.tolist())
-            all_targets.extend(tgts.tolist())
+            all_preds_raw.extend(preds_raw.tolist())
+            all_targets_raw.extend(targets_raw.cpu().tolist())
 
     avg_loss = total_loss / len(loader.dataset)
-    mae = np.mean(np.abs(np.array(all_preds) - np.array(all_targets)))
+    mae = np.mean(np.abs(np.array(all_preds_raw) - np.array(all_targets_raw)))
     return avg_loss, mae
 
 
@@ -116,13 +118,10 @@ def train_one_seed(seed, train_loader, val_loader, train_mean, train_std, save_d
         dropout_2=CONFIG['dropout_2']
     ).to(device)
 
-    # Huber loss instead of MSE
-    criterion = nn.HuberLoss(delta=CONFIG['huber_delta'])
+    # MSE loss (Huber hurt on clean OGT data)
+    criterion = nn.MSELoss()
     optimizer = optim.Adam(model.parameters(), lr=CONFIG['learning_rate'], weight_decay=CONFIG['weight_decay'])
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode='min', patience=CONFIG['lr_scheduler_patience'],
-        factor=CONFIG['lr_scheduler_factor'], min_lr=1e-6
-    )
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=CONFIG['num_epochs'], eta_min=1e-6)
 
     best_val_mae = float('inf')
     patience_counter = 0
@@ -136,14 +135,6 @@ def train_one_seed(seed, train_loader, val_loader, train_mean, train_std, save_d
         for inputs, targets in train_loader:
             inputs, targets = inputs.to(device).float(), targets.to(device).float()
 
-            # Target normalization
-            if CONFIG['target_normalization']:
-                targets = (targets - train_mean) / train_std
-
-            # Mixup
-            if CONFIG['mixup_alpha'] > 0:
-                inputs, targets = mixup_data(inputs, targets, CONFIG['mixup_alpha'])
-
             optimizer.zero_grad()
             outputs = model(inputs).squeeze(-1)
             loss = criterion(outputs, targets)
@@ -155,12 +146,10 @@ def train_one_seed(seed, train_loader, val_loader, train_mean, train_std, save_d
             train_loss += loss.item() * inputs.size(0)
 
         train_loss /= len(train_loader.dataset)
+        scheduler.step()
 
-        # Validation (denormalize for MAE)
-        val_loss, val_mae = evaluate(model, val_loader, criterion, device,
-                                      mean=train_mean, std=train_std,
-                                      denorm=CONFIG['target_normalization'])
-        scheduler.step(val_mae)
+        # Validation
+        val_loss, val_mae = evaluate(model, val_loader, criterion, device)
 
         history['train_loss'].append(train_loss)
         history['val_loss'].append(val_loss)
@@ -249,8 +238,6 @@ def main():
             for inputs, _ in test_loader:
                 inputs = inputs.to(device).float()
                 outputs = model(inputs).squeeze(-1)
-                if CONFIG['target_normalization']:
-                    outputs = outputs * train_std + train_mean
                 preds.extend(outputs.cpu().tolist())
 
         ensemble_preds.append(preds)

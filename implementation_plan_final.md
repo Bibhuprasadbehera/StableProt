@@ -1,13 +1,25 @@
 # StableProt v2 — Full Implementation Plan
 
-## Architecture: Multi-Head Model
+## Version Progression (Updated 2026-05-13)
+
+| Ver | Name | Embedding | Architecture | Test Set | MAE | Status |
+|-----|------|-----------|-------------|----------|-----|--------|
+| V0 | Original | ProtT5 | Binary ensemble (pretrained) | 210K OGT | — | ✅ |
+| V1 | Baseline | ProtT5 | Binary retrained | 210K OGT | — | ✅ |
+| V2 | Improved | ProtT5 | Binary improved (20 models) | 210K OGT | — | ✅ |
+| V3 | Regression | ProtT5 | Single-head MSE | 210K OGT | 5.664 | ✅ |
+| V4 | Improved Regr. | ProtT5 | Residual+cosine schedule+grad clip | 210K OGT | 5.724 | ✅ |
+| V5 | Multi-Head | ProtT5 | Shared backbone+OGT/Tm heads | 210K OGT | 5.774 | ✅ (OGT head) |
+| V6 | Multi-Head ESM2 | ESM-2 3B | Shared backbone+OGT/Tm heads | ProThermDB | 5.75 | ✅ (diff test set) |
+
+## Architecture: Multi-Head Model (V5/V6)
 
 ```
-ESM-2 3B Embedding (2560-dim, frozen)
+Embedding (ProtT5 1024-dim or ESM-2 2560-dim, frozen)
         ↓
    Shared Backbone
-   Linear(2560, 512) → BN → ReLU → Dropout(0.3)
-   Linear(512, 256)  → BN → ReLU → Dropout(0.2)
+   Linear(input, 512) → BN → ReLU → Dropout(0.3)
+   Linear(512, 256)   → BN → ReLU → Dropout(0.2) + Residual
         ↓
    ┌─────────────────┬─────────────────┐
    │  Head A: OGT    │  Head B: Tm     │
@@ -15,10 +27,11 @@ ESM-2 3B Embedding (2560-dim, frozen)
    └─────────────────┴─────────────────┘
 ```
 
-- **Head A** trained on OGT data (1.4M sequences, noisy labels)
-- **Head B** trained on Meltome/TemBERTureDB Tm data (~25K, clean labels)
+- **Head A** trained on OGT data (940K sequences)
+- **Head B** trained on Meltome Tm data (~24K sequences)
 - **Shared backbone** learns general thermostability features from both
-- **Inference:** Use Head B only (actual Tm prediction)
+- **Evaluation:** Head A on 210K OGT test (compare with V0-V4), Head B for Tm prediction
+
 
 ---
 

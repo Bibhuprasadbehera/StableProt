@@ -69,7 +69,7 @@ def train_one_seed(seed, train_tm_loader, train_ogt_loader, val_tm_loader, tm_me
         optimizer, mode='min', patience=CONFIG['lr_scheduler_patience'], factor=CONFIG['lr_scheduler_factor'], min_lr=1e-6
     )
     
-    criterion = nn.HuberLoss(delta=CONFIG['huber_delta'], reduction='none')
+    criterion = nn.HuberLoss(delta=CONFIG['huber_delta'])
     
     best_val_mae = float('inf')
     patience_counter = 0
@@ -89,10 +89,14 @@ def train_one_seed(seed, train_tm_loader, train_ogt_loader, val_tm_loader, tm_me
             if CONFIG['mixup_alpha'] > 0:
                 ogt_x_mix, ogt_y_mix = mixup_data(ogt_x, ogt_y, CONFIG['mixup_alpha'])
                 ogt_pred = model(ogt_x_mix, head='ogt')
-                loss_ogt = criterion(ogt_pred, ogt_y_mix).mean() * CONFIG['ogt_loss_weight']
+                loss_ogt = criterion(ogt_pred, ogt_y_mix) * CONFIG['ogt_loss_weight']
             else:
                 ogt_pred = model(ogt_x, head='ogt')
-                loss_ogt = criterion(ogt_pred, ogt_y).mean() * CONFIG['ogt_loss_weight']
+                loss_ogt = criterion(ogt_pred, ogt_y) * CONFIG['ogt_loss_weight']
+            
+            if torch.isnan(loss_ogt):
+                print(f"NaN in OGT loss at batch {batch_idx}! OGT pred range: {ogt_pred.min().item():.3f}-{ogt_pred.max().item():.3f}")
+                break
             
             optimizer.zero_grad()
             loss_ogt.backward()
@@ -106,10 +110,14 @@ def train_one_seed(seed, train_tm_loader, train_ogt_loader, val_tm_loader, tm_me
             if CONFIG['mixup_alpha'] > 0:
                 tm_x_mix, tm_y_mix = mixup_data(tm_x, tm_y, CONFIG['mixup_alpha'])
                 tm_pred = model(tm_x_mix, head='tm')
-                loss_tm = criterion(tm_pred, tm_y_mix).mean() * CONFIG['tm_loss_weight']
+                loss_tm = criterion(tm_pred, tm_y_mix) * CONFIG['tm_loss_weight']
             else:
                 tm_pred = model(tm_x, head='tm')
-                loss_tm = criterion(tm_pred, tm_y).mean() * CONFIG['tm_loss_weight']
+                loss_tm = criterion(tm_pred, tm_y) * CONFIG['tm_loss_weight']
+            
+            if torch.isnan(loss_tm):
+                print(f"NaN in Tm loss at batch {batch_idx}! Tm pred range: {tm_pred.min().item():.3f}-{tm_pred.max().item():.3f}")
+                break
                 
             optimizer.zero_grad()
             loss_tm.backward()
@@ -117,9 +125,8 @@ def train_one_seed(seed, train_tm_loader, train_ogt_loader, val_tm_loader, tm_me
             optimizer.step()
             train_tm_loss += loss_tm.item()
             
-            if batch_idx % 20 == 0:
-                pbar.set_postfix({'OGT': f'{loss_ogt.item():.3f}', 'Tm': f'{loss_tm.item():.3f}'})
-            
+            if batch_idx % 100 == 0:
+                pbar.set_postfix({'OGT': f'{loss_ogt.item():.3f}', 'Tm': f'{loss_tm.item():.3f}'})            
         # Validation
         model.eval()
         val_mae = 0.0
@@ -156,7 +163,7 @@ def cycle(iterable):
 def train():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    data_path = os.path.join(base_dir, "../../new_data/prepared_data_v2.pt")
+    data_path = os.path.join(base_dir, "../../new_data/prepared_data_v5_prott5.pt")
     
     print("Loading dataset...")
     data = torch.load(data_path, weights_only=True)
@@ -230,7 +237,38 @@ def train():
     torch.save({'y_true': test_tm_lbl, 'y_pred': torch.tensor(mean_preds)}, os.path.join(ensemble_dir, 'predictions.pt'))
     with open(os.path.join(ensemble_dir, 'metrics.json'), 'w') as f:
         json.dump({'mae': float(mae)}, f)
-    print(f"Ensemble Test MAE: {mae:.4f}")
+    print(f"Ensemble Tm Test MAE: {mae:.4f}")
+    
+    # ── Also evaluate OGT head on 210K OGT test set ──
+    print("\nEvaluating OGT head on 210K test set...")
+    test_ogt_emb = data['test_ogt']['embeddings']
+    test_ogt_lbl = data['test_ogt']['labels']
+    ogt_test_loader = DataLoader(TmDataset(test_ogt_emb, test_ogt_lbl, is_tm=False), batch_size=CONFIG['batch_size'], shuffle=False)
+    
+    ogt_ensemble_preds = []
+    for seed in CONFIG['seeds']:
+        seed_dir = os.path.join(results_dir, f"seed{seed}")
+        model = MultiHead_TmPredictor(input_size=CONFIG['input_size'], hidden1=CONFIG['hidden_size_1'], hidden2=CONFIG['hidden_size_2']).to(device)
+        model.load_state_dict(torch.load(os.path.join(seed_dir, 'model.pt')))
+        model.eval()
+        preds = []
+        with torch.no_grad():
+            for x, _ in ogt_test_loader:
+                p = model(x.to(device), head='ogt').cpu()
+                if CONFIG['target_normalization']:
+                    p = p * ogt_std + ogt_mean
+                preds.extend(p.tolist())
+        ogt_ensemble_preds.append(preds)
+    
+    ogt_mean_preds = np.mean(ogt_ensemble_preds, axis=0)
+    ogt_mae = np.mean(np.abs(ogt_mean_preds - test_ogt_lbl.numpy()))
+    
+    ogt_results_dir = os.path.join(ensemble_dir, 'ogt_eval')
+    os.makedirs(ogt_results_dir, exist_ok=True)
+    torch.save({'y_true': test_ogt_lbl, 'y_pred': torch.tensor(ogt_mean_preds)}, os.path.join(ogt_results_dir, 'predictions.pt'))
+    with open(os.path.join(ogt_results_dir, 'metrics.json'), 'w') as f:
+        json.dump({'mae': float(ogt_mae)}, f)
+    print(f"OGT Head Ensemble MAE on 210K test: {ogt_mae:.4f}")
                 
 if __name__ == "__main__":
     train()

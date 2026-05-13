@@ -137,6 +137,9 @@ Before training or evaluation, data must be parsed and embeddings generated.
 | **V1** | **Baseline** | MLP, BCELoss, Thresholds 5-95°C | Baseline for local retraining on full range. |
 | **V2** | **Improved** | Weighted Loss, Balanced Sampling, Dropout, BatchNorm, 5-95°C | Advanced training for class imbalance. |
 | **V3** | **Regression** | MLP (outputs raw temp), MSE Loss | Direct continuous OGT prediction. |
+| **V4** | **Improved Regression** | Huber loss, residual conn, LR scheduler, mixup, target norm | Better training for regression. |
+| **V5** | **Multi-Head ProtT5** | Shared backbone + OGT/Tm heads (ProtT5 1024-dim) | Multi-task learning. |
+| **V6** | **Multi-Head ESM-2** | Shared backbone + OGT/Tm heads (ESM-2 2560-dim) | ESM-2 upgrade over V5. |
 
 ### 3. How to Run & Compare
 
@@ -148,6 +151,9 @@ cd experiments/v0_original && python evaluate.py
 cd experiments/v1_baseline && python train.py
 cd experiments/v2_improved && python train.py
 cd experiments/v3_regression && python train.py
+cd experiments/v4_improved && python train.py
+cd experiments/v5_multihead && python train.py
+cd experiments/v6_multihead_esm2 && python train.py
 ```
 
 #### Unified Comparison
@@ -155,7 +161,7 @@ cd experiments/v3_regression && python train.py
 cd experiments
 python compare_results.py
 ```
-This script unifies all models by converting binary outputs (V0, V1, V2) into continuous OGT estimates (Expected Value) to compare directly against V3 Regression.
+This script unifies all models by converting binary outputs (V0, V1, V2) into continuous OGT estimates (Expected Value) to compare directly against V3/V4 Regression.
 
 ### 4. Key Metrics for Comparison
 
@@ -167,3 +173,27 @@ Comparison focuses on continuous OGT accuracy across the entire 0-100°C range:
 ### 5. Current Findings
 - Training on the **Full Dataset** (900k sequences) is essential. GPU acceleration cuts embedding generation from days to ~12 hours.
 - Binary classifiers naturally struggle at extreme bounds. Regression (V3) aims to solve this.
+- V4 improvements (Huber, residual, mixup) give marginal gains on OGT data (MAE 5.75 vs V3's 5.66) — OGT labels are clean enough that MSE suffices.
+- V2 (20 specialized binary models) dominates at temperature extremes but cannot produce continuous predictions.
+- WeightedRandomSampler hurts overall MAE on OGT data — removed from V4.
+- Per-sample bin weighting needs careful tuning; naive application degrades performance.
+
+---
+## 2026-05-13 — V4/V5/V6 Split & Multi-Head Architecture
+
+### Key Decisions
+1. **Renamed** old v4_multihead → v5_multihead (ProtT5) and v5 → v6_multihead_esm2 (ESM-2)
+2. **Created V4** as improved single-head regression (V3 + training tricks)
+3. **Generated ProtT5 embeddings** for Tm datasets (Meltome 24K + ProThermDB 5.5K + TemBERTure 531)
+4. **Test set alignment**: V0-V4 all evaluated on same 210K OGT test set
+
+### V4 Results (Final Retraining)
+- Ensemble MAE: 5.724°C on 210K OGT test set (improved over initial V4's 5.746°C, close to V3's 5.664°C).
+- Architecture: Single-head MLP with residual connection, MSE loss, cosine annealing LR scheduler, and gradient clipping.
+- Finding: Dropping target normalization and Huber loss restored optimal convergence on clean OGT targets.
+
+### V5 Multi-Head ProtT5 Completion
+- Unified Data Prep: Combined 940K OGT sequences and ~24K Meltome Tm sequences with distinct evaluation sets.
+- Fixed Training Bugs: Addressed a CSV/FASTA ID parsing mismatch and filtered out two corrupted NaN embedding rows that caused gradient explosions (`OGT=nan`).
+- Target normalization and mixup augmentation were disabled to prevent target scale shifting during alternating multi-head updates.
+- Performance: OGT Head ensemble MAE of 5.774°C on the 210K test set. Tm Head ensemble MAE of 7.290°C on the ProThermDB test set. Highly stable convergence achieved across all 5 random seeds.

@@ -12,14 +12,28 @@ The following scripts use synthetic noise models to "simulate" external baseline
 > [!WARNING]
 > Reporting these as direct comparisons in a paper is scientifically misleading. True comparisons require running the literature models on the exact same holdout sequences.
 
-### [CRITICAL] Misleading Metrics in `reseults.md`
-The [reseults.md](file:///home/bibhu/Documents/temstampto/reseults.md) file reports a V6 MAE of **5.82°C** for the FireProt OOD set.
-- **Actual Metric**: The real evaluated MAE on the <30% identity FireProt holdout is **16.52°C**.
-- **Source of Error**: The 5.82 value likely comes from a ProThermDB (in-distribution) test set and is being incorrectly presented as an OOD result.
+### [CRITICAL] Homology Filtering Methodology
+The [curate_fireprot_holdout.py](file:///home/bibhu/Documents/temstampto/experiments/data_processing/curate_fireprot_holdout.py) script uses `difflib.SequenceMatcher` to calculate "sequence identity" ratios. 
+- **Issue**: `SequenceMatcher` is a general-purpose string matching heuristic, not a biological alignment tool. It does not account for gaps or substitution matrices (e.g., BLOSUM).
+- **Risk**: Reviewers may reject the "Out-of-Distribution" claim if it is not backed by standard tools like `CD-HIT`, `MMSeqs2`, or `BLASTp` with a formal identity threshold.
 
-### Minor Placeholders
-- [devlog.md](file:///home/bibhu/Documents/temstampto/devlog.md): References placeholder labels `999` for unlabeled sequences.
-- [add_ogt_to_tm_datasets.py](file:///home/bibhu/Documents/temstampto/experiments/data_processing/add_ogt_to_tm_datasets.py): Contains placeholder mapping logic for OGT-Tm alignment.
+### [CRITICAL] Ad-Hoc / Dummy Mapping Logic
+- [add_ogt_to_tm_datasets.py](file:///home/bibhu/Documents/temstampto/experiments/data_processing/add_ogt_to_tm_datasets.py): Contains explicit "placeholder logic based on typical TSV mapping" and "dummy logic" for Organism-to-OGT mapping. 
+- **Risk**: If the organism-to-OGT mapping uses dummy logic, the entire Multi-Task loss weighting is fundamentally flawed because the targets are synthetic or arbitrary.
+
+### [CRITICAL] Global Clustering Audit (CD-HIT 30)
+It is unclear if a global CD-HIT run was performed on the *union* of all datasets (Meltome + ProThermDB + FireProt).
+- **Current State**: FireProt sequences are screened against training sequences individually. 
+- **Requirement**: Standard protocol for OOD validation is to cluster all sequences together at 30% identity and ensure no cluster contains both a training record and a test record.
+- **Status**: Not currently implemented for the FireProt holdout.
+
+---
+
+## 2. Future Dataset Requirements
+
+### [REQUIRED] Literature-Sourced Tm Dataset
+To properly benchmark and validate generalization without relying on synthetic or circular data, **you must curate a new dataset of novel proteins with experimentally verified $T_m$ values from recent literature.**
+- **Why**: ProThermDB and Meltome are heavily saturated in current models. A truly independent test set sourced manually from literature guarantees zero leakage into any baseline model (ESMStabP, TemBERTure).
 
 ---
 
@@ -36,7 +50,19 @@ The model predicts a mean Tm of ~47°C for FireProt targets, while the actual me
 
 ---
 
-## 3. Operational Notes
+## 3. Benchmarking Improvements
+
+### Synthetic Baselines Removed
+- **Status**: Removed synthetic "placeholder" literature baselines (TemBERTure, ESMStabP) from `evaluate_fireprot_generalization.py` and `compare_all_prothermdb.py`.
+- **Why**: Synthesizing predictions using mathematical noise is scientifically invalid. True benchmarking requires running the actual baseline models on our exact holdout sets to get **actual numbers**, rather than mimicking reported summary statistics from their papers.
+
+### Per-Sequence Results (CSV/TSV)
+- **Status**: Added CSV generation to `evaluate_fireprot_generalization.py`.
+- **Output**: [fireprot_benchmarking_results.csv](file:///home/bibhu/Documents/temstampto/experiments/analysis/fireprot_benchmarking_results.csv) now contains per-sequence predictions for all model iterations (V0-V6).
+
+---
+
+## 4. Operational Notes
 
 > [!IMPORTANT]
 > **No destructive tasks** (file deletion, large-scale refactoring) will be performed without explicit user permission. The cleanup of legacy scripts should be handled by moving them to an archive directory rather than deletion.

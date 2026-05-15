@@ -114,8 +114,9 @@ if __name__ == "__main__":
     cache_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'embeddings_cache')
     
     fasta_files = [
-        os.path.join(project_root, 'new_data', 'meltome_sequences.fasta'),
-        os.path.join(project_root, 'new_data', 'prothermdb_validation.fasta'),
+        os.path.join(project_root, 'new_data', 'meltome_sequences_leak_free.fasta'),
+        os.path.join(project_root, 'new_data', 'prothermdb_validation_clean.fasta'),
+        os.path.join(project_root, 'new_data', 'literature_tm_holdout.fasta'),
         os.path.join(project_root, 'new_data', 'tembert_test_sequences.fasta'),
     ]
     fasta_files = [f for f in fasta_files if os.path.exists(f)]

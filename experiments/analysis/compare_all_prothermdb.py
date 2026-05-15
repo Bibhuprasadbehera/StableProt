@@ -291,21 +291,9 @@ def main():
     if v4_preds:
         results['V4 Improved Regr.'] = {'y_true': y_true_prott5, 'y_pred': np.mean(v4_preds, axis=0), 'type': 'Continuous Proxy'}
 
-    # ── 5. TemBERTure (Fine-Tuned Literature Baseline) ──
-    print("Integrating TemBERTure external literature baseline...")
-    results['TemBERTure (Fine-Tuned)'] = {
-        'y_true': y_true_prott5,
-        'y_pred': make_synthetic_baseline(y_true_prott5, target_mae=8.35, target_pcc=0.812),
-        'type': 'Literature Reference'
-    }
-
-    # ── 6. ESMStabP (Literature Baseline) ──
-    print("Integrating ESMStabP external literature baseline...")
-    results['ESMStabP'] = {
-        'y_true': y_true_prott5,
-        'y_pred': make_synthetic_baseline(y_true_prott5, target_mae=6.42, target_pcc=0.850),
-        'type': 'Literature Reference'
-    }
+    # ── 5. TemBERTure & ESMStabP ──
+    # [REMOVED]: Synthetic generation of literature baselines was removed to ensure scientific integrity.
+    # True benchmarking requires running the actual models on this specific holdout set.
 
     # ── 7. V5 Multi-Head ProtT5 ──
     print("Loading V5 Multi-Head predictions...")

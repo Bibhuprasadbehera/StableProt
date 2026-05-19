@@ -207,15 +207,6 @@ def main():
     
     results = {}
     
-    def make_synthetic_baseline(y_true, target_mae, target_pcc):
-        np.random.seed(int(target_mae * 100))
-        noise = np.random.normal(0, 1, len(y_true))
-        y_std = np.std(y_true) if np.std(y_true) > 0 else 1
-        pred = y_true + noise * y_std * np.sqrt(1 - target_pcc**2) / target_pcc
-        err = pred - y_true
-        current_mae = np.mean(np.abs(err))
-        err_scaled = err * (target_mae / current_mae)
-        return y_true + err_scaled
 
     # ── 1. TemStaPro (V0 Original) ──
     print("\nEvaluating TemStaPro (V0 Original)...")

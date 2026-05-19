@@ -16,7 +16,7 @@ CONFIG = {
     'lr_scheduler_patience': 5,
     'lr_scheduler_factor': 0.5,
     'grad_clip_max_norm': 1.0,
-    'mixup_alpha': 0.2,
-    'target_normalization': True,
+    'mixup_alpha': 0.0,            # Disabled: causes target scale shifting in multi-head
+    'target_normalization': False,  # Disabled: different z-scores for OGT/Tm heads cause gradient conflict
     'seeds': [1, 2, 3, 4, 5],
 }

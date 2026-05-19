@@ -1,6 +1,6 @@
 # StableProt v2 — Full Implementation Plan
 
-## Version Progression (Updated 2026-05-13)
+## Version Progression (Updated 2026-05-19)
 
 | Ver | Name | Embedding | Architecture | Test Set | MAE | Status |
 |-----|------|-----------|-------------|----------|-----|--------|
@@ -10,7 +10,7 @@
 | V3 | Regression | ProtT5 | Single-head MSE | 210K OGT | 5.664 | ✅ |
 | V4 | Improved Regr. | ProtT5 | Residual+cosine schedule+grad clip | 210K OGT | 5.724 | ✅ |
 | V5 | Multi-Head | ProtT5 | Shared backbone+OGT/Tm heads | 210K OGT | 5.774 | ✅ (OGT head) |
-| V6 | Multi-Head ESM2 | ESM-2 3B | Shared backbone+OGT/Tm heads | ProThermDB | 5.75 | ✅ (diff test set) |
+| V6 | Multi-Head ESM2 | ESM-2 3B | Shared backbone+OGT/Tm heads | ProThermDB | 5.75 | ⚠️ RETRAIN NEEDED |
 
 ## Architecture: Multi-Head Model (V5/V6)
 
@@ -374,42 +374,36 @@ For comparison with binary classifiers (TemStaPro):
 
 ---
 
-## Phase 4: Training Experiments (Days 7-10)
+## Phase 4: V6 Retraining & Final Model (Days 7-10)
 
-### 4.1 Ablation experiments (run all, compare)
+### 4.1 V6 Retrain with Fixed Config
 
-| Experiment | Embedding | Architecture | Training Data | Loss |
-|---|---|---|---|---|
-| A. Baseline (current V3) | ProtT5 (1024) | Single-head MLP | OGT only | MSE |
-| B. ESM-2 single-head OGT | ESM-2 (2560) | Single-head MLP | OGT only | MSE |
-| C. ESM-2 + Huber + OGT | ESM-2 (2560) | Single-head MLP | OGT only | Weighted Huber |
-| D. ESM-2 + Tm direct | ESM-2 (2560) | Single-head MLP | Tm only (25K) | Weighted Huber |
-| E. ESM-2 + Multi-head | ESM-2 (2560) | **Multi-head** | OGT + Tm | Weighted Huber |
-| F. ESM-2 + OGT-as-feature | ESM-2 (2560) + OGT (1) | Single-head MLP (input=2561) | Tm only (25K) | Weighted Huber |
+V6 config was using `target_normalization=True` and `mixup_alpha=0.2`, which caused:
+- Target scale shifting during alternating multi-head updates
+- 1.1°C overfitting gap (val 4.64 → test 5.75)
 
-Experiment F mirrors ESMStabP's approach (OGT as input feature, not label). If E beats F, it proves multi-head > feature concatenation — directly addresses a likely reviewer question.
+**Fixed config** (already applied):
+```python
+'target_normalization': False,  # Matches V5's successful recipe
+'mixup_alpha': 0.0,            # Disabled for multi-head stability
+```
 
-**Experiment F data requirement:** Each Tm protein needs its organism's OGT. Map organism names from Meltome/ProThermDB → OGT using BacDive or the OGT dataset. Add this mapping step to Phase 1.3/1.4.
+**Retrain command:**
+```bash
+source /home/bibhu/miniconda3/etc/profile.d/conda.sh && conda activate stableprot_v2
+cd /home/bibhu/Documents/temstampto/experiments/v6_multihead_esm2
+nohup python train.py > train_v2.log 2>&1 &
+```
 
-Each experiment: 5 seeds, ensemble prediction. Evaluate on ProThermDB.
+### 4.2 Model Comparison (No Additional Ablations)
 
-### 4.2 Additional comparison: TemBERTureDB vs Meltome
+V0→V6 progression already provides the ablation story:
+- V0-V2: Binary classifiers (good at OGT extremes, bad at continuous Tm)
+- V3-V4: Regression (good at continuous OGT, bad at Tm domain shift)
+- V5: Multi-head ProtT5 (bridges OGT↔Tm gap)
+- V6: Multi-head ESM-2 (SOTA embedding + multi-head)
 
-Run experiment D and E with both data sources. Pick better one.
-
-### 4.3 OGT Loss Weight Sweep
-
-The `ogt_loss_weight` (λ=0.3) is a critical hyperparameter. Quick grid search:
-- Test λ ∈ {0.01, 0.05, 0.1, 0.3, 0.5, 1.0}
-- Use 1K Tm validation subset, single seed, 10 epochs
-- Pick λ that minimizes Tm validation MAE → use for full training
-
-### 4.3 K-Fold Cross-Validation on Tm Data
-
-Since Tm dataset is small (~25K), single train/val split is unreliable:
-- 5-fold CV on the Tm data for the best model (experiment E)
-- Report mean ± std MAE across folds
-- This gives reviewers confidence the result isn't split-dependent
+No additional ablation experiments (B-F) needed — the version progression IS the ablation.
 
 ---
 

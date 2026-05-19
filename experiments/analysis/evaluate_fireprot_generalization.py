@@ -34,19 +34,6 @@ from experiments.v5_multihead.model import MultiHead_TmPredictor
 DATA_PATH = os.path.join(PROJECT_ROOT, "experiments/data_processing/fireprot_holdout_prott5.pt")
 
 
-def make_ood_baseline(y_true, target_mae, target_pcc):
-    """Synthetically construct calibrated baseline vectors matching reported OOD performance."""
-    np.random.seed(int(target_mae * 100))
-    noise = np.random.normal(0, 1, len(y_true))
-    y_std = np.std(y_true) if np.std(y_true) > 0 else 1.0
-    # Avoid zero division
-    pcc_safe = max(0.1, target_pcc)
-    pred = y_true + noise * y_std * np.sqrt(max(0.0, 1.0 - pcc_safe**2)) / pcc_safe
-    err = pred - y_true
-    current_mae = np.mean(np.abs(err)) if np.mean(np.abs(err)) > 0 else 1.0
-    err_scaled = err * (target_mae / current_mae)
-    return y_true + err_scaled
-
 
 def calculate_section_wise_roc(y_true, y_pred, name):
     """Calculate ROC AUC across different temperature survival thresholds."""
@@ -189,11 +176,20 @@ def main():
     print("Evaluating V6 Multi-Head (ESM-2 3B Backbone)...")
     v6_preds = []
     
-    # Load stats from training data for target de-normalization
-    v6_train_data_path = os.path.join(PROJECT_ROOT, "new_data/prepared_data_v2.pt")
-    v6_stats = torch.load(v6_train_data_path, weights_only=True)
-    tm_mean = v6_stats['train_tm']['labels'].mean().item()
-    tm_std = v6_stats['train_tm']['labels'].std().item()
+    # Load V6 config to check if target normalization was used
+    import importlib.util
+    v6_config_path = os.path.join(PROJECT_ROOT, "experiments/v6_multihead_esm2/config.py")
+    spec = importlib.util.spec_from_file_location("v6_config", v6_config_path)
+    v6_config_mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(v6_config_mod)
+    v6_target_norm = v6_config_mod.CONFIG.get('target_normalization', False)
+    
+    if v6_target_norm:
+        # Load stats from training data for target de-normalization
+        v6_train_data_path = os.path.join(PROJECT_ROOT, "new_data/prepared_data_v2.pt")
+        v6_stats = torch.load(v6_train_data_path, weights_only=True)
+        tm_mean = v6_stats['train_tm']['labels'].mean().item()
+        tm_std = v6_stats['train_tm']['labels'].std().item()
     
     for s in range(1, 6):
         p = os.path.join(PROJECT_ROOT, f"experiments/v6_multihead_esm2/results/seed{s}/model.pt")
@@ -202,10 +198,10 @@ def main():
             model.load_state_dict(torch.load(p, map_location=device, weights_only=False))
             model.eval()
             with torch.no_grad():
-                # Use raw x_esm2 (now Layer 22) as expected by the model
+                # Use raw x_esm2 (Layer 36) as expected by the model
                 out = model(x_esm2.float(), head='tm').cpu().numpy()
-                # De-normalize output
-                out = out * tm_std + tm_mean
+                if v6_target_norm:
+                    out = out * tm_std + tm_mean
             v6_preds.append(out)
     if v6_preds:
         v6_final = np.mean(v6_preds, axis=0)

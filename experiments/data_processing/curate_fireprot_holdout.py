@@ -247,7 +247,7 @@ def extract_or_generate_embeddings(surviving_records):
         model_esm, alphabet = esm.pretrained.esm2_t36_3B_UR50D()
         model_esm = model_esm.eval().to(device)
         batch_converter = alphabet.get_batch_converter()
-        REPR_LAYER = 22 # Identified as the training manifold layer for V6
+        REPR_LAYER = 36 # Must match training embeddings (generate_esm2_embeddings.py default)
         
         esm2_generated = 0
         with torch.no_grad():

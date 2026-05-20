@@ -178,11 +178,36 @@ def compute_metrics(y_true, y_pred):
         roc_auc = roc_auc_score(y_true_b, y_pred)
     except Exception:
         roc_auc = 0.5 + 0.5 * (sens + spec - 1.0)
+    
+    # Multi-threshold ROC AUC (biologically meaningful boundaries)
+    from sklearn.metrics import roc_auc_score as _roc_auc
+    threshold_aucs = {}
+    for t in [45, 55, 65, 80]:
+        y_bin = (y_true >= t).astype(int)
+        if len(np.unique(y_bin)) > 1:
+            try:
+                threshold_aucs[f'roc_auc_{t}C'] = _roc_auc(y_bin, y_pred)
+            except Exception:
+                threshold_aucs[f'roc_auc_{t}C'] = 0.5
+        else:
+            threshold_aucs[f'roc_auc_{t}C'] = float('nan')
+    
+    # Global AUC: mean ROC AUC across thresholds 30-90°C
+    global_aucs = []
+    for t in range(30, 91):
+        y_bin = (y_true >= t).astype(int)
+        if len(np.unique(y_bin)) > 1:
+            try:
+                global_aucs.append(_roc_auc(y_bin, y_pred))
+            except Exception:
+                pass
+    global_auc = np.mean(global_aucs) if global_aucs else 0.5
         
     return {
         'mae': mae, 'rmse': rmse, 'pcc': pcc, 'spearman': spearman, 'r2': r2,
         'acc': acc, 'sens': sens, 'spec': spec, 'prec': prec, 'f1': f1, 'mcc': mcc,
-        'mape': mape, 'enrich': enrich, 'roc_auc': roc_auc
+        'mape': mape, 'enrich': enrich, 'roc_auc': roc_auc,
+        **threshold_aucs, 'global_auc': global_auc
     }
 
 def main():

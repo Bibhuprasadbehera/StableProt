@@ -211,21 +211,21 @@ def main():
     
     # ── Display Matrix Summary ──
     print("\nINDEPENDENT FIREPROT-DB OOD GENERALIZATION EVALUATION PROFILE (<30% Sequence Identity):")
-    print("-" * 175)
-    print(f"{'Model Iteration':<25} | {'Type':<18} | {'MAE':<6} | {'PCC':<5} | {'R²':<6} | {'MCC':<6} | {'F1':<5} | {'AUC':<5} | {'MAPE(%)':<8} | {'Top-10% Enrich':<14}")
-    print("-" * 175)
+    print("-" * 195)
+    print(f"{'Model Iteration':<25} | {'Type':<18} | {'MAE':<6} | {'PCC':<5} | {'R²':<6} | {'MCC':<6} | {'F1':<5} | {'AUC60':<5} | {'GlobalAUC':<9} | {'MAPE(%)':<8} | {'Top-10% Enrich':<14}")
+    print("-" * 195)
     
     metrics_summary = {}
     for name, data in results.items():
         m = compute_metrics(data['y_true'], data['y_pred'])
         metrics_summary[name] = m
-        print(f"{name:<25} | {data['type']:<18} | {m['mae']:<6.2f} | {m['pcc']:<5.2f} | {m['r2']:<6.2f} | {m['mcc']:<6.3f} | {m['f1']:<5.2f} | {m['roc_auc']:<5.2f} | {m['mape']:<8.1f} | {m['enrich']:<14.3f}")
-    print("-" * 175)
+        print(f"{name:<25} | {data['type']:<18} | {m['mae']:<6.2f} | {m['pcc']:<5.2f} | {m['r2']:<6.2f} | {m['mcc']:<6.3f} | {m['f1']:<5.2f} | {m['roc_auc']:<5.2f} | {m['global_auc']:<9.3f} | {m['mape']:<8.1f} | {m['enrich']:<14.3f}")
+    print("-" * 195)
     
     # ── Save Results to CSV ──
     import pandas as pd
     output_df = pd.DataFrame({
-        'sequence': results[list(results.keys())[0]]['y_true'].tolist(), # Placeholder for index alignment
+        'index': range(len(y_true)),
         'y_true': y_true
     })
     for name, data in results.items():

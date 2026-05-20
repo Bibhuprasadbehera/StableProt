@@ -232,46 +232,38 @@ def extract_or_generate_embeddings(surviving_records):
         del model, tokenizer
         torch.cuda.empty_cache()
 
-    # 2. Identify missing native ESM-2
-    missing_esm = {}
-    for seq in surviving_records:
-        h = hashlib.sha256(seq[:1500].encode()).hexdigest()
-        if not os.path.exists(os.path.join(CACHE_DIR_ESM, f'esm2_{h}.pt')):
-            missing_esm[seq] = surviving_records[seq]
-
-    if missing_esm:
-        print(f"  Generating native ESM-2 3B for {len(missing_esm)} targets...")
-        # ESM-2 3B (Targeting Layer 22 - Unnormalized structural manifold)
-        print("\nLoading ESM-2 3B Model...")
-        import esm
-        model_esm, alphabet = esm.pretrained.esm2_t36_3B_UR50D()
-        model_esm = model_esm.eval().to(device)
-        batch_converter = alphabet.get_batch_converter()
-        REPR_LAYER = 36 # Must match training embeddings (generate_esm2_embeddings.py default)
-        
-        esm2_generated = 0
-        with torch.no_grad():
-            for seq in missing_esm:
-                h = hashlib.sha256(seq[:1500].encode()).hexdigest()
-                out_path = os.path.join(CACHE_DIR_ESM, f"esm2_{h}.pt")
-                
-                # Force regeneration for FireProt targets to ensure layer alignment
-                # (Previously generated files might be Layer 36)
-                data = [("target", seq[:1022])] # ESM-2 limit is 1024
-                _, _, tokens = batch_converter(data)
-                tokens = tokens.to(device)
-                
-                results = model_esm(tokens, repr_layers=[REPR_LAYER], return_contacts=False)
-                # Mean pool excluding CLS/EOS
-                token_reps = results["representations"][REPR_LAYER][0, 1:len(seq[:1022])+1]
-                mean_rep = token_reps.mean(0).cpu()
-                
-                torch.save(mean_rep, out_path)
-                esm2_generated += 1
-                
-        print(f"Generated {esm2_generated} ESM-2 Layer 22 embeddings.")
-        del model_esm
-        torch.cuda.empty_cache()
+    # 2. Force-regenerate ALL ESM-2 embeddings for FireProt holdout
+    # (Cache may contain stale embeddings from a different layer)
+    print(f"  Force-regenerating ESM-2 3B Layer 36 embeddings for {len(surviving_records)} targets...")
+    # ESM-2 3B (Layer 36 — matches training embeddings)
+    print("\nLoading ESM-2 3B Model...")
+    import esm
+    model_esm, alphabet = esm.pretrained.esm2_t36_3B_UR50D()
+    model_esm = model_esm.eval().to(device)
+    batch_converter = alphabet.get_batch_converter()
+    REPR_LAYER = 36 # Must match training embeddings (generate_esm2_embeddings.py default)
+    
+    esm2_generated = 0
+    with torch.no_grad():
+        for seq in surviving_records:
+            h = hashlib.sha256(seq[:1500].encode()).hexdigest()
+            out_path = os.path.join(CACHE_DIR_ESM, f"esm2_{h}.pt")
+            
+            data = [("target", seq[:1022])] # ESM-2 limit is 1024
+            _, _, tokens = batch_converter(data)
+            tokens = tokens.to(device)
+            
+            results = model_esm(tokens, repr_layers=[REPR_LAYER], return_contacts=False)
+            # Mean pool excluding CLS/EOS
+            token_reps = results["representations"][REPR_LAYER][0, 1:len(seq[:1022])+1]
+            mean_rep = token_reps.mean(0).cpu()
+            
+            torch.save(mean_rep, out_path)
+            esm2_generated += 1
+            
+    print(f"Generated {esm2_generated} ESM-2 Layer 36 embeddings.")
+    del model_esm
+    torch.cuda.empty_cache()
 
     # 3. Final collection sweep
     final_t5, final_esm, final_tm, final_seq = [], [], [], []

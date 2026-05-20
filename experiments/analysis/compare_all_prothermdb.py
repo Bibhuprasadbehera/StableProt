@@ -308,8 +308,24 @@ def main():
         results['V4 Improved Regr.'] = {'y_true': y_true_prott5, 'y_pred': np.mean(v4_preds, axis=0), 'type': 'Continuous Proxy'}
 
     # ── 5. TemBERTure & ESMStabP ──
-    # [REMOVED]: Synthetic generation of literature baselines was removed to ensure scientific integrity.
-    # True benchmarking requires running the actual models on this specific holdout set.
+    baseline_path = os.path.join(PROJECT_ROOT, "new_data/baseline_predictions.pt")
+    if os.path.exists(baseline_path):
+        print("Loading TemBERTure & ESMStabP baseline predictions...")
+        baselines = torch.load(baseline_path, map_location='cpu', weights_only=False)
+        results['TemBERTure'] = {
+
+            'y_true': baselines['protherm']['y_true'],
+            'y_pred': baselines['protherm']['temberture'],
+            'type': 'Continuous Proxy'
+        }
+        results['ESMStabP'] = {
+            'y_true': baselines['protherm']['y_true'],
+            'y_pred': baselines['protherm']['esmstabp'],
+            'type': 'Continuous Proxy'
+        }
+    else:
+        print("WARNING: Baseline predictions file missing. Run run_baselines_inference.py first.")
+
 
     # ── 7. V5 Multi-Head ProtT5 ──
     print("Loading V5 Multi-Head predictions...")

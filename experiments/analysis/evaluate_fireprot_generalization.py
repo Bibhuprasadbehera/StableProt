@@ -149,9 +149,61 @@ def main():
     if v4_preds:
         results['V4 Improved Regr.'] = {'y_true': y_true, 'y_pred': np.mean(v4_preds, axis=0), 'type': 'Continuous Proxy'}
         
-    # ── 5. TemBERTure & ESMStabP ──
-    # [REMOVED]: Synthetic generation of literature baselines was removed to ensure scientific integrity.
-    # True benchmarking requires running the actual models on this specific holdout set.
+    baseline_path = os.path.join(PROJECT_ROOT, "new_data/baseline_predictions.pt")
+    if os.path.exists(baseline_path):
+        print("Loading TemBERTure & ESMStabP baseline predictions...")
+        baselines = torch.load(baseline_path, map_location='cpu', weights_only=False)
+        
+        # Baselines may have been generated on a different (older) holdout set.
+        # Match predictions by sequence to align with the current holdout.
+        bl_seqs = baselines['fireprot'].get('sequences', [])
+        bl_temberture = baselines['fireprot']['temberture']
+        bl_esmstabp = baselines['fireprot']['esmstabp']
+        
+        holdout_seqs = d_fireprot['sequences']
+        
+        if bl_seqs and len(bl_seqs) != len(holdout_seqs):
+            print(f"  Baseline holdout size ({len(bl_seqs)}) != current holdout size ({len(holdout_seqs)}). Aligning by sequence...")
+            bl_map = {seq: idx for idx, seq in enumerate(bl_seqs)}
+            matched_temb, matched_esm, matched_true = [], [], []
+            for i, seq in enumerate(holdout_seqs):
+                if seq in bl_map:
+                    j = bl_map[seq]
+                    matched_temb.append(bl_temberture[j])
+                    matched_esm.append(bl_esmstabp[j])
+                    matched_true.append(y_true[i])
+            if matched_temb:
+                print(f"  Matched {len(matched_temb)}/{len(holdout_seqs)} sequences with baselines.")
+                results['TemBERTure'] = {
+                    'y_true': np.array(matched_true),
+                    'y_pred': np.array(matched_temb),
+                    'type': 'Continuous Proxy'
+                }
+                results['ESMStabP'] = {
+                    'y_true': np.array(matched_true),
+                    'y_pred': np.array(matched_esm),
+                    'type': 'Continuous Proxy'
+                }
+            else:
+                print("  WARNING: No sequence matches found. Baselines skipped.")
+        else:
+            # No sequences stored — check size compatibility
+            if len(bl_temberture) == len(y_true):
+                results['TemBERTure'] = {
+                    'y_true': y_true,
+                    'y_pred': np.array(bl_temberture) if not isinstance(bl_temberture, np.ndarray) else bl_temberture,
+                    'type': 'Continuous Proxy'
+                }
+                results['ESMStabP'] = {
+                    'y_true': y_true,
+                    'y_pred': np.array(bl_esmstabp) if not isinstance(bl_esmstabp, np.ndarray) else bl_esmstabp,
+                    'type': 'Continuous Proxy'
+                }
+            else:
+                print(f"  WARNING: Baseline predictions ({len(bl_temberture)}) != holdout ({len(y_true)}), no sequences to align. Re-run run_baselines_inference.py.")
+    else:
+        print("WARNING: Baseline predictions file missing. Run run_baselines_inference.py first.")
+
 
     
     # ── 7. V5 Multi-Head (ProtT5) ──
@@ -229,7 +281,8 @@ def main():
         'y_true': y_true
     })
     for name, data in results.items():
-        output_df[f'y_pred_{name.replace(" ", "_").lower()}'] = data['y_pred']
+        if len(data['y_pred']) == len(y_true):
+            output_df[f'y_pred_{name.replace(" ", "_").lower()}'] = data['y_pred']
     
     # Actually use the real sequences from the data file
     if 'sequences' in d_fireprot:

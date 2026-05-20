@@ -11,6 +11,7 @@ import os
 import sys
 import csv
 import hashlib
+import subprocess
 import numpy as np
 import torch
 from datetime import datetime
@@ -129,7 +130,7 @@ def stream_csv_wildtypes(csv_path, sql_sequences):
 
 
 def load_seen_training_sequences():
-    """Pre-load Meltome and ProThermDB reference sequences for fast k-mer filtering."""
+    """Pre-load Meltome and ProThermDB reference sequences."""
     print("Loading pre-training reference sequence structures...")
     seen_seqs = set()
     
@@ -144,59 +145,73 @@ def load_seen_training_sequences():
                 seen_seqs.add(str(record.seq).upper())
                 
     print(f"  Pre-loaded {len(seen_seqs)} reference sequences.")
+    return seen_seqs, None
+
+
+def filter_homologous_sequences(candidates, seen_set, seen_kmers=None):
+    """Execute strict out-of-distribution sequence identity filtering (<40%) using CD-HIT-2D."""
+    print("Executing strict CD-HIT homology filtering (<40% sequence identity)...")
     
-    # Precompute k-mer sets for ultrafast screening
-    seen_kmers = []
-    for s in seen_seqs:
-        kmers = {s[i:i+5] for i in range(len(s)-4)} if len(s) >= 5 else set()
-        seen_kmers.append((s, len(s), kmers))
+    tmp_dir = os.path.join(SCRIPT_DIR, "tmp_cdhit")
+    os.makedirs(tmp_dir, exist_ok=True)
+    
+    db1_path = os.path.join(tmp_dir, "db1.fasta")
+    db2_path = os.path.join(tmp_dir, "db2.fasta")
+    out_path = os.path.join(tmp_dir, "filtered.fasta")
+    
+    # Write seen (training) sequences to db1.fasta
+    with open(db1_path, "w") as f:
+        for idx, seq in enumerate(seen_set):
+            f.write(f">seen_{idx}\n{seq}\n")
+            
+    # Write candidates (FireProt WT sequences) to db2.fasta
+    seq_map = {}
+    with open(db2_path, "w") as f:
+        for idx, (seq, tm) in enumerate(candidates.items()):
+            seq_id = f"cand_{idx}"
+            seq_map[seq_id] = (seq, tm)
+            f.write(f">{seq_id}\n{seq}\n")
+            
+    # Run cd-hit-2d
+    cmd = [
+        "cd-hit-2d",
+        "-i", db1_path,
+        "-i2", db2_path,
+        "-o", out_path,
+        "-c", "0.4",
+        "-n", "2",
+        "-d", "0",
+        "-M", "0",
+        "-T", "0"
+    ]
+    
+    print(f"Running CD-HIT command: {' '.join(cmd)}")
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        print("CD-HIT-2D failed:")
+        print(result.stderr)
+        raise RuntimeError("CD-HIT-2D execution failed.")
         
-    return seen_seqs, seen_kmers
-
-
-def filter_homologous_sequences(candidates, seen_set, seen_kmers):
-    """Execute strict out-of-distribution sequence identity filtering (<30%)."""
-    print("Executing strict homology filtering (<30% sequence identity)...")
+    # Read surviving sequences
     surviving = {}
-    dropped = 0
-    
-    start = datetime.now()
-    for idx, (c_seq, tm) in enumerate(candidates.items()):
-        if c_seq in seen_set:
-            dropped += 1
-            continue
-            
-        c_len = len(c_seq)
-        c_kmers = {c_seq[i:i+5] for i in range(len(c_seq)-4)} if c_len >= 5 else set()
+    if os.path.exists(out_path):
+        for record in SeqIO.parse(out_path, "fasta"):
+            seq_id = record.id
+            if seq_id in seq_map:
+                seq, tm = seq_map[seq_id]
+                surviving[seq] = tm
+                
+    # Clean up temporary files
+    for fname in ["db1.fasta", "db2.fasta", "filtered.fasta", "filtered.fasta.clstr"]:
+        f_p = os.path.join(tmp_dir, fname)
+        if os.path.exists(f_p):
+            os.remove(f_p)
+    try:
+        os.rmdir(tmp_dir)
+    except Exception:
+        pass
         
-        is_homol = False
-        for s_seq, s_len, s_kmers in seen_kmers:
-            # Length guard check
-            if min(c_len, s_len) / max(c_len, s_len) < 0.3:
-                continue
-                
-            # Ultra-fast k-mer intersection threshold check
-            if c_kmers and s_kmers:
-                inter_ratio = len(c_kmers.intersection(s_kmers)) / min(len(c_kmers), len(s_kmers))
-                if inter_ratio < 0.12:
-                    continue
-                    
-            # Complete DP ratio assessment
-            ratio = SequenceMatcher(None, c_seq, s_seq).ratio()
-            if ratio >= 0.30:
-                is_homol = True
-                break
-                
-        if is_homol:
-            dropped += 1
-        else:
-            surviving[c_seq] = tm
-            
-        if (idx + 1) % 50 == 0:
-            print(f"  Screened {idx+1}/{len(candidates)} candidates... (Surviving: {len(surviving)}, Dropped: {dropped})")
-            
-    elapsed = (datetime.now() - start).total_seconds()
-    print(f"  Homology filtering complete in {elapsed:.1f}s. Final clean out-of-distribution set: {len(surviving)} targets.")
+    print(f"  Homology filtering complete. Final clean out-of-distribution set: {len(surviving)} targets.")
     return surviving
 
 
@@ -217,9 +232,9 @@ def extract_or_generate_embeddings(surviving_records):
             
     if missing_t5:
         print(f"  Generating ProtT5 for {len(missing_t5)} targets...")
-        from transformers import T5EncoderModel, AutoTokenizer
+        from transformers import T5EncoderModel, T5Tokenizer
         model_name = 'Rostlab/prot_t5_xl_half_uniref50-enc'
-        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        tokenizer = T5Tokenizer.from_pretrained(model_name, do_lower_case=False)
         model = T5EncoderModel.from_pretrained(model_name).to(device).eval()
         for seq in missing_t5:
             spaced = ' '.join(list(seq)).replace('U', 'X').replace('Z', 'X').replace('O', 'X')
@@ -234,14 +249,14 @@ def extract_or_generate_embeddings(surviving_records):
 
     # 2. Force-regenerate ALL ESM-2 embeddings for FireProt holdout
     # (Cache may contain stale embeddings from a different layer)
-    print(f"  Force-regenerating ESM-2 3B Layer 36 embeddings for {len(surviving_records)} targets...")
+    print(f"  Force-regenerating ESM-2 3B Layer 30 embeddings for {len(surviving_records)} targets...")
     # ESM-2 3B (Layer 36 — matches training embeddings)
     print("\nLoading ESM-2 3B Model...")
     import esm
     model_esm, alphabet = esm.pretrained.esm2_t36_3B_UR50D()
     model_esm = model_esm.eval().to(device)
     batch_converter = alphabet.get_batch_converter()
-    REPR_LAYER = 36 # Must match training embeddings (generate_esm2_embeddings.py default)
+    REPR_LAYER = 30 # Training embeddings verified at Layer 30 (cos_sim=1.0 match)
     
     esm2_generated = 0
     with torch.no_grad():

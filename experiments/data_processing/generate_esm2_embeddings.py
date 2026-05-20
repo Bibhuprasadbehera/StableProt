@@ -35,7 +35,7 @@ def main():
     parser.add_argument('--batch-size', type=int, default=2, help='Batch size (in sequences)')
     parser.add_argument('--max-seq-len', type=int, default=1500, help='Maximum sequence length')
     parser.add_argument('--device', type=str, default='cuda', help='Device')
-    parser.add_argument('--layers', type=int, nargs='+', default=[36], help='Layer(s) to extract embeddings from (e.g., 30 33 36). If multiple, output shape is (num_layers, D). If single, output shape is (D,).')
+    parser.add_argument('--layers', type=int, nargs='+', default=[30], help='Layer(s) to extract embeddings from. Default=30 (pre-LayerNorm, matches training data norms ~900). Layer 36 applies final LayerNorm → norm ~12.')
     parser.add_argument('--model-size', type=str, default='3B', choices=['650M', '3B'], help='Model size')
     args = parser.parse_args()
 

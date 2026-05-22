@@ -3,7 +3,7 @@ import hashlib
 import os
 
 def main():
-    p = 'experiments/data_processing/fireprot_holdout_prott5.pt'
+    p = 'experiments/src/data/fireprot_holdout_prott5.pt'
     if not os.path.exists(p):
         print(f"File {p} not found.")
         return

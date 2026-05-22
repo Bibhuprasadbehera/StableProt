@@ -24,12 +24,6 @@ experiments/protherm_embed.log
 experiments/cdhit.log
 experiments/esm2_train_embed.log
 experiments/tembert_embed.log
-training_data/
-experiments/meltome_embed.log
-# Data directories
-dataset/
-test_data/
-embeddings/
-cleaned_data/
+# Data and benchmark directories
+data/
 benchmark_models/
-

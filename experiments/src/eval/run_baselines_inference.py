@@ -66,7 +66,7 @@ def main():
 
     # B. FireProt holdout sequences
     print("\nPreparing FireProt holdout sequences...")
-    fireprot_path = os.path.join(PROJECT_ROOT, 'experiments/data_processing/fireprot_holdout_prott5.pt')
+    fireprot_path = os.path.join(PROJECT_ROOT, 'experiments/src/data/fireprot_holdout_prott5.pt')
     d_fireprot = torch.load(fireprot_path, map_location='cpu')
     fireprot_seqs = d_fireprot['sequences']
     fireprot_tms = d_fireprot['temperatures'].numpy() if hasattr(d_fireprot['temperatures'], 'numpy') else np.array(d_fireprot['temperatures'])

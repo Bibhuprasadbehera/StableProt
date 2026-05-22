@@ -1,5 +1,4 @@
 import os
-import csv
 import json
 import torch
 import torch.nn as nn
@@ -53,50 +52,9 @@ def compute_metrics(y_true, y_pred):
         'mape': mape, 'global_auc': global_auc
     }
 
-def map_fireprot_to_uniprot_ids(fp_seqs, base_dir):
-    """Map FireProt sequences back to UniProtKB accessions using SQL and CSV databases."""
-    sql_path = os.path.join(base_dir, "../../new_data/fireprotdb_dump_2025_09_22/01_fireprotdb_2025-09-20.sql")
-    csv_path = os.path.join(base_dir, "../../new_data/fireprotdb_dump_2025_09_22/fireprotdb_csv_whole/fireprotdb_20251015-164116.csv")
-    
-    # Read sequence dictionary from SQL dump
-    sequences = {}
-    in_copy_block = False
-    with open(sql_path, "r", encoding="utf-8", errors="ignore") as f:
-        for line in f:
-            if line.startswith("COPY public.sequence "):
-                in_copy_block = True
-                continue
-            if in_copy_block:
-                if line.strip() == "\\.":
-                    break
-                parts = line.split("\t")
-                if len(parts) >= 2:
-                    sequences[parts[0].strip()] = parts[1].strip().upper()
-                    
-    seq_to_id = {seq: seq_id for seq_id, seq in sequences.items()}
-    
-    # Read mapping from CSV
-    seq_id_to_uniprot = {}
-    with open(csv_path, "r", encoding="utf-8", errors="ignore") as f:
-        r = csv.reader(f)
-        next(r)
-        for row in r:
-            if len(row) > 38:
-                seq_id_to_uniprot[row[1].strip()] = row[38].strip()
-                
-    uids = []
-    for seq in fp_seqs:
-        seq_id = seq_to_id.get(seq)
-        if seq_id and seq_id in seq_id_to_uniprot:
-            uids.append(seq_id_to_uniprot[seq_id])
-        else:
-            uids.append(None)
-    return uids
-
-def evaluate_mode(mode, device, base_dir, x_esm2, y_true, uids, ogt_lookup, tm_lookup):
+def evaluate_mode(mode, device, base_dir, x_esm2, y_true):
     results_dir = os.path.join(base_dir, 'results')
-    use_ogt_feature = (mode in ['D3', 'D4'])
-    use_tm_feature = (mode == 'D4')
+    use_ogt_feature = (mode in ['C', 'C2'])
     
     ensemble_preds = []
     
@@ -112,19 +70,14 @@ def evaluate_mode(mode, device, base_dir, x_esm2, y_true, uids, ogt_lookup, tm_l
             emb_dim=CONFIG['input_size'],
             hidden=CONFIG['hidden_size'],
             bottleneck=CONFIG['bottleneck_size'],
-            use_ogt_feature=use_ogt_feature,
-            use_tm_feature=use_tm_feature
+            use_ogt_feature=use_ogt_feature
         ).to(device)
         model.load_state_dict(torch.load(model_path, map_location=device, weights_only=True))
         model.eval()
         
-        # Precompute/lookup OGT and TM for this model/seed
-        ogt_vals = []
-        tm_vals = []
-        
-        # Load stage1 predictor for fallback if needed
-        stage1_predictor = None
-        if use_ogt_feature and os.path.exists(stage1_model_path):
+        # Predict OGT if needed
+        ogt_pred = None
+        if use_ogt_feature:
             stage1_predictor = StableProtV7(
                 emb_dim=CONFIG['input_size'],
                 hidden=CONFIG['hidden_size'],
@@ -132,34 +85,11 @@ def evaluate_mode(mode, device, base_dir, x_esm2, y_true, uids, ogt_lookup, tm_l
             ).to(device)
             stage1_predictor.load_state_dict(torch.load(stage1_model_path, map_location=device, weights_only=True))
             stage1_predictor.eval()
-            
-        for i, uid in enumerate(uids):
-            # TM lookup
-            tm_val = float(tm_lookup.get(uid, 0.0)) if uid else 0.0
-            tm_vals.append(tm_val)
-            
-            # OGT lookup
-            ogt_val = None
-            if uid:
-                ogt_info = ogt_lookup.get(uid, {})
-                if ogt_info.get("source") == "known" and "ogt" in ogt_info:
-                    ogt_val = float(ogt_info["ogt"])
-            
-            if ogt_val is None:
-                if use_ogt_feature and stage1_predictor is not None:
-                    # Run predictor on single esm2 embedding
-                    with torch.no_grad():
-                        ogt_val = float(stage1_predictor(x_esm2[i].unsqueeze(0), stage='ogt').cpu().item())
-                else:
-                    ogt_val = 37.0
-                    
-            ogt_vals.append(ogt_val)
-            
-        ogt_tensor = torch.tensor(ogt_vals, dtype=torch.float32).to(device) if use_ogt_feature else None
-        tm_tensor = torch.tensor(tm_vals, dtype=torch.float32).to(device) if use_tm_feature else None
+            with torch.no_grad():
+                ogt_pred = stage1_predictor(x_esm2, stage='ogt')
         
         with torch.no_grad():
-            pred = model(x_esm2, stage='tm', ogt_pred=ogt_tensor, tm_feat=tm_tensor).cpu().numpy()
+            pred = model(x_esm2, stage='tm', ogt_pred=ogt_pred).cpu().numpy()
             
         ensemble_preds.append(pred)
         
@@ -188,49 +118,32 @@ def evaluate_mode(mode, device, base_dir, x_esm2, y_true, uids, ogt_lookup, tm_l
 def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    holdout_path = os.path.join(base_dir, "../data_processing/fireprot_holdout_prott5.pt")
-    ogt_lookup_path = os.path.join(base_dir, "../../new_data/tm_ogt_lookup.json")
-    tm_lookup_path = os.path.join(base_dir, "../../new_data/tm_transmembrane.json")
+    holdout_path = os.path.join(base_dir, "../../../data/test_data/fireprot_holdout_prott5.pt")
     
     if not os.path.exists(holdout_path):
         print(f"CRITICAL ERROR: Holdout dataset missing at {holdout_path}")
         return
         
     print("Loading FireProt holdout dataset...")
-    d_fireprot = torch.load(holdout_path, map_location="cpu")
+    d_fireprot = torch.load(holdout_path, weights_only=False)
     x_esm2 = d_fireprot['embeddings_esm2'].to(device)
     y_true = d_fireprot['temperatures'].numpy() if hasattr(d_fireprot['temperatures'], 'numpy') else np.array(d_fireprot['temperatures'])
-    fp_seqs = d_fireprot['sequences']
     
     print(f"FireProt Holdout: {len(y_true)} testing targets.")
     
-    # Map sequences to UniProt KB IDs
-    print("Mapping FireProt sequences to UniProtKB IDs...")
-    uids = map_fireprot_to_uniprot_ids(fp_seqs, base_dir)
-    
-    print("Loading feature lookup files...")
-    with open(ogt_lookup_path) as f:
-        ogt_lookup = json.load(f)
-    with open(tm_lookup_path) as f:
-        tm_lookup = json.load(f)
-        
-    modes = ['D1', 'D2', 'D3', 'D4']
+    modes = ['B', 'C', 'C2']
     results = {}
     
-    print("\nEvaluating V7 Model Variants (D1-D4)...")
+    print("\nEvaluating V7 Model Variants...")
     for mode in modes:
-        res = evaluate_mode(mode, device, base_dir, x_esm2, y_true, uids, ogt_lookup, tm_lookup)
+        res = evaluate_mode(mode, device, base_dir, x_esm2, y_true)
         if res is not None:
             preds, metrics = res
             results[mode] = {'preds': preds, 'metrics': metrics}
             
-    if not results:
-        print("No evaluation results generated.")
-        return
-        
     # Print results table
     print("\n" + "="*120)
-    print(f"{'V7 Model Variant':<25} | {'MAE (°C)':<15} | {'MAE 95% CI':<18} | {'PCC':<8} | {'PCC 95% CI':<18} | {'R²':<8} | {'Global AUC':<10}")
+    print(f"{'V7 Model Variant':<20} | {'MAE (°C)':<15} | {'MAE 95% CI':<18} | {'PCC':<8} | {'PCC 95% CI':<18} | {'R²':<8} | {'Global AUC':<10}")
     print("="*120)
     
     for mode, data in results.items():
@@ -243,20 +156,18 @@ def main():
         auc_str = f"{m['global_auc']:.3f}"
         
         mode_name = f"V7 Mode {mode}"
-        if mode == 'D1':
-            mode_name += " (Baseline Clean)"
-        elif mode == 'D2':
-            mode_name += " (+Stratified)"
-        elif mode == 'D3':
-            mode_name += " (+OGT lookup)"
-        elif mode == 'D4':
-            mode_name += " (+TM lookup)"
+        if mode == 'B':
+            mode_name += " (Transfer)"
+        elif mode == 'C':
+            mode_name += " (Transfer+OGT)"
+        elif mode == 'C2':
+            mode_name += " (OGT only)"
             
-        print(f"{mode_name:<25} | {mae_str:<15} | {mae_ci_str:<18} | {pcc_str:<8} | {pcc_ci_str:<18} | {r2_str:<8} | {auc_str:<10}")
+        print(f"{mode_name:<20} | {mae_str:<15} | {mae_ci_str:<18} | {pcc_str:<8} | {pcc_ci_str:<18} | {r2_str:<8} | {auc_str:<10}")
     print("="*120)
 
     # Save results to json
-    out_path = os.path.join(base_dir, 'v7_fireprot_eval_metrics_v3.json')
+    out_path = os.path.join(base_dir, 'v7_fireprot_eval_metrics.json')
     serializable_results = {}
     for mode, data in results.items():
         m = data['metrics']

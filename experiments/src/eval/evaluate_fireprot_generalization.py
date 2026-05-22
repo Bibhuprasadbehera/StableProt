@@ -31,7 +31,7 @@ from experiments.analysis.compare_all_prothermdb import (
 # Import V5 Multi-Head architecture
 from experiments.v5_multihead.model import MultiHead_TmPredictor
 
-DATA_PATH = os.path.join(PROJECT_ROOT, "experiments/data_processing/fireprot_holdout_prott5.pt")
+DATA_PATH = os.path.join(PROJECT_ROOT, "experiments/src/data/fireprot_holdout_prott5.pt")
 
 
 

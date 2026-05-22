@@ -25,7 +25,7 @@ sys.path.insert(0, EXPERIMENTS_DIR)
 
 from model import MLP_Regression_Improved
 from config import CONFIG
-from common.data_utils import TemStaProDataset
+from utils.data_utils import TemStaProDataset
 from torch.utils.data import DataLoader, WeightedRandomSampler
 
 

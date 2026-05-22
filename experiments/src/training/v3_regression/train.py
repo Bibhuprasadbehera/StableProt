@@ -14,7 +14,7 @@ sys.path.insert(0, EXPERIMENTS_DIR)
 
 from model import MLP_Regression
 from config import CONFIG
-from common.data_utils import TemStaProDataset
+from utils.data_utils import TemStaProDataset
 from torch.utils.data import DataLoader
 
 def create_regression_data_loaders(data_path, batch_size):

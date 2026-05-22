@@ -29,8 +29,8 @@ STABLEPROT_DIR = os.path.join(PROJECT_ROOT, "StableProt")
 sys.path.insert(0, EXPERIMENTS_DIR)
 sys.path.insert(0, STABLEPROT_DIR)
 
-from common.data_utils import prepare_data_for_threshold
-from common.metrics import (
+from utils.data_utils import prepare_data_for_threshold
+from utils.metrics import (
     compute_all_metrics, print_metrics, save_metrics,
     plot_roc_curve, plot_prc_curve
 )

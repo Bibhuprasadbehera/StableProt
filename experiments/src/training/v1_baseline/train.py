@@ -1,10 +1,8 @@
 """
-V2 Improved Training Script.
+V1 Baseline Training Script.
 
-Key improvements over V1 Baseline:
-  1. BCEWithLogitsLoss with pos_weight (upweights minority thermophilic class)
-  2. WeightedRandomSampler (balanced batches during training)
-  3. Dropout + BatchNorm (regularization)
+Standard binary classification with BCELoss, no balancing, no regularization.
+Trains an ensemble of models (multiple seeds) for each temperature threshold.
 
 Usage:
     python train.py                          # Train all thresholds
@@ -26,39 +24,19 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 EXPERIMENTS_DIR = os.path.dirname(SCRIPT_DIR)
 sys.path.insert(0, EXPERIMENTS_DIR)
 
-from common.data_utils import prepare_data_for_threshold, create_data_loaders
-from common.metrics import (
+from utils.data_utils import prepare_data_for_threshold, create_data_loaders
+from utils.metrics import (
     compute_all_metrics, print_metrics, save_metrics,
     plot_roc_curve, plot_prc_curve, plot_training_history
 )
-from model import MLP_Improved
+from model import MLP_Baseline
 from config import CONFIG
-
-
-def compute_pos_weight(labels, cap=50.0):
-    """
-    Compute pos_weight for BCEWithLogitsLoss.
-    pos_weight = n_negative / n_positive
-
-    This tells the loss function: "a positive sample is worth pos_weight
-    times more than a negative sample."
-    """
-    n_pos = labels.sum().item()
-    n_neg = len(labels) - n_pos
-
-    if n_pos == 0:
-        return torch.tensor([cap])
-
-    weight = n_neg / n_pos
-    weight = min(weight, cap)
-    return torch.tensor([weight])
 
 
 def train_one_model(model, train_loader, val_loader, val_emb, val_labels,
                     criterion, optimizer, num_epochs, patience, device='cpu'):
     """
     Train a single model with early stopping.
-    Uses BCEWithLogitsLoss — model outputs raw logits, not probabilities.
 
     Returns:
         (best_model_state, history_dict)
@@ -74,9 +52,6 @@ def train_one_model(model, train_loader, val_loader, val_emb, val_labels,
     best_state = None
     epochs_without_improvement = 0
 
-    # Create a validation criterion without pos_weight for fair comparison
-    val_criterion = nn.BCEWithLogitsLoss()
-
     for epoch in range(num_epochs):
         # ── Training ──
         model.train()
@@ -88,8 +63,8 @@ def train_one_model(model, train_loader, val_loader, val_emb, val_labels,
             batch_y = batch_y.float().to(device)
 
             optimizer.zero_grad()
-            logits = model(batch_x).squeeze()
-            loss = criterion(logits, batch_y)
+            outputs = model(batch_x).squeeze()
+            loss = criterion(outputs, batch_y)
             loss.backward()
             optimizer.step()
 
@@ -101,11 +76,10 @@ def train_one_model(model, train_loader, val_loader, val_emb, val_labels,
         # ── Validation ──
         model.eval()
         with torch.no_grad():
-            val_logits = model(val_emb.float().to(device)).squeeze().cpu()
-            val_loss = val_criterion(val_logits, val_labels).item()
+            val_out = model(val_emb.float().to(device)).squeeze().cpu()
+            val_loss = criterion(val_out, val_labels).item()
 
-            # Convert logits to probabilities for metrics
-            val_probs = torch.sigmoid(val_logits).numpy()
+            val_probs = val_out.numpy()
             val_true = val_labels.numpy()
 
             try:
@@ -122,7 +96,7 @@ def train_one_model(model, train_loader, val_loader, val_emb, val_labels,
         history['val_auc_roc'].append(val_auc)
         history['val_mcc'].append(val_mcc)
 
-        # ── Early stopping (on unweighted val loss) ──
+        # ── Early stopping ──
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             best_state = {k: v.clone() for k, v in model.state_dict().items()}
@@ -142,7 +116,7 @@ def train_one_model(model, train_loader, val_loader, val_emb, val_labels,
 
 
 def run_experiment(args):
-    """Run the full improved experiment."""
+    """Run the full baseline experiment."""
 
     # ── Setup ──
     output_dir = os.path.join(SCRIPT_DIR, 'results')
@@ -159,7 +133,7 @@ def run_experiment(args):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     print("=" * 60)
-    print("  V2 IMPROVED — Weighted Loss + Balanced Sampling + Dropout")
+    print("  V1 BASELINE — Standard Binary Classification")
     print("=" * 60)
     print("  Thresholds: %s" % thresholds)
     print("  Seeds: %s" % seeds)
@@ -167,10 +141,8 @@ def run_experiment(args):
     print("  Epochs: %d (patience: %d)" % (CONFIG['num_epochs'], CONFIG['early_stopping_patience']))
     print("  Learning rate: %s" % CONFIG['learning_rate'])
     print("  Batch size: %d" % CONFIG['batch_size'])
-    print("  Loss: BCEWithLogitsLoss (auto pos_weight, cap=%.0f)" % CONFIG['pos_weight_cap'])
-    print("  Balanced sampling: Yes (WeightedRandomSampler)")
-    print("  Dropout: %.1f / %.1f" % (CONFIG['dropout_1'], CONFIG['dropout_2']))
-    print("  Weight decay: %s" % CONFIG['weight_decay'])
+    print("  Loss: BCELoss (unweighted)")
+    print("  Balanced sampling: No")
     print("=" * 60)
 
     all_results = {}
@@ -183,16 +155,11 @@ def run_experiment(args):
         # Load data for this threshold
         data = prepare_data_for_threshold(data_path, threshold)
 
-        # Compute pos_weight for this threshold
-        pos_weight = compute_pos_weight(data['train_labels'], cap=CONFIG['pos_weight_cap'])
-        print("  pos_weight: %.2f" % pos_weight.item())
-
-        # Create balanced data loaders
         train_loader, val_loader = create_data_loaders(
             data['train_emb'], data['train_labels'],
             data['val_emb'], data['val_labels'],
             batch_size=CONFIG['batch_size'],
-            balanced=True  # ← Key difference: balanced sampling
+            balanced=False  # No balanced sampling in baseline
         )
 
         threshold_predictions = []
@@ -203,18 +170,14 @@ def run_experiment(args):
             torch.manual_seed(seed)
             np.random.seed(seed)
 
-            # Create improved model
-            model = MLP_Improved(
+            # Create model
+            model = MLP_Baseline(
                 input_size=CONFIG['input_size'],
                 hidden_size_1=CONFIG['hidden_size_1'],
-                hidden_size_2=CONFIG['hidden_size_2'],
-                dropout_1=CONFIG['dropout_1'],
-                dropout_2=CONFIG['dropout_2'],
+                hidden_size_2=CONFIG['hidden_size_2']
             ).to(device)
 
-            # Weighted loss
-            criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight.to(device))
-
+            criterion = nn.BCELoss()
             optimizer = torch.optim.Adam(
                 model.parameters(),
                 lr=CONFIG['learning_rate'],
@@ -255,7 +218,7 @@ def run_experiment(args):
 
             plot_roc_curve(
                 data['test_labels'], test_probs,
-                title="ROC — Improved t=%d°C (seed=%d)" % (threshold, seed),
+                title="ROC — Baseline t=%d°C (seed=%d)" % (threshold, seed),
                 save_path=os.path.join(seed_dir, 'roc_curve.png')
             )
             plot_training_history(history, save_path=os.path.join(seed_dir, 'training_history.png'))
@@ -278,12 +241,12 @@ def run_experiment(args):
 
         plot_roc_curve(
             data['test_labels'], ensemble_probs,
-            title="ROC — Improved Ensemble t=%d°C" % threshold,
+            title="ROC — Baseline Ensemble t=%d°C" % threshold,
             save_path=os.path.join(ensemble_dir, 'roc_curve.png')
         )
         plot_prc_curve(
             data['test_labels'], ensemble_probs,
-            title="PRC — Improved Ensemble t=%d°C" % threshold,
+            title="PRC — Baseline Ensemble t=%d°C" % threshold,
             save_path=os.path.join(ensemble_dir, 'prc_curve.png')
         )
 
@@ -297,7 +260,7 @@ def run_experiment(args):
 
     # Print final summary table
     print("\n" + "=" * 70)
-    print("  V2 IMPROVED — FINAL SUMMARY (Ensemble)")
+    print("  V1 BASELINE — FINAL SUMMARY (Ensemble)")
     print("=" * 70)
     print("  %-10s %-10s %-10s %-10s %-10s %-10s" % (
         'Threshold', 'AUC-ROC', 'AUC-PRC', 'F1', 'MCC', 'Bal.Acc'))
@@ -310,7 +273,7 @@ def run_experiment(args):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='V2 Improved Training')
+    parser = argparse.ArgumentParser(description='V1 Baseline Training')
     parser.add_argument('--data', type=str, default=None,
                         help='Path to prepared_data.pt')
     parser.add_argument('--thresholds', type=int, nargs='+', default=None,

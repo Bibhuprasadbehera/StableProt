@@ -294,9 +294,9 @@ def main():
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    data_path = os.path.join(base_dir, "../../new_data/prepared_data_v3.pt")
-    ogt_lookup_path = os.path.join(base_dir, "../../new_data/tm_ogt_lookup.json")
-    tm_lookup_path = os.path.join(base_dir, "../../new_data/tm_transmembrane.json")
+    data_path = os.path.join(base_dir, "../../../data/cleaner_data/prepared_data_v3.pt")
+    ogt_lookup_path = os.path.join(base_dir, "../../../data/cleaner_data/tm_ogt_lookup.json")
+    tm_lookup_path = os.path.join(base_dir, "../../../data/cleaner_data/tm_transmembrane.json")
 
     print("Loading dataset...")
     data = torch.load(data_path, map_location="cpu")

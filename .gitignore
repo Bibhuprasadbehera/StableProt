@@ -24,11 +24,12 @@ experiments/protherm_embed.log
 experiments/cdhit.log
 experiments/esm2_train_embed.log
 experiments/tembert_embed.log
-new_data/
+training_data/
 experiments/meltome_embed.log
-StableProt/prot_t5_xl_half_uniref50-enc/config.json
-StableProt/prot_t5_xl_half_uniref50-enc/model.safetensors
-StableProt/prot_t5_xl_half_uniref50-enc/tokenizer_config.json
-StableProt/prot_t5_xl_half_uniref50-enc/tokenizer.json
-prott5_tm_embed.log
-experiments/v6_multihead_esm2/train_v2.log
+# Data directories
+dataset/
+test_data/
+embeddings/
+cleaned_data/
+benchmark_models/
+

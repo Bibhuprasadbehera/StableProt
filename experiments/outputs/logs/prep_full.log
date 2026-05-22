@@ -1,0 +1,41 @@
+============================================================
+  TemStaPro Data Preparation
+============================================================
+
+[1/4] Parsing FASTA files...
+  Training: 943605 records parsed (1.2 sec)
+  Validation: 230985 records parsed (0.3 sec)
+  Testing: 210137 records parsed (0.4 sec)
+
+[2/4] Filtering sequences (max_seq_len=1500)...
+  After filtering: train=939315, val=229993, test=208178
+
+[3/4] Using ALL data (no sampling)
+  WARNING: Embedding generation will be very slow on CPU!
+  Train temps: min=4, max=100, mean=37.6, median=30.0
+  Val temps: min=4, max=100, mean=37.6, median=30.0
+  Test temps: min=4, max=100, mean=37.6, median=30.0
+
+[4/4] Generating ProtT5 embeddings...
+
+  --- Training embeddings ---
+  Checking cache for 939315 sequences...
+  Cached: 939315, Need generation: 0
+
+  --- Validation embeddings ---
+  Checking cache for 229993 sequences...
+  Cached: 229993, Need generation: 0
+
+  --- Test embeddings ---
+  Checking cache for 208178 sequences...
+  Cached: 208178, Need generation: 0
+
+  Total embedding time: 117.4 seconds
+
+  Data saved to: prepared_data_full.pt (5427.6 MB)
+
+============================================================
+  DONE! You can now run training with:
+    cd experiments/v1_baseline && python train.py
+    cd experiments/v2_improved && python train.py
+============================================================

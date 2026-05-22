@@ -1,0 +1,32 @@
+Loading ESM-2 3B model...
+Model loaded.
+Reading ../new_data/meltome_sequences.fasta...
+Found 1 sequences.
+Processing 1 sequences (truncated to <= 1500).
+Created 1 batches.
+  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [00:00<00:00,  5.82it/s]100%|██████████| 1/1 [00:00<00:00,  5.82it/s]
+Done! Processed: 1, Skipped (cached): 0
+Loading ESM-2 3B model...
+Model loaded.
+Reading ../new_data/prothermdb_validation.fasta...
+Found 1 sequences.
+Processing 1 sequences (truncated to <= 1500).
+Created 1 batches.
+  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [00:00<00:00, 22919.69it/s]
+Done! Processed: 0, Skipped (cached): 1
+Loading ESM-2 3B model...
+Model loaded.
+Reading ../new_data/tembert_reg_sequences.fasta...
+Found 1 sequences.
+Processing 1 sequences (truncated to <= 1500).
+Created 1 batches.
+  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [00:00<00:00, 21076.90it/s]
+Done! Processed: 0, Skipped (cached): 1
+Loading ESM-2 3B model...
+Model loaded.
+Reading ../new_data/tembert_test_sequences.fasta...
+Found 1 sequences.
+Processing 1 sequences (truncated to <= 1500).
+Created 1 batches.
+  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [00:00<00:00, 20661.60it/s]
+Done! Processed: 0, Skipped (cached): 1

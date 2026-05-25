@@ -1,10 +1,15 @@
 | Model Iteration | Architectural Sub-Type | MAE (°C) | PCC ($r$) | $R^2$ | MCC | F1 Score | ROC AUC | MAPE (%) | Top-10% Enrich Precision |
 |:---|:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| **TemStaPro (V0 Original)** | Pre-trained Binary Proxy Ensemble | 20.86 | 0.43 | -1.74 | 0.286 | 0.26 | 0.63 | 31.6% | 0.500 |
-| **V2 Improved** | Specialized Binary Proxy Ensemble | 32.67 | 0.45 | -5.18 | 0.288 | 0.28 | 0.62 | 52.4% | 0.500 |
-| **V3 Regression** | Continuous Single-Head OGT Proxy | 26.01 | 0.41 | -2.93 | 0.233 | 0.20 | 0.61 | 40.4% | 0.500 |
-| **V4 Improved** | Residual Continuous OGT Proxy | 26.38 | 0.44 | -3.01 | 0.218 | 0.16 | 0.60 | 41.0% | 0.500 |
-| **TemBERTure** | External Reference (Fine-Tuned) | 8.85 | 0.80 | 0.41 | 0.616 | 0.81 | 0.88 | 14.9% | 0.667 |
-| **ESMStabP** | External Reference (Dedicated SOTA) | 7.92 | 0.85 | 0.56 | 0.573 | 0.78 | 0.88 | 13.5% | 0.643 |
-| **V5 Multi-Head** | **Dedicated $T_m$ Head (ProtT5)** | **12.59** | **0.45** | **-0.27** | **0.288** | **0.28** | **0.62** | **18.8%** | **0.500** |
-| **V6 Multi-Head** | **Dedicated $T_m$ Head (ESM-2 3B)** | **5.82** | **0.89** | **0.75** | **0.672** | **0.83** | **0.93** | **9.8%** | **0.786** |
+| **TemStaPro (V0 Original)** | Pre-trained Binary Proxy Ensemble | 21.01 | 0.47 | -1.53 | 0.299 | 0.27 | 0.63 | 31.9% | 0.594 |
+| **V1 Baseline** | Retrained Binary Proxy Ensemble | 28.14 | 0.48 | -3.10 | 0.249 | 0.20 | 0.60 | 44.0% | 0.594 |
+| **V2 Improved** | Specialized Binary Proxy Ensemble | 32.35 | 0.49 | -4.54 | 0.312 | 0.29 | 0.63 | 52.2% | 0.594 |
+| **V3 Regression** | Continuous Single-Head OGT Proxy | 25.85 | 0.43 | -2.56 | 0.278 | 0.24 | 0.60 | 40.4% | 0.594 |
+| **V4 Improved Regr.** | Residual Continuous OGT Proxy | 26.32 | 0.46 | -2.65 | 0.241 | 0.19 | 0.59 | 41.0% | 0.594 |
+| **V5 Multi-Head (ProtT5)** | Dedicated $T_m$ Head (ProtT5) | 12.62 | 0.50 | -0.18 | 0.303 | 0.30 | 0.62 | 18.9% | 0.594 |
+| **V6 Multi-Head (ESM-2)** | Dedicated $T_m$ Head (ESM-2 3B) | 12.91 | 0.44 | -0.22 | 0.295 | 0.32 | 0.62 | 19.4% | 0.531 |
+| **V7 ESM-2 (Mode D2)** | Dedicated $T_m$ Head (Clean OGT) | 12.54 | 0.33 | -0.10 | 0.181 | 0.44 | 0.60 | 20.2% | 0.438 |
+| **V7 SaProt (Mode D2)** | Dedicated $T_m$ Head (SaProt) | 12.12 | 0.42 | -0.05 | 0.228 | 0.42 | 0.61 | 19.1% | 0.562 |
+| **TemBERTure** | External Reference (Fine-Tuned) | 12.70 | 0.37 | -0.16 | 0.222 | 0.36 | 0.60 | 19.6% | 0.562 |
+| **ESMStabP** | External Reference (Dedicated SOTA) | 14.85 | 0.33 | -0.51 | 0.150 | 0.33 | 0.58 | 22.4% | 0.375 |
+| **DeepSTABp** | External Reference (Dedicated SOTA) | 13.51 | 0.44 | -0.30 | 0.288 | 0.30 | 0.60 | 20.5% | 0.531 |
+| **ThermoFormer** | External Reference (Transformer SOTA) | 28.45 | 0.55 | -3.19 | 0.299 | 0.27 | 0.64 | 44.9% | 0.594 |

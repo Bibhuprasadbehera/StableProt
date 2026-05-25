@@ -118,38 +118,37 @@ def train_seed_stage2(mode, seed, data_saprot, data_esm2, ogt_lookup, tm_lookup,
     else:
         print("WARNING: Stage 1 predictor not found or not specified. Will use default OGT fallback if lookup fails.")
 
-    print("\n--- Precomputing train features ---")
-    train_ogt, train_tm_feat = precompute_features(
-        data_saprot['train_tm']['ids'], data_esm2['train_tm']['embeddings'], 
-        ogt_lookup, tm_lookup, stage1_predictor, device
-    )
-    print("\n--- Precomputing val features ---")
-    val_ogt, val_tm_feat = precompute_features(
-        data_saprot['val_tm']['ids'], data_esm2['val_tm']['embeddings'], 
-        ogt_lookup, tm_lookup, stage1_predictor, device
-    )
-    print("\n--- Precomputing test features ---")
-    test_ogt, test_tm_feat = precompute_features(
-        data_saprot['test_tm']['ids'], data_esm2['test_tm']['embeddings'], 
-        ogt_lookup, tm_lookup, stage1_predictor, device
-    )
+    # 2. Extract features directly from the cleaned dataset
+    print("\n--- Extracting train, val, and test features from dataset ---")
+    train_ogt = data_saprot['train_tm']['ogt']
+    train_tm_feat = data_saprot['train_tm']['tmhmm_tm_binary'].float()
+    
+    val_ogt = data_saprot['val_tm']['ogt']
+    val_tm_feat = data_saprot['val_tm']['tmhmm_tm_binary'].float()
+    
+    test_ogt = data_saprot['test_tm']['ogt']
+    test_tm_feat = data_saprot['test_tm']['tmhmm_tm_binary'].float()
+
+    train_lbl = data_saprot['train_tm']['tm_consensus'] if 'tm_consensus' in data_saprot['train_tm'] else data_saprot['train_tm']['labels']
+    val_lbl = data_saprot['val_tm']['tm_consensus'] if 'tm_consensus' in data_saprot['val_tm'] else data_saprot['val_tm']['labels']
+    test_lbl = data_saprot['test_tm']['tm_consensus'] if 'tm_consensus' in data_saprot['test_tm'] else data_saprot['test_tm']['labels']
 
     train_dataset = TmDataset(
-        data_saprot['train_tm']['ids'], data_saprot['train_tm']['embeddings'], data_saprot['train_tm']['labels'], 
+        data_saprot['train_tm']['ids'], data_saprot['train_tm']['embeddings'], train_lbl, 
         train_ogt, train_tm_feat
     )
     val_dataset = TmDataset(
-        data_saprot['val_tm']['ids'], data_saprot['val_tm']['embeddings'], data_saprot['val_tm']['labels'], 
+        data_saprot['val_tm']['ids'], data_saprot['val_tm']['embeddings'], val_lbl, 
         val_ogt, val_tm_feat
     )
     test_dataset = TmDataset(
-        data_saprot['test_tm']['ids'], data_saprot['test_tm']['embeddings'], data_saprot['test_tm']['labels'], 
+        data_saprot['test_tm']['ids'], data_saprot['test_tm']['embeddings'], test_lbl, 
         test_ogt, test_tm_feat
     )
 
     if use_stratified_sampling:
         print("Using temperature-stratified sampler...")
-        weights = get_temperature_weights(data_saprot['train_tm']['labels'])
+        weights = get_temperature_weights(train_lbl)
         sampler = WeightedRandomSampler(weights, num_samples=len(weights), replacement=True)
         train_loader = DataLoader(train_dataset, batch_size=CONFIG['batch_size'], sampler=sampler, drop_last=True)
     else:
@@ -277,10 +276,8 @@ def main():
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    data_saprot_path = os.path.join(base_dir, "../../../data/embeddings/prepared_data_v4_saprot.pt")
-    data_esm2_path = os.path.join(base_dir, "../../../data/embeddings/prepared_data_v4.pt")
-    ogt_lookup_path = os.path.join(base_dir, "../../../data/cleaner_data/tm_ogt_lookup.json")
-    tm_lookup_path = os.path.join(base_dir, "../../../data/cleaner_data/tm_transmembrane.json")
+    data_saprot_path = "/home/bibhu/Documents/temstampto/data/embeddings/prepared_data_v4_saprot_cleaned.pt"
+    data_esm2_path = "/home/bibhu/Documents/temstampto/data/embeddings/prepared_data_v4_cleaned.pt"
 
     print(f"Loading SaProt embeddings from {data_saprot_path}...")
     data_saprot = torch.load(data_saprot_path, map_location='cpu')
@@ -288,11 +285,8 @@ def main():
     print(f"Loading ESM-2 embeddings from {data_esm2_path}...")
     data_esm2 = torch.load(data_esm2_path, map_location='cpu')
 
-    with open(ogt_lookup_path, 'r') as f:
-        ogt_lookup = json.load(f)
-
-    with open(tm_lookup_path, 'r') as f:
-        tm_lookup = json.load(f)
+    ogt_lookup = None
+    tm_lookup = None
 
     save_dir = os.path.join(base_dir, "results/saprot")
     os.makedirs(save_dir, exist_ok=True)
@@ -311,7 +305,7 @@ def main():
             save_dir=save_dir,
             stage1_model_path=stage1_model_path
         )
-        test_labels = data_saprot['test_tm']['labels']
+        test_labels = data_saprot['test_tm']['tm_consensus'] if 'tm_consensus' in data_saprot['test_tm'] else data_saprot['test_tm']['labels']
         mae = np.mean(np.abs(np.array(preds) - test_labels.numpy()))
         maes.append(mae)
 

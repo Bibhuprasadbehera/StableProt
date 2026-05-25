@@ -200,10 +200,10 @@ def main():
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    data_path = os.path.join(base_dir, "../../../data/embeddings/prepared_data_v2.pt")
+    data_path = "/home/bibhu/Documents/temstampto/data/embeddings/prepared_data_v4_cleaned.pt"
     
     print("Loading dataset...")
-    data = torch.load(data_path, weights_only=True)
+    data = torch.load(data_path, map_location="cpu")
     
     train_tm_emb = data['train_tm']['embeddings']
     train_tm_lbl = data['train_tm']['labels']

@@ -77,13 +77,13 @@ def train_seed(seed, train_ogt_loader, device, save_dir):
 def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    data_path = os.path.join(base_dir, "../../../data/embeddings/prepared_data_v2.pt")
+    data_path = "/home/bibhu/Documents/temstampto/data/embeddings/prepared_data_v4_cleaned.pt"
     
     print("Loading dataset...")
-    data = torch.load(data_path, weights_only=True)
+    data = torch.load(data_path, map_location="cpu")
     
     train_ogt_emb = data['train_ogt']['embeddings']
-    train_ogt_lbl = data['train_ogt']['labels']
+    train_ogt_lbl = data['train_ogt']['labels'] if 'labels' in data['train_ogt'] else data['train_ogt']['ogt_original']
     
     print(f"OGT Training data: {train_ogt_emb.shape[0]} samples, dim={train_ogt_emb.shape[1]}")
     

@@ -55,8 +55,8 @@ def compute_metrics(y_true, y_pred):
 
 def map_fireprot_to_uniprot_ids(fp_seqs, base_dir):
     """Map FireProt sequences back to UniProtKB accessions using SQL and CSV databases."""
-    sql_path = os.path.join(base_dir, "../../../data/training_data/raw/fireprotdb_dump_2025_09_22/01_fireprotdb_2025-09-20.sql")
-    csv_path = os.path.join(base_dir, "../../../data/training_data/raw/fireprotdb_dump_2025_09_22/fireprotdb_csv_whole/fireprotdb_20251015-164116.csv")
+    sql_path = "/home/bibhu/Documents/temstampto/data/training_data/raw/fireprotdb_dump_2025_09_22/01_fireprotdb_2025-09-20.sql"
+    csv_path = "/home/bibhu/Documents/temstampto/data/training_data/raw/fireprotdb_dump_2025_09_22/fireprotdb_csv_whole/fireprotdb_20251015-164116.csv"
     
     # Read sequence dictionary from SQL dump
     sequences = {}
@@ -188,9 +188,9 @@ def evaluate_mode(mode, device, base_dir, x_esm2, y_true, uids, ogt_lookup, tm_l
 def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    holdout_path = os.path.join(base_dir, "../../../data/test_data/fireprot_holdout_prott5.pt")
-    ogt_lookup_path = os.path.join(base_dir, "../../../data/cleaner_data/tm_ogt_lookup.json")
-    tm_lookup_path = os.path.join(base_dir, "../../../data/cleaner_data/tm_transmembrane.json")
+    holdout_path = "/home/bibhu/Documents/temstampto/data/test_data/fireprot_holdout_prott5.pt"
+    ogt_lookup_path = "/home/bibhu/Documents/temstampto/data/cleaner_data/tm_ogt_lookup.json"
+    tm_lookup_path = "/home/bibhu/Documents/temstampto/data/cleaner_data/tm_transmembrane.json"
     
     if not os.path.exists(holdout_path):
         print(f"CRITICAL ERROR: Holdout dataset missing at {holdout_path}")

@@ -113,55 +113,43 @@ def train_seed_stage2(mode, seed, data, ogt_lookup, tm_lookup, device, save_dir,
     use_tm_feature = (mode == 'D4')
     use_stratified_sampling = (mode in ['D2', 'D3', 'D4'])
 
-    # 1. Load Stage 1 model to precompute predictions if needed
+    # 1. Load Stage 1 model to precompute predictions if needed (deprecated)
     stage1_predictor = None
-    if stage1_model_path and os.path.exists(stage1_model_path):
-        print(f"Loading Stage 1 predictor from {stage1_model_path} for OGT prediction fallback...")
-        stage1_predictor = StableProtV7(
-            emb_dim=CONFIG['input_size'],
-            hidden=CONFIG['hidden_size'],
-            bottleneck=CONFIG['bottleneck_size']
-        ).to(device)
-        stage1_predictor.load_state_dict(torch.load(stage1_model_path, map_location=device, weights_only=True))
-        stage1_predictor.eval()
-    else:
-        print("WARNING: Stage 1 predictor not found. Will use default OGT fallback if lookup fails.")
 
-    # 2. Precompute features for Train, Val, Test splits
-    print("\n--- Precomputing train features ---")
-    train_ogt, train_tm_feat = precompute_features(
-        data['train_tm']['ids'], data['train_tm']['embeddings'], 
-        ogt_lookup, tm_lookup, stage1_predictor, device
-    )
-    print("\n--- Precomputing val features ---")
-    val_ogt, val_tm_feat = precompute_features(
-        data['val_tm']['ids'], data['val_tm']['embeddings'], 
-        ogt_lookup, tm_lookup, stage1_predictor, device
-    )
-    print("\n--- Precomputing test features ---")
-    test_ogt, test_tm_feat = precompute_features(
-        data['test_tm']['ids'], data['test_tm']['embeddings'], 
-        ogt_lookup, tm_lookup, stage1_predictor, device
-    )
+    # 2. Extract features directly from the cleaned dataset
+    print("\n--- Extracting train, val, and test features from dataset ---")
+    train_ogt = data['train_tm']['ogt']
+    train_tm_feat = data['train_tm']['tmhmm_tm_binary'].float()
+    
+    val_ogt = data['val_tm']['ogt']
+    val_tm_feat = data['val_tm']['tmhmm_tm_binary'].float()
+    
+    test_ogt = data['test_tm']['ogt']
+    test_tm_feat = data['test_tm']['tmhmm_tm_binary'].float()
 
     # 3. Create datasets and loaders
+    # 3. Create datasets and loaders
+    train_lbl = data['train_tm']['tm_consensus'] if 'tm_consensus' in data['train_tm'] else data['train_tm']['labels']
+    val_lbl = data['val_tm']['tm_consensus'] if 'tm_consensus' in data['val_tm'] else data['val_tm']['labels']
+    test_lbl = data['test_tm']['tm_consensus'] if 'tm_consensus' in data['test_tm'] else data['test_tm']['labels']
+
     train_dataset = TmDataset(
-        data['train_tm']['ids'], data['train_tm']['embeddings'], data['train_tm']['labels'], 
+        data['train_tm']['ids'], data['train_tm']['embeddings'], train_lbl, 
         train_ogt, train_tm_feat
     )
     val_dataset = TmDataset(
-        data['val_tm']['ids'], data['val_tm']['embeddings'], data['val_tm']['labels'], 
+        data['val_tm']['ids'], data['val_tm']['embeddings'], val_lbl, 
         val_ogt, val_tm_feat
     )
     test_dataset = TmDataset(
-        data['test_tm']['ids'], data['test_tm']['embeddings'], data['test_tm']['labels'], 
+        data['test_tm']['ids'], data['test_tm']['embeddings'], test_lbl, 
         test_ogt, test_tm_feat
     )
 
     # Setup sampler
     if use_stratified_sampling:
         print("Using temperature-stratified sampler for training loader...")
-        weights = get_temperature_weights(data['train_tm']['labels'])
+        weights = get_temperature_weights(train_lbl)
         sampler = WeightedRandomSampler(weights, num_samples=len(weights), replacement=True)
         train_loader = DataLoader(train_dataset, batch_size=CONFIG['batch_size'], sampler=sampler, drop_last=True)
     else:
@@ -294,18 +282,14 @@ def main():
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    data_path = os.path.join(base_dir, "../../../data/cleaner_data/prepared_data_v3.pt")
-    ogt_lookup_path = os.path.join(base_dir, "../../../data/cleaner_data/tm_ogt_lookup.json")
-    tm_lookup_path = os.path.join(base_dir, "../../../data/cleaner_data/tm_transmembrane.json")
+    data_path = "/home/bibhu/Documents/temstampto/data/embeddings/prepared_data_v4_cleaned.pt"
 
-    print("Loading dataset...")
+    print(f"Loading cleaned dataset from {data_path}...")
     data = torch.load(data_path, map_location="cpu")
     
-    print("Loading features lookup files...")
-    with open(ogt_lookup_path) as f:
-        ogt_lookup = json.load(f)
-    with open(tm_lookup_path) as f:
-        tm_lookup = json.load(f)
+    # Lookup files are deprecated since features are pre-mapped in the cleaned dataset
+    ogt_lookup = None
+    tm_lookup = None
 
     results_dir = os.path.join(base_dir, 'results')
     ensemble_preds = []
@@ -314,7 +298,6 @@ def main():
         seed_dir = os.path.join(results_dir, f"seed{seed}")
         os.makedirs(seed_dir, exist_ok=True)
         
-        # Load stage1 model path if exists
         stage1_model_path = os.path.join(seed_dir, 'model_stage1.pt')
 
         preds = train_seed_stage2(
@@ -330,7 +313,7 @@ def main():
         os.makedirs(ensemble_dir, exist_ok=True)
         mean_preds = np.mean(ensemble_preds, axis=0)
         
-        test_tm_lbl = data['test_tm']['labels']
+        test_tm_lbl = data['test_tm']['tm_consensus'] if 'tm_consensus' in data['test_tm'] else data['test_tm']['labels']
         mae = np.mean(np.abs(mean_preds - test_tm_lbl.numpy()))
 
         torch.save(

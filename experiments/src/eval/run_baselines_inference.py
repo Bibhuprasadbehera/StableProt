@@ -10,11 +10,11 @@ from tqdm import tqdm
 
 # Setup paths
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.dirname(os.path.dirname(SCRIPT_DIR))
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(SCRIPT_DIR)))
 sys.path.append(PROJECT_ROOT)
 
 # Import TemBERTure
-sys.path.append(os.path.join(PROJECT_ROOT, "TemBERTure_repo/temBERTure"))
+sys.path.append(os.path.join(PROJECT_ROOT, "benchmark_models/TemBERTure_repo/temBERTure"))
 from temBERTure import TemBERTure
 
 def load_cached_embedding(seq, cache_dir):
@@ -54,9 +54,6 @@ def main():
     protherm_tms = []
     for record in SeqIO.parse(protherm_fasta, 'fasta'):
         seq = str(record.seq)
-        emb = load_cached_embedding(seq, cache_dir)
-        if emb is None:
-            continue
         uid = record.id.split('|')[0]
         if uid in protherm_dict:
             protherm_seqs.append(seq)
@@ -78,7 +75,7 @@ def main():
     print("\n=== Running TemBERTure Inference ===")
     temberture_models = []
     for r in [1, 2, 3]:
-        adapter_path = os.path.join(PROJECT_ROOT, f"TemBERTure_repo/temBERTure/temBERTure_TM/replica{r}/")
+        adapter_path = os.path.join(PROJECT_ROOT, f"benchmark_models/TemBERTure_repo/temBERTure/temBERTure_TM/replica{r}/")
         print(f"Loading TemBERTure replica {r} from {adapter_path}...")
         model = TemBERTure(adapter_path=adapter_path, device=device, task='regression')
         temberture_models.append(model)
@@ -109,7 +106,7 @@ def main():
     import esm
     
     print("Loading ESMStabP model (Model 1: sequence only)...")
-    esmstabp_model_path = os.path.join(PROJECT_ROOT, "ESMStabP_repo/Models/1.joblib")
+    esmstabp_model_path = os.path.join(PROJECT_ROOT, "benchmark_models/ESMStabP_repo/Models/1.joblib")
     esmstabp_rf = joblib.load(esmstabp_model_path)
     
     print("Loading ESM-2 650M model for embeddings...")

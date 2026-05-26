@@ -9,6 +9,8 @@
 | **V6 Multi-Head (ESM-2)** | Dedicated $T_m$ Head (ESM-2 3B) | 12.91 | 0.44 | -0.22 | 0.295 | 0.32 | 0.62 | 19.4% | 0.531 |
 | **V7 ESM-2 (Mode D2)** | Dedicated $T_m$ Head (Clean OGT) | 12.54 | 0.33 | -0.10 | 0.181 | 0.44 | 0.60 | 20.2% | 0.438 |
 | **V7 SaProt (Mode D2)** | Dedicated $T_m$ Head (SaProt) | 12.12 | 0.42 | -0.05 | 0.228 | 0.42 | 0.61 | 19.1% | 0.562 |
+| **V7 ESM-2 Joint** | **Weighted Multi-Task ESM-2** | **12.49** | **0.39** | **-0.10** | **0.219** | **0.42** | **0.60** | **19.4%** | **0.531** |
+| **V7 SaProt Joint** | **Weighted Multi-Task SaProt** | **12.38** | **0.42** | **-0.13** | **0.283** | **0.45** | **0.63** | **19.1%** | **0.625** |
 | **TemBERTure** | External Reference (Fine-Tuned) | 12.70 | 0.37 | -0.16 | 0.222 | 0.36 | 0.60 | 19.6% | 0.562 |
 | **ESMStabP** | External Reference (Dedicated SOTA) | 14.85 | 0.33 | -0.51 | 0.150 | 0.33 | 0.58 | 22.4% | 0.375 |
 | **DeepSTABp** | External Reference (Dedicated SOTA) | 13.51 | 0.44 | -0.30 | 0.288 | 0.30 | 0.60 | 20.5% | 0.531 |

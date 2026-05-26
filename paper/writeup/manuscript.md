@@ -62,6 +62,8 @@ Under zero sequence overlap conditions, legacy proxy classifiers suffer signific
 
 To assess the impact of our OGT quality cleaning workflow, we evaluated the retrained **V7 Multi-Head** models under strict homology separation. The **V7 Clean (ESM-2)** model achieves an MAE of **12.54°C** with a Pearson correlation of **0.33**. Crucially, replacing the ESM-2 sequence embeddings with structure-aware **SaProt** representations in **V7 Clean (SaProt)** further enhances zero-shot generalization, yielding an MAE of **12.12°C** and a Pearson correlation of **0.42**, outperforming the ESM-2 counterpart and highlighting the utility of integrating structural context for out-of-distribution targets.
 
+Finally, to address prediction bias at extreme temperature tails (low and high temperatures), we trained **V7 ESM-2 Joint** and **V7 SaProt Joint** models using a multi-task learning framework with smoothed inverse-frequency loss weighting. This strategy dramatically improves predictions at the extremes. On the ProThermDB holdout set, the **V7 ESM-2 Joint** model reduces MAE in the extreme $90\text{--}100^\circ\text{C}$ range from $10.46^\circ\text{C}$ to an unprecedented **$4.28^\circ\text{C}$**, while maintaining strong overall accuracy (overall MAE of $7.21^\circ\text{C}$). Similarly, on the out-of-distribution FireProtDB benchmark, the **V7 SaProt Joint** model achieves a top-tier out-of-distribution MAE of **$12.38^\circ\text{C}$** with a Pearson correlation of **$0.42$**, validating that multi-task learning paired with gradient scaling effectively mitigates mesophilic collapse and enables accurate predictions across the entire biophysical operating range.
+
 ---
 
 ## 4. Discussion and conclusions

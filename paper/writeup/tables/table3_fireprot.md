@@ -2,15 +2,10 @@
 |:---|:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
 | **TemStaPro (V0 Original)** | Pre-trained Binary Proxy Ensemble | 21.01 | 0.47 | -1.53 | 0.299 | 0.27 | 0.63 | 31.9% | 0.594 |
 | **V1 Baseline** | Retrained Binary Proxy Ensemble | 28.14 | 0.48 | -3.10 | 0.249 | 0.20 | 0.60 | 44.0% | 0.594 |
-| **V2 Improved** | Specialized Binary Proxy Ensemble | 32.35 | 0.49 | -4.54 | 0.312 | 0.29 | 0.63 | 52.2% | 0.594 |
-| **V3 Regression** | Continuous Single-Head OGT Proxy | 25.85 | 0.43 | -2.56 | 0.278 | 0.24 | 0.60 | 40.4% | 0.594 |
 | **V4 Improved Regr.** | Residual Continuous OGT Proxy | 26.32 | 0.46 | -2.65 | 0.241 | 0.19 | 0.59 | 41.0% | 0.594 |
 | **V5 Multi-Head (ProtT5)** | Dedicated $T_m$ Head (ProtT5) | 12.62 | 0.50 | -0.18 | 0.303 | 0.30 | 0.62 | 18.9% | 0.594 |
 | **V6 Multi-Head (ESM-2)** | Dedicated $T_m$ Head (ESM-2 3B) | 12.91 | 0.44 | -0.22 | 0.295 | 0.32 | 0.62 | 19.4% | 0.531 |
-| **V7 ESM-2 (Mode D2)** | Dedicated $T_m$ Head (Clean OGT) | 12.54 | 0.33 | -0.10 | 0.181 | 0.44 | 0.60 | 20.2% | 0.438 |
-| **V7 SaProt (Mode D2)** | Dedicated $T_m$ Head (SaProt) | 12.12 | 0.42 | -0.05 | 0.228 | 0.42 | 0.61 | 19.1% | 0.562 |
-| **V7 ESM-2 Joint** | **Weighted Multi-Task ESM-2** | **12.49** | **0.39** | **-0.10** | **0.219** | **0.42** | **0.60** | **19.4%** | **0.531** |
-| **V7 SaProt Joint** | **Weighted Multi-Task SaProt** | **12.38** | **0.42** | **-0.13** | **0.283** | **0.45** | **0.63** | **19.1%** | **0.625** |
+| **V6 Multi-Head (SaProt)** | **Dedicated $T_m$ Head (SaProt)** | **12.47** | **0.41** | **-0.17** | **0.253** | **0.36** | **0.62** | **19.3%** | **0.469** |
 | **TemBERTure** | External Reference (Fine-Tuned) | 12.70 | 0.37 | -0.16 | 0.222 | 0.36 | 0.60 | 19.6% | 0.562 |
 | **ESMStabP** | External Reference (Dedicated SOTA) | 14.85 | 0.33 | -0.51 | 0.150 | 0.33 | 0.58 | 22.4% | 0.375 |
 | **DeepSTABp** | External Reference (Dedicated SOTA) | 13.51 | 0.44 | -0.30 | 0.288 | 0.30 | 0.60 | 20.5% | 0.531 |

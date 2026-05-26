@@ -116,6 +116,42 @@ class MultiHead_TmPredictor(nn.Module):
         else:
             return self.head_tm(x2).squeeze(-1)
 
+class MultiHead_SaProtPredictor(nn.Module):
+    def __init__(self, hidden1=512, hidden2=256, dropout1=0.3, dropout2=0.2):
+        super().__init__()
+        # TM head layers
+        self.input_layer_tm = nn.Linear(1280, hidden1)
+        self.bn1_tm = nn.BatchNorm1d(hidden1)
+        self.fc2_tm = nn.Linear(hidden1, hidden2)
+        self.bn2_tm = nn.BatchNorm1d(hidden2)
+        self.residual_proj_tm = nn.Linear(hidden1, hidden2) if hidden1 != hidden2 else nn.Identity()
+        self.head_tm = nn.Linear(hidden2, 1)
+        
+        # OGT head layers
+        self.input_layer_ogt = nn.Linear(2560, hidden1)
+        self.bn1_ogt = nn.BatchNorm1d(hidden1)
+        self.fc2_ogt = nn.Linear(hidden1, hidden2)
+        self.bn2_ogt = nn.BatchNorm1d(hidden2)
+        self.residual_proj_ogt = nn.Linear(hidden1, hidden2) if hidden1 != hidden2 else nn.Identity()
+        self.head_ogt = nn.Linear(hidden2, 1)
+        
+        self.dropout1 = nn.Dropout(dropout1)
+        self.dropout2 = nn.Dropout(dropout2)
+        
+    def forward(self, x, head='tm'):
+        if head == 'tm':
+            x1 = self.input_layer_tm(x)
+            x1 = self.dropout1(F.relu(self.bn1_tm(x1)))
+            x2 = self.dropout2(F.relu(self.bn2_tm(self.fc2_tm(x1)) + self.residual_proj_tm(x1)))
+            return self.head_tm(x2).squeeze(-1)
+        else:
+            x1 = self.input_layer_ogt(x)
+            x1 = self.dropout1(F.relu(self.bn1_ogt(x1)))
+            x2 = self.dropout2(F.relu(self.bn2_ogt(self.fc2_ogt(x1)) + self.residual_proj_ogt(x1)))
+            return self.head_ogt(x2).squeeze(-1)
+
+
+
 # V7 Transfer Learning Models
 class ResidualBlock(nn.Module):
     def __init__(self, dim, dropout=0.2):
@@ -393,6 +429,22 @@ def main():
             v6_preds.append(out)
     if v6_preds:
         results['V6 Multi-Head (ESM-2)'] = {'y_pred': np.mean(v6_preds, axis=0), 'type': 'Dedicated Tm Head'}
+
+    # ── V6 Multi-Head (SaProt) ──
+    print("Evaluating V6 Multi-Head (SaProt)...")
+    v6_saprot_preds = []
+    for s in range(1, 6):
+        p = os.path.join(PROJECT_ROOT, f"experiments/src/training/v6_multihead_saprot/results/seed{s}/model.pt")
+        if os.path.exists(p):
+            model = MultiHead_SaProtPredictor().to(device)
+            model.load_state_dict(torch.load(p, map_location=device, weights_only=False))
+            model.eval()
+            with torch.no_grad():
+                out = model(x_saprot.float(), head='tm').squeeze().cpu().numpy()
+            v6_saprot_preds.append(out)
+    if v6_saprot_preds:
+        results['V6 Multi-Head (SaProt)'] = {'y_pred': np.mean(v6_saprot_preds, axis=0), 'type': 'Dedicated Tm Head'}
+
 
     # ── V7 ESM-2 Clean (Mode D2) ──
     print("Evaluating V7 ESM-2 Clean (Mode D2)...")

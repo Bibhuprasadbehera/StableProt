@@ -45,8 +45,13 @@ def plot_mae_comparison(protherm_data, fireprot_data, out_dir):
     # Exclude models if not present in both
     common_models = [m for m in models if m in fireprot_data['metrics']]
     
+    # Exclude V2, V3, and V7 models
+    excluded = ['V2 Improved', 'V3 Regression', 'V7 ESM-2 (Mode D2)', 'V7 SaProt (Mode D2)']
+    common_models = [m for m in common_models if m not in excluded and not m.startswith('V7')]
+    
     # Sort models by ProThermDB MAE (ascending)
     common_models = sorted(common_models, key=lambda m: protherm_data['metrics'][m]['mae'])
+
     
     protherm_maes = [protherm_data['metrics'][m]['mae'] for m in common_models]
     fireprot_maes = [fireprot_data['metrics'][m]['mae'] for m in common_models]
@@ -98,8 +103,9 @@ def plot_scatter_grids(data, dataset_name, out_dir):
     y_true = data['y_true']
     
     # Pick a subset of key models/baselines to display in a clean grid
-    key_models = ['V0 Original', 'V6 Multi-Head (ESM-2)', 'V7 ESM-2 (Mode D2)', 'TemBERTure', 'ESMStabP', 'DeepSTABp', 'ThermoFormer']
+    key_models = ['V0 Original', 'V1 Baseline', 'V4 Improved Regr.', 'V5 Multi-Head (ProtT5)', 'V6 Multi-Head (ESM-2)', 'V6 Multi-Head (SaProt)', 'TemBERTure', 'ESMStabP', 'DeepSTABp', 'ThermoFormer']
     display_models = [m for m in key_models if m in predictions]
+
     
     n_models = len(display_models)
     cols = 4
@@ -155,7 +161,13 @@ def plot_error_violins(protherm_data, fireprot_data, out_dir):
     """
     models = list(protherm_data['metrics'].keys())
     common_models = [m for m in models if m in fireprot_data['metrics']]
+    
+    # Exclude V2, V3, and V7 models
+    excluded = ['V2 Improved', 'V3 Regression', 'V7 ESM-2 (Mode D2)', 'V7 SaProt (Mode D2)']
+    common_models = [m for m in common_models if m not in excluded and not m.startswith('V7')]
+    
     common_models = sorted(common_models, key=lambda m: protherm_data['metrics'][m]['mae'])
+
     
     # Prepare data for plotting
     plot_rows = []

@@ -34,9 +34,17 @@ class StableProtV7(nn.Module):
         self.use_ogt_feature = use_ogt_feature
         self.use_tm_feature = use_tm_feature
 
+        # Input projections
+        if emb_dim == 1280:
+            # SaProt mode: separate input projections because OGT embeddings are ESM-2 (2560)
+            self.input_layer_tm = nn.Linear(1280, hidden)
+            self.input_layer_ogt = nn.Linear(2560, hidden)
+        else:
+            # ESM-2 mode: single input projection
+            self.input_layer = nn.Linear(emb_dim, hidden)
+
         # Shared backbone (pre-trained on OGT in Stage 1)
-        self.backbone = nn.Sequential(
-            nn.Linear(emb_dim, hidden),
+        self.backbone_rest = nn.Sequential(
             nn.LayerNorm(hidden),
             nn.GELU(),
             nn.Dropout(dropout1),
@@ -60,18 +68,25 @@ class StableProtV7(nn.Module):
             nn.Linear(128, 1),
         )
 
-    def forward_backbone(self, x):
+    def forward_backbone(self, x, stage='tm'):
         """Extract backbone features from PLM embeddings."""
-        return self.backbone(x)
+        if self.emb_dim == 1280:
+            if stage == 'ogt':
+                h = self.input_layer_ogt(x)
+            else:
+                h = self.input_layer_tm(x)
+        else:
+            h = self.input_layer(x)
+        return self.backbone_rest(h)
 
     def predict_ogt(self, x):
         """Stage 1: Predict OGT from embeddings."""
-        features = self.forward_backbone(x)
+        features = self.forward_backbone(x, stage='ogt')
         return self.ogt_head(features).squeeze(-1)
 
     def predict_tm(self, x, ogt_pred=None, tm_feat=None):
         """Stage 2: Predict Tm from embeddings (+ optional OGT and TM features)."""
-        features = self.forward_backbone(x)
+        features = self.forward_backbone(x, stage='tm')
         features_list = [features]
         if self.use_ogt_feature and ogt_pred is not None:
             features_list.append(ogt_pred.unsqueeze(-1))
@@ -110,17 +125,43 @@ class StableProtV7(nn.Module):
 
     def freeze_backbone(self):
         """Freeze backbone parameters for Stage 2 initial training."""
-        for param in self.backbone.parameters():
+        if hasattr(self, 'input_layer'):
+            for param in self.input_layer.parameters():
+                param.requires_grad = False
+        if hasattr(self, 'input_layer_tm'):
+            for param in self.input_layer_tm.parameters():
+                param.requires_grad = False
+        if hasattr(self, 'input_layer_ogt'):
+            for param in self.input_layer_ogt.parameters():
+                param.requires_grad = False
+        for param in self.backbone_rest.parameters():
             param.requires_grad = False
 
     def unfreeze_backbone(self):
         """Unfreeze backbone for fine-tuning in Stage 2."""
-        for param in self.backbone.parameters():
+        if hasattr(self, 'input_layer'):
+            for param in self.input_layer.parameters():
+                param.requires_grad = True
+        if hasattr(self, 'input_layer_tm'):
+            for param in self.input_layer_tm.parameters():
+                param.requires_grad = True
+        if hasattr(self, 'input_layer_ogt'):
+            for param in self.input_layer_ogt.parameters():
+                param.requires_grad = True
+        for param in self.backbone_rest.parameters():
             param.requires_grad = True
 
     def get_stage2_param_groups(self, backbone_lr=1e-5, head_lr=1e-4):
         """Return parameter groups with differential learning rates for Stage 2."""
+        backbone_params = list(self.backbone_rest.parameters())
+        if hasattr(self, 'input_layer'):
+            backbone_params.extend(list(self.input_layer.parameters()))
+        if hasattr(self, 'input_layer_tm'):
+            backbone_params.extend(list(self.input_layer_tm.parameters()))
+        if hasattr(self, 'input_layer_ogt'):
+            backbone_params.extend(list(self.input_layer_ogt.parameters()))
+            
         return [
-            {'params': self.backbone.parameters(), 'lr': backbone_lr},
+            {'params': backbone_params, 'lr': backbone_lr},
             {'params': self.tm_head.parameters(), 'lr': head_lr},
         ]

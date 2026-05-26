@@ -419,6 +419,30 @@ def main():
     if v6_preds:
         results['V6 Multi-Head (ESM-2)'] = {'y_pred': np.mean(v6_preds, axis=0), 'type': 'Dedicated Tm Head'}
 
+    # ── V6 Multi-Head (SaProt) ──
+    print("Evaluating V6 Multi-Head (SaProt)...")
+    saprot_preds_path = os.path.join(PROJECT_ROOT, "experiments/src/training/v6_multihead_saprot/results/ensemble/predictions.pt")
+    saprot_data_path = os.path.join(PROJECT_ROOT, "data/embeddings/prepared_data_v4_saprot.pt")
+    if os.path.exists(saprot_preds_path) and os.path.exists(saprot_data_path):
+        saprot_data = torch.load(saprot_data_path, map_location='cpu', weights_only=False)
+        saprot_preds_data = torch.load(saprot_preds_path, map_location='cpu', weights_only=False)
+        saprot_preds_all = saprot_preds_data['y_pred'].numpy() if hasattr(saprot_preds_data['y_pred'], 'numpy') else np.array(saprot_preds_data['y_pred'])
+        saprot_seq_to_pred = {str(seq).upper(): pred for seq, pred in zip(saprot_data['test_tm']['sequences'], saprot_preds_all)}
+        
+        # Fallback to ESM-2 for sequences missing structures
+        v6_esm2_preds = results['V6 Multi-Head (ESM-2)']['y_pred']
+        v6_saprot_final = []
+        for idx, seq in enumerate(protherm_seqs):
+            seq_upper = seq.upper()
+            if seq_upper in saprot_seq_to_pred:
+                v6_saprot_final.append(saprot_seq_to_pred[seq_upper])
+            else:
+                v6_saprot_final.append(v6_esm2_preds[idx])
+        results['V6 Multi-Head (SaProt)'] = {'y_pred': np.array(v6_saprot_final), 'type': 'Dedicated Tm Head'}
+    else:
+        print("WARNING: SaProt prediction or dataset file missing.")
+
+
     # ── V7 ESM-2 Clean (Mode D2) ──
     print("Evaluating V7 ESM-2 Clean (Mode D2)...")
     v7_esm_preds = []

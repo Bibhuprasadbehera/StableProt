@@ -7,6 +7,31 @@ import scipy.stats
 from config import CONFIG
 from model import StableProtV7
 
+def load_compat_state_dict(model, state_dict):
+    new_state_dict = {}
+    for k, v in state_dict.items():
+        if k.startswith("backbone.0."):
+            new_state_dict[k.replace("backbone.0.", "input_layer.")] = v
+        elif k.startswith("backbone.1."):
+            new_state_dict[k.replace("backbone.1.", "backbone_rest.0.")] = v
+        elif k.startswith("backbone.2."):
+            new_state_dict[k.replace("backbone.2.", "backbone_rest.1.")] = v
+        elif k.startswith("backbone.3."):
+            new_state_dict[k.replace("backbone.3.", "backbone_rest.2.")] = v
+        elif k.startswith("backbone.4."):
+            new_state_dict[k.replace("backbone.4.", "backbone_rest.3.")] = v
+        elif k.startswith("backbone.5."):
+            new_state_dict[k.replace("backbone.5.", "backbone_rest.4.")] = v
+        elif k.startswith("backbone.6."):
+            new_state_dict[k.replace("backbone.6.", "backbone_rest.5.")] = v
+        elif k.startswith("backbone.7."):
+            new_state_dict[k.replace("backbone.7.", "backbone_rest.6.")] = v
+        elif k.startswith("backbone.8."):
+            new_state_dict[k.replace("backbone.8.", "backbone_rest.7.")] = v
+        else:
+            new_state_dict[k] = v
+    model.load_state_dict(new_state_dict, strict=False)
+
 def compute_metrics(y_true, y_pred):
     mae = np.mean(np.abs(y_true - y_pred))
     rmse = np.sqrt(np.mean((y_true - y_pred)**2))
@@ -52,8 +77,9 @@ def compute_metrics(y_true, y_pred):
         'mape': mape, 'global_auc': global_auc
     }
 
-def evaluate_mode(mode, device, base_dir, x_esm2, y_true):
-    results_dir = os.path.join(base_dir, 'results')
+def evaluate_mode(mode, device, base_dir, x_esm2, y_true, results_dir=None):
+    if results_dir is None:
+        results_dir = os.path.join(base_dir, 'results')
     use_ogt_feature = (mode in ['C', 'C2'])
     
     ensemble_preds = []
@@ -72,7 +98,8 @@ def evaluate_mode(mode, device, base_dir, x_esm2, y_true):
             bottleneck=CONFIG['bottleneck_size'],
             use_ogt_feature=use_ogt_feature
         ).to(device)
-        model.load_state_dict(torch.load(model_path, map_location=device, weights_only=True))
+        sd = torch.load(model_path, map_location=device)
+        load_compat_state_dict(model, sd)
         model.eval()
         
         # Predict OGT if needed
@@ -83,7 +110,8 @@ def evaluate_mode(mode, device, base_dir, x_esm2, y_true):
                 hidden=CONFIG['hidden_size'],
                 bottleneck=CONFIG['bottleneck_size']
             ).to(device)
-            stage1_predictor.load_state_dict(torch.load(stage1_model_path, map_location=device, weights_only=True))
+            stage1_sd = torch.load(stage1_model_path, map_location=device)
+            load_compat_state_dict(stage1_predictor, stage1_sd)
             stage1_predictor.eval()
             with torch.no_grad():
                 ogt_pred = stage1_predictor(x_esm2, stage='ogt')
@@ -116,9 +144,14 @@ def evaluate_mode(mode, device, base_dir, x_esm2, y_true):
     return mean_preds, metrics
 
 def main():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--results_dir', type=str, default="results")
+    args = parser.parse_args()
+
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    holdout_path = os.path.join(base_dir, "../../../data/test_data/fireprot_holdout_prott5.pt")
+    holdout_path = os.path.join(base_dir, "../../../../data/test_data/fireprot_holdout_prott5.pt")
     
     if not os.path.exists(holdout_path):
         print(f"CRITICAL ERROR: Holdout dataset missing at {holdout_path}")
@@ -131,12 +164,18 @@ def main():
     
     print(f"FireProt Holdout: {len(y_true)} testing targets.")
     
+    # Resolve relative or absolute path for results_dir
+    if not os.path.isabs(args.results_dir):
+        resolved_results_dir = os.path.join(base_dir, args.results_dir)
+    else:
+        resolved_results_dir = args.results_dir
+        
     modes = ['B', 'C', 'C2']
     results = {}
     
     print("\nEvaluating V7 Model Variants...")
     for mode in modes:
-        res = evaluate_mode(mode, device, base_dir, x_esm2, y_true)
+        res = evaluate_mode(mode, device, base_dir, x_esm2, y_true, results_dir=resolved_results_dir)
         if res is not None:
             preds, metrics = res
             results[mode] = {'preds': preds, 'metrics': metrics}
@@ -167,7 +206,8 @@ def main():
     print("="*120)
 
     # Save results to json
-    out_path = os.path.join(base_dir, 'v7_fireprot_eval_metrics.json')
+    suffix = os.path.basename(args.results_dir.rstrip("/"))
+    out_path = os.path.join(base_dir, f'v7_fireprot_eval_metrics_{suffix}.json')
     serializable_results = {}
     for mode, data in results.items():
         m = data['metrics']

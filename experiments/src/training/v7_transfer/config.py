@@ -5,7 +5,7 @@ CONFIG = {
     'dropout_1': 0.3,
     'dropout_2': 0.2,
     'batch_size': 64,
-    'seeds': [1, 2, 3],
+    'seeds': [1],
     
     # Stage 1 (OGT pre-training)
     'stage1_epochs': 5,

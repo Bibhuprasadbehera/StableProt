@@ -9,6 +9,31 @@ from config import CONFIG
 from model import StableProtV7
 from tqdm import tqdm
 
+def load_compat_state_dict(model, state_dict):
+    new_state_dict = {}
+    for k, v in state_dict.items():
+        if k.startswith("backbone.0."):
+            new_state_dict[k.replace("backbone.0.", "input_layer.")] = v
+        elif k.startswith("backbone.1."):
+            new_state_dict[k.replace("backbone.1.", "backbone_rest.0.")] = v
+        elif k.startswith("backbone.2."):
+            new_state_dict[k.replace("backbone.2.", "backbone_rest.1.")] = v
+        elif k.startswith("backbone.3."):
+            new_state_dict[k.replace("backbone.3.", "backbone_rest.2.")] = v
+        elif k.startswith("backbone.4."):
+            new_state_dict[k.replace("backbone.4.", "backbone_rest.3.")] = v
+        elif k.startswith("backbone.5."):
+            new_state_dict[k.replace("backbone.5.", "backbone_rest.4.")] = v
+        elif k.startswith("backbone.6."):
+            new_state_dict[k.replace("backbone.6.", "backbone_rest.5.")] = v
+        elif k.startswith("backbone.7."):
+            new_state_dict[k.replace("backbone.7.", "backbone_rest.6.")] = v
+        elif k.startswith("backbone.8."):
+            new_state_dict[k.replace("backbone.8.", "backbone_rest.7.")] = v
+        else:
+            new_state_dict[k] = v
+    model.load_state_dict(new_state_dict, strict=False)
+
 class TmDataset(Dataset):
     def __init__(self, ids, embeddings, labels, ogt_features, tm_features):
         self.ids = ids
@@ -113,7 +138,8 @@ def train_seed_stage2(mode, seed, data_saprot, data_esm2, ogt_lookup, tm_lookup,
             hidden=CONFIG['hidden_size'],
             bottleneck=CONFIG['bottleneck_size']
         ).to(device)
-        stage1_predictor.load_state_dict(torch.load(stage1_model_path, map_location=device, weights_only=True))
+        stage1_sd = torch.load(stage1_model_path, map_location=device)
+        load_compat_state_dict(stage1_predictor, stage1_sd)
         stage1_predictor.eval()
     else:
         print("WARNING: Stage 1 predictor not found or not specified. Will use default OGT fallback if lookup fails.")
@@ -272,12 +298,15 @@ def main():
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('--mode', type=str, required=True, choices=['D1', 'D2', 'D3', 'D4'])
+    parser.add_argument('--data_saprot_path', type=str, default="/home/bibhu/Documents/temstampto/data/embeddings/prepared_data_v4_saprot_cleaned.pt")
+    parser.add_argument('--data_esm2_path', type=str, default="/home/bibhu/Documents/temstampto/data/embeddings/prepared_data_v4_cleaned.pt")
+    parser.add_argument('--results_dir', type=str, default="results")
     args = parser.parse_args()
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    data_saprot_path = "/home/bibhu/Documents/temstampto/data/embeddings/prepared_data_v4_saprot_cleaned.pt"
-    data_esm2_path = "/home/bibhu/Documents/temstampto/data/embeddings/prepared_data_v4_cleaned.pt"
+    data_saprot_path = args.data_saprot_path
+    data_esm2_path = args.data_esm2_path
 
     print(f"Loading SaProt embeddings from {data_saprot_path}...")
     data_saprot = torch.load(data_saprot_path, map_location='cpu')
@@ -288,12 +317,18 @@ def main():
     ogt_lookup = None
     tm_lookup = None
 
-    save_dir = os.path.join(base_dir, "results/saprot")
+    # Resolve relative or absolute path for results_dir
+    if not os.path.isabs(args.results_dir):
+        resolved_results_dir = os.path.join(base_dir, args.results_dir)
+    else:
+        resolved_results_dir = args.results_dir
+        
+    save_dir = os.path.join(resolved_results_dir, "saprot")
     os.makedirs(save_dir, exist_ok=True)
 
     maes = []
     for seed in CONFIG['seeds']:
-        stage1_model_path = os.path.join(base_dir, f"results/seed{seed}/model_stage1.pt")
+        stage1_model_path = os.path.join(resolved_results_dir, f"seed{seed}/model_stage1.pt")
         preds = train_seed_stage2(
             mode=args.mode,
             seed=seed,

@@ -278,11 +278,13 @@ def main():
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('--mode', type=str, required=True, choices=['D1', 'D2', 'D3', 'D4'])
+    parser.add_argument('--data_path', type=str, default="/home/bibhu/Documents/temstampto/data/embeddings/prepared_data_v4_cleaned.pt")
+    parser.add_argument('--results_dir', type=str, default="results")
     args = parser.parse_args()
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    data_path = "/home/bibhu/Documents/temstampto/data/embeddings/prepared_data_v4_cleaned.pt"
+    data_path = args.data_path
 
     print(f"Loading cleaned dataset from {data_path}...")
     data = torch.load(data_path, map_location="cpu")
@@ -291,7 +293,12 @@ def main():
     ogt_lookup = None
     tm_lookup = None
 
-    results_dir = os.path.join(base_dir, 'results')
+    # Resolve relative or absolute path for results_dir
+    if not os.path.isabs(args.results_dir):
+        results_dir = os.path.join(base_dir, args.results_dir)
+    else:
+        results_dir = args.results_dir
+        
     ensemble_preds = []
 
     for seed in CONFIG['seeds']:

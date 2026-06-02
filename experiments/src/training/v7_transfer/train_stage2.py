@@ -196,28 +196,34 @@ def main():
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('--mode', type=str, required=True, choices=['B', 'C', 'C2'])
+    parser.add_argument('--data_path', type=str, default="/home/bibhu/Documents/temstampto/data/embeddings/prepared_data_v4_cleaned.pt")
+    parser.add_argument('--results_dir', type=str, default="results")
     args = parser.parse_args()
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    data_path = "/home/bibhu/Documents/temstampto/data/embeddings/prepared_data_v4_cleaned.pt"
+    data_path = args.data_path
     
     print("Loading dataset...")
     data = torch.load(data_path, map_location="cpu")
     
     train_tm_emb = data['train_tm']['embeddings']
-    train_tm_lbl = data['train_tm']['labels']
+    train_tm_lbl = data['train_tm']['tm_consensus'] if 'tm_consensus' in data['train_tm'] else data['train_tm']['labels']
     val_tm_emb = data['val_tm']['embeddings']
-    val_tm_lbl = data['val_tm']['labels']
+    val_tm_lbl = data['val_tm']['tm_consensus'] if 'tm_consensus' in data['val_tm'] else data['val_tm']['labels']
     test_tm_emb = data['test_tm']['embeddings']
-    test_tm_lbl = data['test_tm']['labels']
+    test_tm_lbl = data['test_tm']['tm_consensus'] if 'tm_consensus' in data['test_tm'] else data['test_tm']['labels']
     
     train_loader = DataLoader(TmDataset(train_tm_emb, train_tm_lbl), batch_size=CONFIG['batch_size'], shuffle=True, drop_last=True)
     val_loader = DataLoader(TmDataset(val_tm_emb, val_tm_lbl), batch_size=CONFIG['batch_size'], shuffle=False)
     test_loader = DataLoader(TmDataset(test_tm_emb, test_tm_lbl), batch_size=CONFIG['batch_size'], shuffle=False)
     
-    results_dir = os.path.join(base_dir, 'results')
-    
+    # Resolve relative or absolute path for results_dir
+    if not os.path.isabs(args.results_dir):
+        results_dir = os.path.join(base_dir, args.results_dir)
+    else:
+        results_dir = args.results_dir
+        
     ensemble_preds = []
     
     for seed in CONFIG['seeds']:

@@ -152,59 +152,6 @@ class MultiHead_SaProtPredictor(nn.Module):
 
 
 
-# V7 Transfer Learning Models
-class ResidualBlock(nn.Module):
-    def __init__(self, dim, dropout=0.2):
-        super().__init__()
-        self.norm = nn.LayerNorm(dim)
-        self.act = nn.GELU()
-        self.linear = nn.Linear(dim, dim)
-        self.dropout = nn.Dropout(dropout)
-    def forward(self, x):
-        return x + self.dropout(self.linear(self.act(self.norm(x))))
-
-class StableProtV7(nn.Module):
-    def __init__(self, emb_dim=2560, use_ogt_feature=False, use_tm_feature=False,
-                 hidden=512, bottleneck=256, dropout1=0.3, dropout2=0.2):
-        super().__init__()
-        self.emb_dim = emb_dim
-        self.use_ogt_feature = use_ogt_feature
-        self.use_tm_feature = use_tm_feature
-        self.backbone = nn.Sequential(
-            nn.Linear(emb_dim, hidden),
-            nn.LayerNorm(hidden),
-            nn.GELU(),
-            nn.Dropout(dropout1),
-            ResidualBlock(hidden, dropout=dropout2),
-            nn.Linear(hidden, bottleneck),
-            nn.LayerNorm(bottleneck),
-            nn.GELU(),
-            nn.Dropout(dropout2),
-        )
-        self.ogt_head = nn.Linear(bottleneck, 1)
-        tm_input_dim = bottleneck + (1 if use_ogt_feature else 0) + (1 if use_tm_feature else 0)
-        self.tm_head = nn.Sequential(
-            nn.Linear(tm_input_dim, 128),
-            nn.LayerNorm(128),
-            nn.GELU(),
-            nn.Dropout(dropout2),
-            nn.Linear(128, 1),
-        )
-    def forward_backbone(self, x):
-        return self.backbone(x)
-    def predict_tm(self, x, ogt_pred=None, tm_feat=None):
-        features = self.forward_backbone(x)
-        features_list = [features]
-        if self.use_ogt_feature and ogt_pred is not None:
-            features_list.append(ogt_pred.unsqueeze(-1))
-        if self.use_tm_feature and tm_feat is not None:
-            features_list.append(tm_feat.unsqueeze(-1))
-        if len(features_list) > 1:
-            features = torch.cat(features_list, dim=-1)
-        return self.tm_head(features).squeeze(-1)
-    def forward(self, x, stage='tm', ogt_pred=None, tm_feat=None):
-        return self.predict_tm(x, ogt_pred=ogt_pred, tm_feat=tm_feat)
-
 # -------------------------------------------------------------
 # Helpers
 # -------------------------------------------------------------
@@ -415,26 +362,11 @@ def main():
     if v5_preds:
         results['V5 Multi-Head (ProtT5)'] = {'y_pred': np.mean(v5_preds, axis=0), 'type': 'Dedicated Tm Head'}
 
-    # ── V6 Multi-Head (ESM-2) ──
-    print("Evaluating V6 Multi-Head (ESM-2)...")
-    v6_preds = []
-    for s in range(1, 6):
-        p = os.path.join(PROJECT_ROOT, f"experiments/src/training/v6_multihead_esm2/results/seed{s}/model.pt")
-        if os.path.exists(p):
-            model = MultiHead_TmPredictor(input_size=2560).to(device)
-            model.load_state_dict(torch.load(p, map_location=device, weights_only=False))
-            model.eval()
-            with torch.no_grad():
-                out = model(x_esm2.float(), head='tm').squeeze().cpu().numpy()
-            v6_preds.append(out)
-    if v6_preds:
-        results['V6 Multi-Head (ESM-2)'] = {'y_pred': np.mean(v6_preds, axis=0), 'type': 'Dedicated Tm Head'}
-
-    # ── V6 Multi-Head (SaProt) ──
-    print("Evaluating V6 Multi-Head (SaProt)...")
+    # ── V6 SaProt (Weighted Multi-Head) ──
+    print("Evaluating V6 SaProt...")
     v6_saprot_preds = []
     for s in range(1, 6):
-        p = os.path.join(PROJECT_ROOT, f"experiments/src/training/v6_multihead_saprot/results/seed{s}/model.pt")
+        p = os.path.join(PROJECT_ROOT, f"experiments/src/training/v6_saprot/results/seed{s}/model.pt")
         if os.path.exists(p):
             model = MultiHead_SaProtPredictor().to(device)
             model.load_state_dict(torch.load(p, map_location=device, weights_only=False))
@@ -443,37 +375,7 @@ def main():
                 out = model(x_saprot.float(), head='tm').squeeze().cpu().numpy()
             v6_saprot_preds.append(out)
     if v6_saprot_preds:
-        results['V6 Multi-Head (SaProt)'] = {'y_pred': np.mean(v6_saprot_preds, axis=0), 'type': 'Dedicated Tm Head'}
-
-
-    # ── V7 ESM-2 Clean (Mode D2) ──
-    print("Evaluating V7 ESM-2 Clean (Mode D2)...")
-    v7_esm_preds = []
-    for s in [1, 2, 3]:
-        p = os.path.join(PROJECT_ROOT, f"experiments/src/training/v7_transfer/results/seed{s}/model_D2.pt")
-        if os.path.exists(p):
-            model = StableProtV7(emb_dim=2560).to(device)
-            model.load_state_dict(torch.load(p, map_location=device, weights_only=False))
-            model.eval()
-            with torch.no_grad():
-                out = model(x_esm2, stage='tm').squeeze().cpu().numpy()
-            v7_esm_preds.append(out)
-    if v7_esm_preds:
-        results['V7 ESM-2 (Mode D2)'] = {'y_pred': np.mean(v7_esm_preds, axis=0), 'type': 'Dedicated Tm Head'}
-
-    # ── V7 SaProt Clean (Mode D2) ──
-    print("Evaluating V7 SaProt Clean (Mode D2)...")
-    v7_saprot_preds = []
-    p = os.path.join(PROJECT_ROOT, "experiments/src/training/v7_transfer/results/saprot/model_D2.pt")
-    if os.path.exists(p):
-        model = StableProtV7(emb_dim=1280).to(device)
-        model.load_state_dict(torch.load(p, map_location=device, weights_only=False))
-        model.eval()
-        with torch.no_grad():
-            out = model(x_saprot, stage='tm').squeeze().cpu().numpy()
-        v7_saprot_preds.append(out)
-    if v7_saprot_preds:
-        results['V7 SaProt (Mode D2)'] = {'y_pred': np.mean(v7_saprot_preds, axis=0), 'type': 'Dedicated Tm Head'}
+        results['V6 SaProt'] = {'y_pred': np.mean(v6_saprot_preds, axis=0), 'type': 'Dedicated Tm Head'}
 
     # ── Load Baselines (TemBERTure, ESMStabP, DeepSTABp, ThermoFormer) ──
     baseline_path = os.path.join(PROJECT_ROOT, "new_data/baseline_predictions.pt")
@@ -493,7 +395,7 @@ def main():
     # Compute Metrics and Display Summary
     # -------------------------------------------------------------
     print("\n" + "=" * 175)
-    print("  FIREPROT HOLDOUT BENCHMARK (ALL MODELS V0 TO V7 + BASELINES)")
+    print("  FIREPROT HOLDOUT BENCHMARK (ALL MODELS V0 TO V6 + BASELINES)")
     print("" + "=" * 175)
     print(f"{'Model Iteration':<28} | {'Type':<18} | {'MAE':<6} | {'RMSE':<6} | {'PCC':<5} | {'Spearman':<8} | {'R²':<6} | {'MCC':<6} | {'F1':<5} | {'AUC':<5} | {'Global AUC':<10} | {'Top-10% Enrich':<14}")
     print("-" * 175)

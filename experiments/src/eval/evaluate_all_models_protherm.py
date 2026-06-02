@@ -117,58 +117,7 @@ class MultiHead_TmPredictor(nn.Module):
         else:
             return self.head_tm(x2).squeeze(-1)
 
-# V7 Transfer Learning Models
-class ResidualBlock(nn.Module):
-    def __init__(self, dim, dropout=0.2):
-        super().__init__()
-        self.norm = nn.LayerNorm(dim)
-        self.act = nn.GELU()
-        self.linear = nn.Linear(dim, dim)
-        self.dropout = nn.Dropout(dropout)
-    def forward(self, x):
-        return x + self.dropout(self.linear(self.act(self.norm(x))))
 
-class StableProtV7(nn.Module):
-    def __init__(self, emb_dim=2560, use_ogt_feature=False, use_tm_feature=False,
-                 hidden=512, bottleneck=256, dropout1=0.3, dropout2=0.2):
-        super().__init__()
-        self.emb_dim = emb_dim
-        self.use_ogt_feature = use_ogt_feature
-        self.use_tm_feature = use_tm_feature
-        self.backbone = nn.Sequential(
-            nn.Linear(emb_dim, hidden),
-            nn.LayerNorm(hidden),
-            nn.GELU(),
-            nn.Dropout(dropout1),
-            ResidualBlock(hidden, dropout=dropout2),
-            nn.Linear(hidden, bottleneck),
-            nn.LayerNorm(bottleneck),
-            nn.GELU(),
-            nn.Dropout(dropout2),
-        )
-        self.ogt_head = nn.Linear(bottleneck, 1)
-        tm_input_dim = bottleneck + (1 if use_ogt_feature else 0) + (1 if use_tm_feature else 0)
-        self.tm_head = nn.Sequential(
-            nn.Linear(tm_input_dim, 128),
-            nn.LayerNorm(128),
-            nn.GELU(),
-            nn.Dropout(dropout2),
-            nn.Linear(128, 1),
-        )
-    def forward_backbone(self, x):
-        return self.backbone(x)
-    def predict_tm(self, x, ogt_pred=None, tm_feat=None):
-        features = self.forward_backbone(x)
-        features_list = [features]
-        if self.use_ogt_feature and ogt_pred is not None:
-            features_list.append(ogt_pred.unsqueeze(-1))
-        if self.use_tm_feature and tm_feat is not None:
-            features_list.append(tm_feat.unsqueeze(-1))
-        if len(features_list) > 1:
-            features = torch.cat(features_list, dim=-1)
-        return self.tm_head(features).squeeze(-1)
-    def forward(self, x, stage='tm', ogt_pred=None, tm_feat=None):
-        return self.predict_tm(x, ogt_pred=ogt_pred, tm_feat=tm_feat)
 
 # -------------------------------------------------------------
 # Helpers
@@ -404,59 +353,57 @@ def main():
     if v5_preds:
         results['V5 Multi-Head (ProtT5)'] = {'y_pred': np.mean(v5_preds, axis=0), 'type': 'Dedicated Tm Head'}
 
-    # ── V6 Multi-Head (ESM-2) ──
-    print("Evaluating V6 Multi-Head (ESM-2)...")
-    v6_preds = []
-    for s in range(1, 6):
-        p = os.path.join(PROJECT_ROOT, f"experiments/src/training/v6_multihead_esm2/results/seed{s}/model.pt")
-        if os.path.exists(p):
-            model = MultiHead_TmPredictor(input_size=2560).to(device)
-            model.load_state_dict(torch.load(p, map_location=device, weights_only=False))
-            model.eval()
-            with torch.no_grad():
-                out = model(x_esm2.float(), head='tm').squeeze().cpu().numpy()
-            v6_preds.append(out)
-    if v6_preds:
-        results['V6 Multi-Head (ESM-2)'] = {'y_pred': np.mean(v6_preds, axis=0), 'type': 'Dedicated Tm Head'}
-
-    # ── V6 Multi-Head (SaProt) ──
-    print("Evaluating V6 Multi-Head (SaProt)...")
-    saprot_preds_path = os.path.join(PROJECT_ROOT, "experiments/src/training/v6_multihead_saprot/results/ensemble/predictions.pt")
-    saprot_data_path = os.path.join(PROJECT_ROOT, "data/embeddings/prepared_data_v4_saprot.pt")
-    if os.path.exists(saprot_preds_path) and os.path.exists(saprot_data_path):
+    # ── V6 SaProt (Weighted Multi-Head) ──
+    print("Evaluating V6 SaProt...")
+    # Load SaProt embeddings for sequence matching
+    saprot_data_path = os.path.join(PROJECT_ROOT, "data/embeddings/prepared_data_v4_saprot_cleaned.pt")
+    if os.path.exists(saprot_data_path):
         saprot_data = torch.load(saprot_data_path, map_location='cpu', weights_only=False)
-        saprot_preds_data = torch.load(saprot_preds_path, map_location='cpu', weights_only=False)
-        saprot_preds_all = saprot_preds_data['y_pred'].numpy() if hasattr(saprot_preds_data['y_pred'], 'numpy') else np.array(saprot_preds_data['y_pred'])
-        saprot_seq_to_pred = {str(seq).upper(): pred for seq, pred in zip(saprot_data['test_tm']['sequences'], saprot_preds_all)}
+        seq_to_saprot = {}
+        for split in ['train_tm', 'val_tm', 'test_tm']:
+            if split in saprot_data and 'sequences' in saprot_data[split]:
+                for seq, emb in zip(saprot_data[split]['sequences'], saprot_data[split]['embeddings']):
+                    seq_to_saprot[str(seq).upper()] = emb
         
-        # Fallback to ESM-2 for sequences missing structures
-        v6_esm2_preds = results['V6 Multi-Head (ESM-2)']['y_pred']
-        v6_saprot_final = []
+        # Match ProThermDB sequences to SaProt embeddings
+        saprot_indices = []
+        saprot_embs = []
         for idx, seq in enumerate(protherm_seqs):
-            seq_upper = seq.upper()
-            if seq_upper in saprot_seq_to_pred:
-                v6_saprot_final.append(saprot_seq_to_pred[seq_upper])
-            else:
-                v6_saprot_final.append(v6_esm2_preds[idx])
-        results['V6 Multi-Head (SaProt)'] = {'y_pred': np.array(v6_saprot_final), 'type': 'Dedicated Tm Head'}
+            if seq.upper() in seq_to_saprot:
+                saprot_indices.append(idx)
+                saprot_embs.append(seq_to_saprot[seq.upper()])
+        
+        if saprot_embs:
+            x_saprot = torch.stack(saprot_embs).to(device)
+            v6_saprot_preds = []
+            for s in range(1, 6):
+                p = os.path.join(PROJECT_ROOT, f"experiments/src/training/v6_saprot/results/seed{s}/model.pt")
+                if os.path.exists(p):
+                    model = MultiHead_TmPredictor(input_size=1280).to(device)
+                    # V6 SaProt uses separate input layers (MultiHead_SaProtPredictor architecture)
+                    # but shares the same state_dict key naming convention
+                    try:
+                        model.load_state_dict(torch.load(p, map_location=device, weights_only=False))
+                    except RuntimeError:
+                        # Architecture mismatch — use SaProtPredictor class from fireprot eval
+                        from evaluate_all_models_fireprot import MultiHead_SaProtPredictor
+                        model = MultiHead_SaProtPredictor().to(device)
+                        model.load_state_dict(torch.load(p, map_location=device, weights_only=False))
+                    model.eval()
+                    with torch.no_grad():
+                        out = model(x_saprot.float(), head='tm').squeeze().cpu().numpy()
+                    v6_saprot_preds.append(out)
+            
+            if v6_saprot_preds:
+                ensemble_saprot = np.mean(v6_saprot_preds, axis=0)
+                # Build full prediction array: SaProt where available, ESM-2 V5 fallback
+                v6_full = np.copy(results.get('V5 Multi-Head (ProtT5)', {}).get('y_pred', np.zeros(len(y_true))))
+                for i, idx in enumerate(saprot_indices):
+                    v6_full[idx] = ensemble_saprot[i]
+                results['V6 SaProt'] = {'y_pred': v6_full, 'type': 'Dedicated Tm Head'}
+                print(f"  Matched {len(saprot_indices)}/{len(protherm_seqs)} with SaProt, rest fallback")
     else:
-        print("WARNING: SaProt prediction or dataset file missing.")
-
-
-    # ── V7 ESM-2 Clean (Mode D2) ──
-    print("Evaluating V7 ESM-2 Clean (Mode D2)...")
-    v7_esm_preds = []
-    for s in [1, 2, 3]:
-        p = os.path.join(PROJECT_ROOT, f"experiments/src/training/v7_transfer/results/seed{s}/model_D2.pt")
-        if os.path.exists(p):
-            model = StableProtV7(emb_dim=2560).to(device)
-            model.load_state_dict(torch.load(p, map_location=device, weights_only=False))
-            model.eval()
-            with torch.no_grad():
-                out = model(x_esm2, stage='tm').squeeze().cpu().numpy()
-            v7_esm_preds.append(out)
-    if v7_esm_preds:
-        results['V7 ESM-2 (Mode D2)'] = {'y_pred': np.mean(v7_esm_preds, axis=0), 'type': 'Dedicated Tm Head'}
+        print("WARNING: SaProt data not found.")
 
     # ── Load Baselines (TemBERTure, ESMStabP, DeepSTABp, ThermoFormer) ──
     baseline_path = os.path.join(PROJECT_ROOT, "new_data/baseline_predictions.pt")
@@ -476,7 +423,7 @@ def main():
     # Compute Metrics and Display Summary
     # -------------------------------------------------------------
     print("\n" + "=" * 175)
-    print("  PROTHERMDB VALIDATION BENCHMARK (ALL MODELS V0 TO V7 + BASELINES)")
+    print("  PROTHERMDB VALIDATION BENCHMARK (ALL MODELS V0 TO V6 + BASELINES)")
     print("" + "=" * 175)
     print(f"{'Model Iteration':<28} | {'Type':<18} | {'MAE':<6} | {'RMSE':<6} | {'PCC':<5} | {'Spearman':<8} | {'R²':<6} | {'MCC':<6} | {'F1':<5} | {'AUC':<5} | {'Global AUC':<10} | {'Top-10% Enrich':<14}")
     print("-" * 175)

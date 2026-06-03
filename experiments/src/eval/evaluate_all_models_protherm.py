@@ -263,7 +263,7 @@ def main():
             v0_probs.append(np.mean(t_probs, axis=0))
     if v0_probs:
         v0_preds = compute_expected_temperatures(np.column_stack(v0_probs), v0_thresholds)
-        results['V0 Original'] = {'y_pred': v0_preds, 'type': 'Binary Proxy'}
+        results['TemStaPro'] = {'y_pred': v0_preds, 'type': 'Binary Proxy'}
 
     # ── V1 Baseline ──
     print("Evaluating V1 Baseline...")
@@ -400,7 +400,7 @@ def main():
                 v6_full = np.copy(results.get('V5 Multi-Head (ProtT5)', {}).get('y_pred', np.zeros(len(y_true))))
                 for i, idx in enumerate(saprot_indices):
                     v6_full[idx] = ensemble_saprot[i]
-                results['V6 SaProt'] = {'y_pred': v6_full, 'type': 'Dedicated Tm Head'}
+                results['StableProt'] = {'y_pred': v6_full, 'type': 'Dedicated Tm Head'}
                 print(f"  Matched {len(saprot_indices)}/{len(protherm_seqs)} with SaProt, rest fallback")
     else:
         print("WARNING: SaProt data not found.")

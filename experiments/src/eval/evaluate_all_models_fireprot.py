@@ -272,7 +272,7 @@ def main():
             v0_probs.append(np.mean(t_probs, axis=0))
     if v0_probs:
         v0_preds = compute_expected_temperatures(np.column_stack(v0_probs), v0_thresholds)
-        results['V0 Original'] = {'y_pred': v0_preds, 'type': 'Binary Proxy'}
+        results['TemStaPro'] = {'y_pred': v0_preds, 'type': 'Binary Proxy'}
 
     # ── V1 Baseline ──
     print("Evaluating V1 Baseline...")
@@ -375,7 +375,7 @@ def main():
                 out = model(x_saprot.float(), head='tm').squeeze().cpu().numpy()
             v6_saprot_preds.append(out)
     if v6_saprot_preds:
-        results['V6 SaProt'] = {'y_pred': np.mean(v6_saprot_preds, axis=0), 'type': 'Dedicated Tm Head'}
+        results['StableProt'] = {'y_pred': np.mean(v6_saprot_preds, axis=0), 'type': 'Dedicated Tm Head'}
 
     # ── Load Baselines (TemBERTure, ESMStabP, DeepSTABp, ThermoFormer) ──
     baseline_path = os.path.join(PROJECT_ROOT, "new_data/baseline_predictions.pt")

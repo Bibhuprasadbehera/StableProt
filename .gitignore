@@ -27,3 +27,6 @@ experiments/tembert_embed.log
 # Data and benchmark directories
 data/
 benchmark_models/
+
+paper/
+paper/writeup/

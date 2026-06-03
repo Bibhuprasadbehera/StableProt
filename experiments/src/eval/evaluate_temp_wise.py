@@ -99,9 +99,9 @@ def main():
         print("Processing ProThermDB validation set...")
         data = torch.load(protherm_path, map_location='cpu', weights_only=False)
         y_true = np.array(data['y_true'])
-        # Ensure all predictions are converted to numpy arrays and exclude V2, V3
-        excluded = ['V2 Improved', 'V3 Regression']
-        predictions = {k: np.array(v) for k, v in data['predictions'].items() if k not in excluded}
+        # Only include StableProt + external baselines
+        show_models = ['StableProt', 'TemStaPro', 'TemBERTure', 'ESMStabP', 'DeepSTABp', 'ThermoFormer']
+        predictions = {k: np.array(v) for k, v in data['predictions'].items() if k in show_models}
         
         df_protherm = compute_binned_mae(y_true, predictions, bin_edges)
 
@@ -124,8 +124,8 @@ def main():
         print("\nProcessing FireProtDB holdout set...")
         data = torch.load(fireprot_path, map_location='cpu', weights_only=False)
         y_true = np.array(data['y_true'])
-        excluded = ['V2 Improved', 'V3 Regression']
-        predictions = {k: np.array(v) for k, v in data['predictions'].items() if k not in excluded}
+        show_models = ['StableProt', 'TemStaPro', 'TemBERTure', 'ESMStabP', 'DeepSTABp', 'ThermoFormer']
+        predictions = {k: np.array(v) for k, v in data['predictions'].items() if k in show_models}
         
         df_fireprot = compute_binned_mae(y_true, predictions, bin_edges)
 

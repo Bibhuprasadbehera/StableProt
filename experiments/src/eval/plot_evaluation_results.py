@@ -42,12 +42,9 @@ def plot_mae_comparison(protherm_data, fireprot_data, out_dir):
     """
     models = list(protherm_data['metrics'].keys())
     
-    # Exclude models if not present in both
-    common_models = [m for m in models if m in fireprot_data['metrics']]
-    
-    # Exclude V2, V3 models (keep focused)
-    excluded = ['V2 Improved', 'V3 Regression']
-    common_models = [m for m in common_models if m not in excluded]
+    # Only show StableProt + external baselines
+    show_models = ['StableProt', 'TemStaPro', 'TemBERTure', 'ESMStabP', 'DeepSTABp', 'ThermoFormer']
+    common_models = [m for m in show_models if m in protherm_data['metrics'] and m in fireprot_data['metrics']]
     
     # Sort models by ProThermDB MAE (ascending)
     common_models = sorted(common_models, key=lambda m: protherm_data['metrics'][m]['mae'])
@@ -102,16 +99,16 @@ def plot_scatter_grids(data, dataset_name, out_dir):
     predictions = data['predictions']
     y_true = data['y_true']
     
-    # Pick a subset of key models/baselines to display in a clean grid
-    key_models = ['V0 Original', 'V1 Baseline', 'V4 Improved Regr.', 'V5 Multi-Head (ProtT5)', 'V6 SaProt', 'TemBERTure', 'ESMStabP', 'DeepSTABp', 'ThermoFormer']
+    # Only show StableProt + external baselines
+    key_models = ['StableProt', 'TemStaPro', 'TemBERTure', 'ESMStabP', 'DeepSTABp', 'ThermoFormer']
     display_models = [m for m in key_models if m in predictions]
 
     
     n_models = len(display_models)
-    cols = 4
+    cols = 3
     rows = (n_models + cols - 1) // cols
     
-    fig, axes = plt.subplots(rows, cols, figsize=(16, 4 * rows), sharex=True, sharey=True)
+    fig, axes = plt.subplots(rows, cols, figsize=(14, 4 * rows), sharex=True, sharey=True)
     axes = axes.flatten()
     
     for i, model_name in enumerate(display_models):
@@ -159,12 +156,9 @@ def plot_error_violins(protherm_data, fireprot_data, out_dir):
     """
     Generate violin plots of error distributions.
     """
-    models = list(protherm_data['metrics'].keys())
-    common_models = [m for m in models if m in fireprot_data['metrics']]
-    
-    # Exclude V2, V3 models
-    excluded = ['V2 Improved', 'V3 Regression']
-    common_models = [m for m in common_models if m not in excluded]
+    # Only show StableProt + external baselines
+    show_models = ['StableProt', 'TemStaPro', 'TemBERTure', 'ESMStabP', 'DeepSTABp', 'ThermoFormer']
+    common_models = [m for m in show_models if m in protherm_data['metrics'] and m in fireprot_data['metrics']]
     
     common_models = sorted(common_models, key=lambda m: protherm_data['metrics'][m]['mae'])
 

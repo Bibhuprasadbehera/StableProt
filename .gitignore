@@ -25,8 +25,17 @@ experiments/cdhit.log
 experiments/esm2_train_embed.log
 experiments/tembert_embed.log
 # Data and benchmark directories
-data/
 benchmark_models/
 
-paper/
-paper/writeup/
+presentation/
+data/structures/
+data/cdhit_phase1/test_vs_train
+data/cdhit_phase1/test_vs_train.clstr
+data/cdhit_phase1/test_vs_val
+data/cdhit_phase1/test_vs_val.clstr
+data/cdhit_phase1/val_vs_train
+data/cdhit_phase1/val_vs_train.clstr
+data/cleaner_data/
+data/test_data/
+data/training_data/
+paper/writeup/plots

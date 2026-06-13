@@ -377,6 +377,26 @@ def main():
     if v6_saprot_preds:
         results['StableProt'] = {'y_pred': np.mean(v6_saprot_preds, axis=0), 'type': 'Dedicated Tm Head'}
 
+    # ── V7 SaProt (Shared Backbone) ──
+    print("Evaluating V7 SaProt...")
+    v7_saprot_preds = []
+    
+    # Import MultiHeadSaProtV7 dynamically
+    sys.path.append(os.path.join(PROJECT_ROOT, "experiments/src/training/v7_shared"))
+    from train import MultiHeadSaProtV7
+    
+    for s in range(1, 6):
+        p = os.path.join(PROJECT_ROOT, f"experiments/src/training/v7_shared/results/seed{s}/best_model.pt")
+        if os.path.exists(p):
+            model = MultiHeadSaProtV7(input_dim=1280).to(device)
+            model.load_state_dict(torch.load(p, map_location=device, weights_only=False))
+            model.eval()
+            with torch.no_grad():
+                out = model(x_saprot.float(), task='tm').squeeze().cpu().numpy()
+            v7_saprot_preds.append(out)
+    if v7_saprot_preds:
+        results['StableProt V7'] = {'y_pred': np.mean(v7_saprot_preds, axis=0), 'type': 'Dedicated Tm Head'}
+
     # ── Load Baselines (TemBERTure, ESMStabP, DeepSTABp, ThermoFormer) ──
     baseline_path = os.path.join(PROJECT_ROOT, "new_data/baseline_predictions.pt")
     if os.path.exists(baseline_path):

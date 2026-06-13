@@ -405,6 +405,38 @@ def main():
     else:
         print("WARNING: SaProt data not found.")
 
+    # ── V7 SaProt (Shared Backbone) ──
+    # Uses dedicated protherm_embeddings.pt for ALL 5,460 sequences (no fallback)
+    print("Evaluating V7 SaProt...")
+    protherm_saprot_path = os.path.join(PROJECT_ROOT, "data/embeddings/saprot_1.3b/protherm_embeddings.pt")
+    if os.path.exists(protherm_saprot_path):
+        x_saprot_v7 = torch.load(protherm_saprot_path, map_location=device, weights_only=False).float()
+        print(f"  Loaded ProThermDB SaProt embeddings: {x_saprot_v7.shape}")
+
+        # Import MultiHeadSaProtV7 dynamically
+        sys.path.append(os.path.join(PROJECT_ROOT, "experiments/src/training/v7_shared"))
+        from train import MultiHeadSaProtV7
+
+        v7_saprot_preds = []
+        for s in range(1, 6):
+            p = os.path.join(PROJECT_ROOT, f"experiments/src/training/v7_shared/results/seed{s}/best_model.pt")
+            if os.path.exists(p):
+                model = MultiHeadSaProtV7(input_dim=1280).to(device)
+                model.load_state_dict(torch.load(p, map_location=device, weights_only=False))
+                model.eval()
+                with torch.no_grad():
+                    out = model(x_saprot_v7, task="tm").squeeze().cpu().numpy()
+                v7_saprot_preds.append(out)
+
+        if v7_saprot_preds:
+            results["StableProt V7"] = {
+                "y_pred": np.mean(v7_saprot_preds, axis=0),
+                "type": "Dedicated Tm Head",
+            }
+            print(f"  V7 evaluated on all {len(x_saprot_v7)} ProThermDB sequences (no fallback)")
+    else:
+        print("WARNING: ProThermDB SaProt embeddings not found at", protherm_saprot_path)
+
     # ── Load Baselines (TemBERTure, ESMStabP, DeepSTABp, ThermoFormer) ──
     baseline_path = os.path.join(PROJECT_ROOT, "new_data/baseline_predictions.pt")
     if os.path.exists(baseline_path):

@@ -1,0 +1,13 @@
+StableProt V7 — Mimo vs audit.md Discrepancies
+================================================
+All discrepancies have been resolved. No remaining disagreements.
+
+Previous discrepancies (all fixed in audit.md):
+- P2-2: audit.md now correctly says 1022 AA (was 512)
+- P2-4: audit.md F6 now correctly says "spatial info" (was misleading)
+- PE-4: Removed from audit.md (was non-issue)
+- P1-6: Removed from audit.md (was non-issue)
+- CC-4: Removed from audit.md (was overblown)
+- D1: Table header now says ">1022 AA" matching text (was ">1024 AA")
+
+STATUS: All resolved. No remaining discrepancies.

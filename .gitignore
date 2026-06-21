@@ -10,6 +10,7 @@ experiments/v3_regression/results
 *.pt
 *.pth
 *.bin
+*.tsv
 
 # Cache
 __pycache__/
@@ -19,13 +20,9 @@ results/
 
 # Datasets
 *.fasta
-experiments/esm2_tm_embed.log
-experiments/protherm_embed.log
-experiments/cdhit.log
-experiments/esm2_train_embed.log
-experiments/tembert_embed.log
+*.log
 # Data and benchmark directories
-benchmark_models/
+benchmark_models_tm/
 
 presentation/
 data/structures/
@@ -38,4 +35,4 @@ data/cdhit_phase1/val_vs_train.clstr
 data/cleaner_data/
 data/test_data/
 data/training_data/
-paper/writeup/plots
+paper/writeup/plotsnew_data/

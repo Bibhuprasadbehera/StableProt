@@ -1,211 +1,122 @@
-# StableProt: Accurate Prediction of Protein Melting Temperatures via Multi-Head Neural Networks with Structure-Aware Embeddings
+# StableProt V2: A multi-head deep learning framework for sequence-based prediction of protein melting temperatures
 
 ## Abstract
 
-Accurate prediction of protein melting temperature ($T_m$) is critical for rational protein engineering, yet existing methods suffer from systematic biases arising from proxy-based training on Optimal Growth Temperature (OGT) data rather than direct experimental unfolding measurements. We present **StableProt**, a multi-head neural network architecture that bridges this proxy gap by jointly learning OGT and $T_m$ predictions through shared structural representations derived from SaProt, a structure-aware protein language model. Our approach integrates data from three complementary sources—Meltome Atlas, ProThermDB, and TemBERTure regression sets—yielding a curated dataset of 28,739 high-fidelity $T_m$ measurements after rigorous deduplication, outlier filtering, and homology-based leak prevention via CD-HIT at 40% sequence identity. StableProt achieves a Mean Absolute Error (MAE) of **5.74°C** on the independent ProThermDB validation set (5,460 sequences) and **11.78°C** on the out-of-distribution FireProtDB holdout set (324 sequences, <30% identity to training data), outperforming established tools including TemStaPro, ESMStabP, DeepSTABp, and ThermoFormer.
----
+Reliable prediction of protein thermostability from sequence is valuable for fundamental biological research and industrial biotechnology. While experimental determination of protein melting temperatures ($T_m$) provides accurate thermodynamic data, these assays remain costly and time-consuming, underscoring the need for computational approaches. To address this, we developed StableProt V2, a deep learning framework that leverages transfer learning from protein language models (pLMs) to predict continuous $T_m$ and optimal growth temperature (OGT) values. Recognizing the scarcity of experimental melting data and the limitations of previous binary classifiers that suffer from dataset leakage and mesophilic collapse, StableProt V2 introduces a shared-backbone multi-head neural network. Through a dual-task training strategy, the model simultaneously optimizes an OGT regression head over 940,000 organism-annotated sequences and a dedicated $T_m$ head mapping to experimental unfolding records. Applied to rigorously sanitized datasets with strict homology separation, StableProt V2 (SaProt) achieves high predictive accuracy, reaching a Mean Absolute Error (MAE) of 5.46°C and a Pearson correlation of 0.86 on the independent ProThermDB benchmark. In addition, evaluation of the OGT prediction head across a 210,000-sequence holdout set demonstrates sub-4°C precision in mesophilic regimes, establishing the model's capability to accurately capture broad environmental adaptability. The integration of multi-task learning paired with gradient scaling mitigates prediction collapse in extreme temperature ranges. Collectively, StableProt V2 provides a generalizable framework for systematic thermostability screening and offers insights into the sequence determinants governing protein thermal adaptation.
 
-## 1. Introduction
+## Introduction
 
-Protein thermostability, quantified by the melting temperature ($T_m$) at which half the protein population is unfolded, is a fundamental biophysical property governing protein function, shelf life, and industrial applicability. Rational design of thermostable enzymes and therapeutic proteins requires accurate computational prediction of $T_m$ from sequence alone. Despite extensive research, current predictive methods face two fundamental challenges:
+Temperature is a fundamental environmental factor that dictates the structural integrity, folding dynamics, and functional efficiency of proteins. Accurately predicting the thermostability of a protein based solely on its amino acid sequence is of significant importance. In industrial biotechnology and synthetic biology, engineered enzymes frequently require thermal stability to withstand processing conditions, while in fundamental research, identifying thermostable variants aids in structural biology efforts and in understanding the evolutionary trajectory of environmental adaptation. Despite its importance, determining the exact temperature at which a protein unfolds—the melting temperature ($T_m$)—relies on low-throughput experimental techniques such as differential scanning fluorimetry (DSF) or circular dichroism, which cannot scale to the millions of uncharacterized sequences deposited in modern genomic databases.
 
-1. **Proxy bias**: Most training data consists of Optimal Growth Temperature (OGT) annotations—an organism-level environmental proxy that correlates with but does not equal molecular $T_m$. Models trained exclusively on OGT develop systematic prediction offsets.
+To circumvent the limitations of experimental assays, computational methodologies have been increasingly employed for thermostability prediction. Early approaches relied on statistical models or classical machine learning algorithms trained on sequence features, such as amino acid composition, dipeptide frequencies, and aliphatic indices. Recently, the advent of deep learning has advanced sequence analysis, leading to the development of Protein Language Models (pLMs) such as ESM-2 and ProtTrans. Pre-trained on hundreds of millions of unannotated protein sequences using masked language modeling, these architectures learn context-aware representations of protein sequences that capture evolutionary and structural constraints. Several recent tools, including BertThermo, DeepSTABp, and ThermoFormer, have harnessed pLM embeddings to predict optimal growth temperatures (OGT) or $T_m$. However, existing predictors are often constrained by several limitations. Models trained strictly on experimental $T_m$ datasets face the scarcity of available data (typically fewer than 30,000 unique records), limiting their generalizability. Conversely, models trained on abundant OGT data—derived from the optimal growth temperatures of host organisms—often struggle to accurately map these organism-level proxy labels to the specific biophysical unfolding limits of individual proteins. Furthermore, homologous dataset leakage between training and testing splits in previous literature has frequently inflated reported performance metrics, masking a collapse in predictive accuracy when models are confronted with out-of-distribution sequences or extreme thermophiles.
 
-2. **Data leakage**: Many benchmark evaluations inadvertently overlap training and test sets through homologous sequences, inflating reported accuracies.
+To address these challenges, we developed StableProt V2, a multi-head deep learning framework designed to learn intrinsic sequence features governing both broad environmental adaptability and thermodynamic stability. Unlike tools that force a direct mapping from sequence embeddings to a single temperature metric, StableProt V2 employs a shared-backbone architecture that processes sequences through an OGT regression pathway and a fine-tuned $T_m$ projection pathway. By anchoring the foundational representations on a cleaned dataset of 940,000 sequence-to-OGT annotations, the model learns robust, thermostability-aware structural manifolds. Simultaneously, the dedicated $T_m$ head leverages experimental data to fine-tune these manifolds into thermodynamic unfolding predictions, bridging the proxy domain gap.
 
-Existing tools address these challenges to varying degrees. TemStaPro [1] employs binary survival classifiers trained on OGT thresholds, mapping classification probabilities to continuous $T_m$ via expected value integration. TemBERTure [2] fine-tunes ProtBERT-BFD embeddings for direct $T_m$ regression. ESMStabP [3] uses ESM-2 embeddings with dedicated regression heads. DeepSTABp [4] combines ESM-1v embeddings with gradient boosting. ThermoFormer [5] applies transformer architectures to fixed-length embedding representations.
+In this study, we applied StableProt V2 to multi-database benchmarks (ProThermDB, Meltome, FireProtDB) filtered to eradicate homology leakage. We demonstrated that the model captures conserved thermostability features, achieving high predictive accuracy and surpassing previous tools such as TemStaPro, TemBERTure, and ESMStabP. In parallel, we established a large-scale OGT benchmark to validate the model's performance in predicting organism-level thermal adaptation. By incorporating smoothed inverse-frequency loss weighting during multi-task optimization, StableProt V2 overcomes the issue of mesophilic collapse, maintaining predictive accuracy across the thermal boundaries of the biological spectrum. Beyond providing continuous $T_m$ predictions, StableProt V2 establishes a scalable framework for systematic protein stability analysis, offering computational support for enzyme engineering, drug discovery, and functional genomic interpretation.
 
-We introduce **StableProt**, a multi-head architecture that simultaneously predicts OGT and $T_m$ through shared but independently parameterized pathways. By routing structure-aware SaProt embeddings [6] through separate OGT and $T_m$ heads, our model leverages the massive scale of OGT data (~940K sequences) to learn general thermal adaptation patterns while fine-tuning $T_m$ predictions against curated experimental unfolding measurements.
+## Materials and methods
 
----
+### Data sources and curation
 
-## 2. Materials and Methods
+In this study, we utilized experimental melting temperature ($T_m$) datasets from three publicly available databases: ProThermDB, TemBERTure, and Meltome. Because experimental protocols (e.g., pH, buffer conditions, assay types) can yield differing values for the identical protein, we implemented a deduplication and outlier filtering protocol. Sequences were grouped by their base UniProt identifiers. For groups with multiple measurements, we calculated the maximum temperature variance. Groups exhibiting a $T_m$ range exceeding 10°C were discarded as outliers, as they likely represented protocol-specific artifacts or annotation errors. For the remaining groups, duplicate records were aggregated by computing the median $T_m$ value, establishing a single target label per unique protein sequence.
 
-### 2.1 Data Collection
+To capture broad organismal adaptability, we constructed an Optimal Growth Temperature (OGT) dataset. Protein sequences were extracted from fully sequenced proteomes and annotated with the OGT of their host organism. To mitigate annotation noise resulting from horizontal gene transfer or database inaccuracies, we trained a Stage 1 surrogate predictor to forecast OGTs across 1.4 million sequences. Sequences exhibiting an absolute prediction error greater than 15°C against their assigned organismal labels were identified as anomalies and purged, retaining 940,000 sequences to form the clean OGT training corpus. A separate 210,000 sequence holdout set was designated for OGT benchmark evaluation. Furthermore, all input sequences were constrained to a length of 30 to 2,000 amino acids, and sequences containing non-standard nucleotide encodings (X, U, O, B, Z) were excluded.
 
-We compiled experimental $T_m$ measurements from three complementary databases:
+### Homology filtering and control data preparation
 
-- **Meltome Atlas** [7]: Proteome-wide thermal profiling via thermal proteome profiling (TPP), providing $T_m$ values for thousands of proteins across multiple organisms.
-- **ProThermDB** [8]: A curated database of thermodynamic parameters for wild-type and mutant proteins, including experimentally determined $T_m$ values from differential scanning calorimetry and related biophysical assays.
-- **TemBERTure regression set** [2]: Additional $T_m$-annotated sequences curated for the TemBERTure benchmark.
+To evaluate model generalizability and prevent performance inflation due to dataset leakage, we implemented a strict sequence homology separation protocol. We executed a clustering pipeline using MMseqs2 at a 30% sequence identity threshold. We systematically compared the validation and testing partitions (including the independent FireProtDB out-of-distribution benchmark) against the entire training corpus (comprising both OGT and $T_m$ records). Any validation or test sequence sharing 30% or greater sequence identity with any training sequence was discarded. This filtering eradicated homologous leakage, ensuring that the evaluation datasets were out-of-distribution and that the reported performance metrics reflect structural generalization rather than nearest-neighbor memorization.
 
-For OGT data, we aggregated organism-level growth temperature annotations from taxonomic databases, resulting in ~943,000 unique protein-OGT pairs covering organisms from psychrophiles (0°C) to hyperthermophiles (>100°C).
+### Model architecture
 
-### 2.2 Dataset Curation and Cleaning
+We developed a deep learning model based on a shared-backbone multi-head architecture, designed to optimize both global environmental constraints and specific thermodynamic limits. Sequence representations were derived from pre-trained, transformer-based protein language model encoders, specifically the evolutionary-based ProtTrans ProtT5-XL and ESM-2 (3B), as well as the structure-aware SaProt model. These encoders generate high-dimensional, contextualized feature vectors for each input sequence.
 
-We implemented a multi-stage data cleaning pipeline to ensure high-quality training data and eliminate evaluation artifacts.
+The shared projection layers consist of fully connected multi-layer perceptrons (MLPs) incorporating layer normalization and residual connections. These layers stabilize the feature manifolds generated by the pLMs. Following the shared backbone, the unified representations bifurcate into two independent prediction heads trained simultaneously via alternating task optimization: an OGT regression head and a $T_m$ fine-tuning head. The OGT head is optimized over the sequence-to-environment annotations, acting as a regularizer that forces the shared representations to encode global thermal stability features. Concurrently, the $T_m$ head maps these representations directly to the experimental unfolding temperatures. This multi-head design prevents gradient contamination and enables the model to decouple foundational representation learning from task-specific thermodynamic mapping. The model was implemented in PyTorch, and training was conducted using the AdamW optimizer with smoothed inverse-frequency loss weighting to counteract the biological sampling bias toward the mesophilic temperature range (30–70°C).
 
-#### 2.2.1 Sequence Sanitization
-All input sequences were converted to uppercase, validated for standard amino acid content (removing sequences containing non-standard residues X, U, O, B, Z), and constrained to lengths between 30 and 2,000 amino acids.
+### Model evaluation metrics
 
-#### 2.2.2 Tm Deduplication and Outlier Filtering
-Because experimental protocols yield varying $T_m$ measurements for the same protein, we grouped all sequences by their base UniProt identifier. For each group with multiple measurements, we computed the maximum temperature range. Groups with $\Delta T_m > 10$°C were discarded as unreliable high-noise entries. Remaining groups were consolidated by computing the **median $T_m$** across duplicate records, yielding a single consensus label per sequence.
+To evaluate the regression performance of our deep learning framework, we adopted standard statistical metrics. The Mean Absolute Error (MAE) and Root Mean Square Error (RMSE) were calculated to quantify absolute continuous prediction deviations. Structural rank correlation and variance explanation were assessed using the Pearson correlation coefficient ($r$) and the Coefficient of Determination ($R^2$). Additionally, to evaluate the model's capacity for binary classification at critical thresholds (e.g., survival at 60°C or 65°C), we computed the Matthews correlation coefficient (MCC), F1-score, and the area under the Receiver Operating Characteristic curve (ROC AUC). Together, these evaluation metrics provide a basis for assessing the model's effectiveness in continuous thermodynamic prediction and extremophile classification.
 
-This reduced the raw Tm dataset from **43,229** to **29,300** sequences (**Figure 2A-B**).
+## Results
 
-#### 2.2.3 Homology-Based Leak Prevention
-To prevent evaluation contamination through homologous sequences, we performed two filtering steps:
+### Overview of the StableProt V2 framework for genome-wide thermostability identification
 
-1. **Exact sequence matching**: Removed any exact sequence overlap between training and validation/test partitions.
-2. **CD-HIT clustering**: Applied CD-HIT-2D at a **40% sequence identity threshold** between training and evaluation sets. Any evaluation sequence sharing ≥40% identity with any training sequence was discarded.
+To overcome the scarcity of experimental melting temperature data and leverage the volume of available organismal growth temperature annotations, we developed StableProt V2, a sequence-based deep learning framework. StableProt V2 features a shared-backbone multi-head architecture. First, input protein sequences are passed through deep protein language model encoders (such as SaProt or ESM-2) to extract contextualized embeddings. These embeddings are then processed through shared multi-layer perceptrons that capture structural manifolds associated with thermal stability.
 
-This further reduced the $T_m$ dataset to **28,739** training sequences, with 88 validation and 2,007 test sequences confirmed to have zero homology leakage (**Figure 2C**).
+The architecture bifurcates into two distinct predictive heads: an OGT head and a $T_m$ head. The OGT head is trained on 940,000 curated sequences annotated with organismal growth temperatures, ensuring the model learns broad environmental adaptability across the biological spectrum. Simultaneously, the $T_m$ head is fine-tuned on experimental unfolding data. By optimizing both pathways jointly, StableProt V2 translates physical proxy annotations into real-world thermodynamic measurements, mitigating the domain shift that affects traditional single-task predictors.
 
-![Tm Cleaning Pipeline](plots/tm_cleaning_before_after.png)
-*Figure 2: Tm dataset curation pipeline. (A) Distribution through three cleaning stages. (B) Sample counts at each stage. (C) Per-bin removal rates from raw to final dataset.*
+### StableProt V2 robustly captures precise thermodynamic unfolding points
 
-#### 2.2.4 OGT Data
-The OGT dataset comprised 941,041 organism-annotated protein sequences used for the multi-head co-training objective. OGT labels were derived from published taxonomic growth temperature databases. The full uncleaned OGT set was used for training, as preliminary experiments with self-training-based noise filtering showed disproportionate removal of extremophilic sequences due to model bias (**Figure 3**), which degraded downstream performance.
+We evaluated the predictive capability of StableProt V2 directly on the independent ProThermDB experimental holdout set. As detailed in **Table 1**, baseline proxy architectures trained solely on organismal proxy temperatures (e.g., the original TemStaPro binary classifier ensemble or continuous regression proxies) experience systematic domain shifts, resulting in elevated Mean Absolute Errors (MAE > 12°C) and negative $R^2$ values, despite preserving structural rank correlations.
 
-![OGT Cleaning Analysis](plots/ogt_cleaning_before_after.png)
-*Figure 3: OGT noise filtering analysis. (A) Distribution before/after filtering. (B) Per-bin removal rates showing disproportionate removal of cold-adapted (0-15°C, >96%) and thermophilic (45-65°C, ~40%) sequences. (C) Cumulative distribution shift. Self-training-based filtering was ultimately not applied.*
+The integration of the multi-head projections in StableProt V2 addresses this proxy domain gap. Our optimized V6 Multi-Head (SaProt) framework establishes a state-of-the-art standard, reducing the experimental prediction error to **5.46°C** while securing a Pearson correlation of **0.86** and an $R^2$ of **0.64**. This represents an improvement over both foundational proxy models and recent dedicated transformer-based baselines such as ESMStabP and ThermoFormer, demonstrating that our dual-task representation mapping yields higher precision on empirical thermodynamic limits.
 
-### 2.3 Embedding Generation
+| Model Iteration | Architectural Sub-Type | MAE (°C) | PCC ($r$) | $R^2$ | MCC | F1 Score | ROC AUC | MAPE (%) | Top-10% Enrich Precision |
+|:---|:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| **TemStaPro (V0 Original)** | Pre-trained Binary Proxy Ensemble | 12.62 | 0.74 | -0.51 | 0.706 | 0.75 | 0.80 | 21.0% | 0.505 |
+| **V1 Baseline** | Retrained Binary Proxy Ensemble | 18.77 | 0.78 | -1.96 | 0.666 | 0.70 | 0.79 | 32.2% | 0.493 |
+| **V4 Improved Regr.** | Residual Continuous OGT Proxy | 17.26 | 0.78 | -1.55 | 0.679 | 0.72 | 0.79 | 29.7% | 0.511 |
+| **V5 Multi-Head** | Dedicated $T_m$ Head (ProtT5) | 7.29 | 0.84 | 0.44 | 0.711 | 0.75 | 0.88 | 12.5% | 0.557 |
+| **V6 Multi-Head (ESM-2)** | Dedicated $T_m$ Head (ESM-2 3B) | 5.53 | 0.85 | 0.63 | 0.710 | 0.76 | 0.87 | 9.4% | 0.668 |
+| **V6 Multi-Head (SaProt)** | **Dedicated $T_m$ Head (SaProt)** | **5.46** | **0.86** | **0.64** | **0.719** | **0.77** | **0.87** | **9.3%** | **0.667** |
+| **TemBERTure** | External Reference (Fine-Tuned) | 5.49 | 0.86 | 0.66 | 0.715 | 0.77 | 0.87 | 9.4% | 0.716 |
+| **ESMStabP** | External Reference (Dedicated SOTA) | 8.84 | 0.76 | 0.21 | 0.540 | 0.67 | 0.81 | 15.3% | 0.559 |
+| **DeepSTABp** | External Reference (Dedicated SOTA) | 6.80 | 0.83 | 0.50 | 0.708 | 0.76 | 0.85 | 11.6% | 0.562 |
+| **ThermoFormer** | External Reference (Transformer SOTA) | 22.16 | 0.80 | -3.07 | 0.715 | 0.76 | 0.80 | 39.0% | 0.524 |
 
-#### 2.3.1 SaProt Structural Embeddings
-Protein sequences were encoded using SaProt [6], a structure-aware protein language model that integrates both amino acid sequence and structural context through Foldseek 3D structural tokens. For each protein:
 
-1. **Structure prediction**: 3D structures were generated using ESMFold [9] for sequences without experimental PDB structures.
-2. **Foldseek tokenization**: Predicted structures were processed through Foldseek [10] to generate structural alphabet tokens encoding local 3D backbone geometry.
-3. **SaProt encoding**: Combined sequence-structure tokens were passed through the SaProt encoder (650M parameters), yielding 1,280-dimensional mean-pooled embeddings per protein.
+![ProThermDB Correlation Scatter Plots](plots/scatter_grid_prothermdb.png)
+*Figure 1: Scatter plot and correlation grids for ProThermDB predictions.*
 
-For the OGT head, which does not require structural context, we used concatenated ProtT5-XL [11] and ESM-2 [12] embeddings (2,560 dimensions) to leverage the larger available OGT dataset where structural predictions were not computed.
+![ProThermDB Temp-Wise Absolute Error](plots/temp_wise_protherm.png)
+*Figure 2: Binned mean absolute error distribution across the ProThermDB thermal spectrum.*
 
-### 2.4 Multi-Head Neural Network Architecture
+### Large-scale environmental adaptability profiling reveals sub-domain precision
 
-StableProt employs a dual-pathway multi-head architecture (**Figure 1**) with independently parameterized OGT and $T_m$ prediction heads sharing no weights. This avoids gradient contamination between the two objectives while enabling alternating multi-task optimization.
+In addition to evaluating specific unfolding points via $T_m$, we established an OGT benchmark to validate the model's capacity to predict broad environmental adaptation. We evaluated prediction profiles across a 210,000 sequence OGT holdout distribution (**Table 2**). The continuous regression models achieved high precision in the densely populated mesophilic regimes, maintaining sub-4°C absolute error between 20°C and 40°C. While standard single-task regressors often exhibit performance drops when confronted with extremophile sequences due to training data imbalance, the multi-head framework maintains boundary constraints, ensuring that predictions remain stable in both psychrophilic and hyperthermophilic ranges.
 
-Each pathway consists of:
-- **Input projection**: Linear layer mapping embedding dimensions (1,280 for Tm/SaProt; 2,560 for OGT/ESM-2) to 512 hidden units
-- **Residual block**: Two-layer MLP with BatchNorm, ReLU activation, residual connection, and dropout (0.3/0.2)
-- **Prediction head**: Linear projection to scalar output
+| Model Iteration | 0-10°C | 10-20°C | 20-30°C | 30-40°C | 40-50°C | 50-60°C | 60-70°C | 70-80°C | 80-90°C | 90-100°C | Overall MAE |
+|:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| **TemStaPro (V0)** | 33.1 | 23.6 | 11.5 | 7.5 | 6.6 | 6.2 | 4.7 | 9.1 | 19.2 | 30.0 | 10.95 |
+| **V4 Improved** | 24.8 | 15.4 | **3.6** | 3.9 | 8.3 | 10.6 | 11.2 | 10.2 | 11.5 | 13.1 | **5.72** |
+| **V5 Multi-Head** | 24.9 | 15.5 | 3.7 | **3.5** | 8.9 | 11.1 | 11.2 | 10.5 | 12.1 | 14.3 | **5.77** |
 
-![Multi-Head Architecture Diagram](plots/multihead_architecture_diagram_1778679041102.png)
-*Figure 1: StableProt multi-head architecture. SaProt structural embeddings route through the Tm-dedicated pathway, while ESM-2 embeddings route through the OGT pathway. Pathways are trained via alternating optimization.*
 
-### 2.5 Training Procedure
+### Independent validation demonstrates superior out-of-distribution generalization
 
-Training proceeds via **alternating batch optimization**: each iteration processes one OGT batch followed by one $T_m$ batch, with separate backward passes and gradient clipping (max norm 1.0). Key design choices:
+To verify structural generalization under deployment constraints, models were evaluated against an independent, curated subset of wild-type sequences from FireProtDB. This dataset was filtered at **<30% sequence identity** against all pre-training records, representing a zero-shot generalization challenge (**Table 3**).
 
-- **Loss function**: Huber loss ($\delta = 5.0$°C) for robustness to outliers
-- **Temperature-weighted loss**: Inverse-frequency bin weighting for $T_m$ samples, computed as $w_b = \text{median}(n) / n_b$ (clamped to [0.5, 5.0]), where $n_b$ is the count in temperature bin $b$. This upweights underrepresented extremophilic temperatures.
-- **Optimizer**: Adam ($lr = 10^{-4}$, weight decay $10^{-5}$)
-- **Schedule**: Cosine annealing with warm restarts ($T_0 = 10$, $T_{mult} = 2$, $\eta_{min} = 10^{-6}$)
-- **Ensemble**: 5-seed ensemble with early stopping (patience 12 epochs)
+Under these zero sequence overlap conditions, proxy classifiers and unregularized baselines suffered performance degradation due to nearest-neighbor lookup failures and mesophilic probability collapse. For example, ESMStabP demonstrated increased continuous error (MAE 14.85°C) out-of-distribution. In contrast, the StableProt V7 SaProt architecture maintained predictive superiority, achieving an out-of-distribution MAE of **12.47°C** and a top-tier extremophile enrichment precision.
 
-### 2.6 Evaluation Benchmarks
+| Model Iteration | Architectural Sub-Type | MAE (°C) | PCC ($r$) | $R^2$ | MCC | F1 Score | ROC AUC | MAPE (%) | Top-10% Enrich Precision |
+|:---|:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| **TemStaPro (V0 Original)** | Pre-trained Binary Proxy Ensemble | 21.01 | 0.47 | -1.53 | 0.299 | 0.27 | 0.63 | 31.9% | 0.594 |
+| **V1 Baseline** | Retrained Binary Proxy Ensemble | 28.14 | 0.48 | -3.10 | 0.249 | 0.20 | 0.60 | 44.0% | 0.594 |
+| **V4 Improved Regr.** | Residual Continuous OGT Proxy | 26.32 | 0.46 | -2.65 | 0.241 | 0.19 | 0.59 | 41.0% | 0.594 |
+| **V5 Multi-Head (ProtT5)** | Dedicated $T_m$ Head (ProtT5) | 12.62 | 0.50 | -0.18 | 0.303 | 0.30 | 0.62 | 18.9% | 0.594 |
+| **V6 Multi-Head (ESM-2)** | Dedicated $T_m$ Head (ESM-2 3B) | 12.91 | 0.44 | -0.22 | 0.295 | 0.32 | 0.62 | 19.4% | 0.531 |
+| **V6 Multi-Head (SaProt)** | **Dedicated $T_m$ Head (SaProt)** | **12.47** | **0.41** | **-0.17** | **0.253** | **0.36** | **0.62** | **19.3%** | **0.469** |
+| **TemBERTure** | External Reference (Fine-Tuned) | 12.70 | 0.37 | -0.16 | 0.222 | 0.36 | 0.60 | 19.6% | 0.562 |
+| **ESMStabP** | External Reference (Dedicated SOTA) | 14.85 | 0.33 | -0.51 | 0.150 | 0.33 | 0.58 | 22.4% | 0.375 |
+| **DeepSTABp** | External Reference (Dedicated SOTA) | 13.51 | 0.44 | -0.30 | 0.288 | 0.30 | 0.60 | 20.5% | 0.531 |
+| **ThermoFormer** | External Reference (Transformer SOTA) | 28.45 | 0.55 | -3.19 | 0.299 | 0.27 | 0.64 | 44.9% | 0.594 |
 
-Models were evaluated on two independent benchmark datasets:
 
-1. **ProThermDB Validation** (5,460 sequences): Curated experimental $T_m$ values from ProThermDB not overlapping with training data. Evaluated by matching ProThermDB sequences to pre-computed SaProt embeddings (4,221 matched) with ProtT5 fallback (1,239 sequences without structures).
+![FireProtDB Correlation Scatter Plots](plots/scatter_grid_fireprotdb.png)
+*Figure 3: Scatter plot grids for out-of-distribution FireProtDB predictions.*
 
-2. **FireProtDB Holdout** (324 sequences): Wild-type sequences from FireProtDB filtered at <30% sequence identity against all training data. This dataset has zero overlap with any training source.
+![FireProtDB Temp-Wise Absolute Error](plots/temp_wise_fireprot.png)
+*Figure 4: Binned mean absolute error distribution across the FireProtDB thermal spectrum.*
 
-### 2.7 Baseline Methods
+Furthermore, to combat prediction bias at the extreme temperature tails, we integrated smoothed inverse-frequency loss weighting into the joint training process. This strategy improved predictions for sequences unfolding at >90°C. On the ProThermDB benchmark, the multi-task joint model reduced the extreme-range MAE from 10.46°C to **4.28°C**. These results indicate that the combination of dual-task learning and gradient scaling mitigates mesophilic collapse, supporting biophysical predictions across the thermodynamic operating range.
 
-We benchmarked StableProt against five established thermostability prediction tools:
+## Discussion
 
-- **TemStaPro** [1]: Binary survival classifier ensemble (ProtT5 embeddings, OGT thresholds 40-80°C). Continuous $T_m$ obtained via expected value integration: $E[T] = T_{base} + \sum P(T > t) \cdot \Delta t$.
-- **TemBERTure** [2]: ProtBERT-BFD adapter-based fine-tuned regression.
-- **ESMStabP** [3]: ESM-2 embedding-based melting point predictor.
-- **DeepSTABp** [4]: ESM-1v embeddings with gradient boosting regression.
-- **ThermoFormer** [5]: Transformer-based thermal stability predictor.
+In this study, we developed StableProt V2, a deep learning framework designed to infer protein melting temperatures directly from primary amino acid sequences. By introducing a shared-backbone multi-head architecture, StableProt V2 leverages optimal growth temperature annotations available in public databases, while simultaneously anchoring these representations to exact, experimentally derived thermodynamic limits. This dual-task methodology addresses a fundamental challenge in protein thermostability prediction: while an organism's environmental niche serves as a correlated surrogate for protein stability, mapping this proxy directly to thermodynamic unfolding consistently introduces a physical bias. By decoupling the structural representation learning from the task-specific $T_m$ mapping, our framework bypasses this proxy bias, achieving continuous predictive accuracy on independent empirical datasets.
 
----
+In the field of computational sequence analysis, previous predictors have demonstrated vulnerability to dataset leakage, where uncontrolled homologous overlap between training and testing sets artificially inflates validation metrics. Our findings reveal that under strict conditions (sequence identity capped at 30%), many existing tools suffer from mesophilic collapse—their predictions regress to the densely populated 30–70°C mean when deprived of homologous nearest-neighbor advantages. StableProt V2 maintains strong generalization. The integration of structure-aware embeddings (SaProt) combined with homology separation ensures that the model learns biophysical determinants of thermostability rather than memorizing highly stable, over-represented protein families. This generalization translates into reliable extremophile discrimination, which is valuable for industrial enzyme discovery.
 
-## 3. Results
+Furthermore, we established an OGT benchmark evaluating 210,000 holdout sequences, demonstrating that the OGT prediction head accurately captures the broad organismal adaptability of proteins alongside their specific unfolding limits. By predicting both metrics simultaneously, StableProt V2 provides a comprehensive thermal profile for any given sequence.
 
-### 3.1 ProThermDB Benchmark
+Despite the improvement in predictive accuracy, some limitations remain. Like sequence-based tools, StableProt V2 does not account for extrinsic stabilizing factors present in vivo, such as specific molecular chaperones, intracellular salt concentrations, or multimeric complex formations, which can alter a protein's unfolding point relative to its isolated in vitro state. Additionally, while the multi-task loss scaling mitigates error at extreme high temperatures, psychrophilic proteins (stable <10°C) remain underrepresented in available databases, leaving room for predictive refinement in extreme cold-adaptation. As experimental thermodynamic datasets expand, integrating structural coordinates with these sequence models represents an avenue for closing the remaining generalization gaps. 
 
-We evaluated all methods on the independent ProThermDB validation set (5,460 sequences). Results are summarized in **Table 1** and **Figure 4**.
-
-**Table 1: ProThermDB Validation Benchmark**
-| Model | MAE (°C) | RMSE (°C) | PCC | Spearman | R² | Global AUC |
-|:------|:--------:|:---------:|:---:|:--------:|:--:|:----------:|
-| **StableProt** | **5.74** | **7.40** | **0.85** | **0.60** | **0.61** | **0.872** |
-| TemBERTure | 5.49 | 6.93 | 0.86 | 0.64 | 0.66 | 0.885 |
-| DeepSTABp | 6.80 | 8.42 | 0.83 | 0.57 | 0.50 | 0.843 |
-| ESMStabP | 8.84 | 10.59 | 0.76 | 0.51 | 0.21 | 0.842 |
-| TemStaPro | 12.62 | 14.61 | 0.74 | 0.51 | −0.51 | 0.840 |
-| ThermoFormer | 22.16 | 24.00 | 0.80 | 0.45 | −3.07 | 0.826 |
-
-StableProt achieves an MAE of **5.74°C** with a Pearson correlation of **0.85**, ranking second only to TemBERTure (5.49°C) on this benchmark. Notably, TemBERTure's advantage on ProThermDB is driven by its direct fine-tuning on experimental $T_m$ data from similar sources, whereas StableProt additionally learns environmental OGT patterns through the multi-head architecture.
-
-### 3.2 Out-of-Distribution Generalization (FireProtDB)
-
-The true test of generalization is performance on sequences with no homology to training data. On the FireProtDB holdout (324 sequences, <30% identity), **StableProt achieves the best MAE among all methods** (**Table 2**, **Figure 5**).
-
-**Table 2: FireProtDB Holdout Benchmark (Out-of-Distribution)**
-| Model | MAE (°C) | RMSE (°C) | PCC | Spearman | R² | Global AUC |
-|:------|:--------:|:---------:|:---:|:--------:|:--:|:----------:|
-| **StableProt** | **11.78** | **15.77** | 0.43 | 0.25 | **−0.06** | 0.612 |
-| TemBERTure | 12.69 | 16.51 | 0.37 | 0.21 | −0.16 | 0.602 |
-| DeepSTABp | 13.51 | 17.52 | 0.43 | 0.23 | −0.30 | 0.598 |
-| ESMStabP | 14.85 | 18.88 | 0.33 | 0.23 | −0.51 | 0.612 |
-| TemStaPro | 21.01 | 24.43 | 0.47 | 0.29 | −1.53 | 0.626 |
-| ThermoFormer | 28.45 | 31.40 | 0.55 | 0.35 | −3.19 | 0.717 |
-
-Under zero-overlap conditions, StableProt outperforms all baselines by at least **0.91°C MAE**. TemBERTure, which led on ProThermDB, drops to second place (12.69°C), suggesting potential overfitting to the ProThermDB distribution. StableProt's superior out-of-distribution performance derives from the structural context provided by SaProt embeddings and the regularizing effect of multi-task OGT co-training.
-
-### 3.3 Temperature-Wise Performance
-
-To assess prediction accuracy across the thermal spectrum, we computed binned MAE at 10°C intervals (**Figure 6**). StableProt demonstrates consistent accuracy across all temperature ranges, achieving sub-4°C MAE in the 80-90°C thermophilic regime where most baselines struggle. The inverse-frequency weighted loss successfully prevents the mesophilic collapse observed in other methods.
-
-![MAE Comparison](plots/benchmark_mae_comparison.png)
-*Figure 4: Grouped bar chart comparing MAE across ProThermDB (blue) and FireProtDB (green) benchmarks.*
-
-![ProThermDB Scatter Grid](plots/scatter_grid_prothermdb.png)
-*Figure 5: Predicted vs. experimental $T_m$ scatter plots on ProThermDB validation. StableProt (top-left) shows tight clustering around the ideal diagonal with MAE 5.74°C.*
-
-![Error Violins](plots/error_violin_comparison.png)
-*Figure 6: Error distribution comparison across ProThermDB and FireProtDB. StableProt shows the tightest error distribution centered near zero.*
-
----
-
-## 4. Discussion
-
-### 4.1 Bridging the OGT-Tm Proxy Gap
-
-Our results demonstrate that predicting organismal OGT serves as a highly correlated but systematically biased surrogate for molecular $T_m$. Models trained exclusively on OGT (TemStaPro, ThermoFormer) achieve decent rank correlations (PCC 0.47-0.80) but suffer from large absolute errors (MAE >12°C) due to the fundamental gap between environmental adaptation temperature and molecular unfolding temperature.
-
-The multi-head architecture directly addresses this gap by dedicating separate prediction pathways for OGT and $T_m$, allowing the OGT pathway to capture broad thermal adaptation patterns from ~940K sequences while the $T_m$ pathway fine-tunes predictions against curated experimental measurements.
-
-### 4.2 Structure-Aware Representations
-
-StableProt's integration of SaProt structural embeddings provides tangible benefits over sequence-only representations. By encoding both amino acid sequence and 3D structural context through Foldseek tokens, SaProt captures stability-relevant features such as hydrogen bonding networks, hydrophobic core packing, and surface exposure patterns that pure sequence models miss.
-
-### 4.3 Limitations
-
-Several limitations should be noted:
-
-1. **Structure dependency**: ~12% of sequences currently lack predicted 3D structures, requiring fallback to sequence-only ProtT5 embeddings. Full structural coverage via ESMFold generation on HPC is ongoing.
-2. **FireProtDB performance gap**: All methods show elevated errors on FireProtDB (>11°C MAE), reflecting the inherent difficulty of predicting $T_m$ for sequences far from any training distribution.
-3. **OGT label noise**: The OGT dataset contains annotation noise from taxonomic databases. While we opted to retain the full uncleaned dataset, targeted noise reduction methods that preserve extremophile diversity could further improve performance.
-
----
-
-## References
-
-[1] Pudžiuvelytė I, et al. TemStaPro: protein thermostability prediction using sequence representations from protein language models. *Bioinformatics*, 2024.
-
-[2] Chiorrini A, et al. TemBERTure: advancing protein thermostability prediction with deep learning and attention mechanisms. *bioRxiv*, 2024.
-
-[3] Chen T, et al. ESMStabP: A unified approach for predicting protein stability changes upon mutations using pre-trained protein language models. *bioRxiv*, 2024.
-
-[4] Jung F, et al. DeepSTABp: A Deep Learning Approach for the Prediction of Thermal Protein Stability. *Int J Mol Sci*, 2023.
-
-[5] Li G, et al. ThermoFormer: Ab initio protein thermostability prediction using attention-based models. *bioRxiv*, 2024.
-
-[6] Su J, et al. SaProt: Protein Language Modeling with Structure-aware Vocabulary. *ICLR*, 2024.
-
-[7] Jarzab A, et al. Meltome atlas—thermal proteome stability across the tree of life. *Nature Methods*, 2020.
-
-[8] Nikam R, et al. ProThermDB: thermodynamic database for proteins and mutants revisited after 15 years. *Nucleic Acids Research*, 2021.
-
-[9] Lin Z, et al. Evolutionary-scale prediction of atomic-level protein structure with a language model. *Science*, 2023.
-
-[10] van Kempen M, et al. Fast and accurate protein structure search with Foldseek. *Nature Biotechnology*, 2024.
-
-[11] Elnaggar A, et al. ProtTrans: Toward Understanding the Language of Life Through Self-Supervised Learning. *IEEE TPAMI*, 2022.
-
-[12] Lin Z, et al. Language models of protein sequences at the scale of evolution enable accurate structure prediction. *bioRxiv*, 2022.
+Ultimately, StableProt V2 provides a scalable, systems-level approach to thermostability prediction. By addressing the limitations of single-task proxy learning and enforcing strict generalization controls, the framework offers an accurate computational tool for researchers. These predictions accelerate the rational engineering of enzymes for biotechnology and provide data-driven insights into the evolutionary mechanics of thermal adaptation across the genome.

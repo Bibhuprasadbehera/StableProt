@@ -1,0 +1,23 @@
+{
+    "name": "StableProt V6 GPU Env",
+    "build": {
+        "dockerfile": "../docker/Dockerfile.v6"
+    },
+    "runArgs": [
+        "--gpus", "all",
+        "--shm-size", "8gb"
+    ],
+    "workspaceFolder": "/workspace",
+    "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-python.python",
+                "ms-python.vscode-pylance",
+                "ms-toolsai.jupyter"
+            ]
+        }
+    },
+    "remoteUser": "vscode",
+    "forwardPorts": [8000]
+}

@@ -37,3 +37,4 @@ data/test_data/
 data/training_data/
 paper/writeup/plotsnew_data/
 new_data/mmseqs_hits.m8
+benchmark_models_ogt/ThermoFormer

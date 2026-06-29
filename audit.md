@@ -260,3 +260,91 @@ Spelling variants, synonyms, subspecies annotations could cause false positives/
 | 🟢 LOW | F8 Weighted ensemble | Low | Low |
 | 🟢 LOW | R5 Label smoothing | Low | Low |
 | 🟢 LOW | T4 OGT validation | Low | Low |
+
+---
+
+## 🔧 Alternative Design Decisions That Could Improve Accuracy
+
+Every decision below is a "knob" currently set to one value. Changing it could improve (or worsen) results. Organized by pipeline stage.
+
+### DATA AGGREGATION — How Tm Consensus Is Computed
+
+**Current: Median aggregation** per protein from Meltome/TemBERTure measurements.
+
+Meltome stats (25,370 multi-measurement proteins): median intra-protein std = 0.00°C, mean = 0.50°C, max = 12.41°C.
+
+| Alternative | How | Why It Could Help |
+|---|---|---|
+| **Weighted median by measurement confidence** | Weight each measurement by inverse experimental error or replicate count | High-quality experiments (many replicates) should contribute more. Currently all measurements equal. |
+| **Use measurement range as a feature** | Pass `[tm_median, tm_std, tm_count]` to model | Model learns that proteins with high measurement variance are noisier. 433 proteins have std>5°C — unreliable labels. |
+| **Source-aware aggregation** | Weight Meltome higher than TemBERTure (or vice versa) | Different methodologies (TPP mass-spec vs literature-curated) may have systematic biases. 4,847 proteins from TemBERTure only. |
+| **Exclude high-variance proteins** | Remove proteins with intra-sequence std > 5°C (433 = 1.7%) | These are noisy labels that confuse the model. Small cost. |
+| **Mean instead of median** | Mean is better MLE for Gaussian noise; median is more robust | Avg |mean-median| = 0.04°C, max = 4.58°C. Usually irrelevant, but for ~35 extreme outlier proteins, could matter. |
+
+### DATA CLEANING — Which Proteins Are Included/Excluded
+
+| Alternative | How | Why It Could Help |
+|---|---|---|
+| **Remove Tm < OGT proteins** | 1,025 proteins (4.0%) have Tm below host OGT — suspicious (avg deficit 15.1°C, max 32.1°C) | Likely measurement errors, IDPs, or chaperone-dependent. Teaches wrong Tm-OGT relationships. |
+| **Remove very short proteins (<50 AA)** | 21 proteins <50 AA, 638 <100 AA | Peptide biophysics differs. SaProt embeddings may be unreliable for short sequences. |
+| **Use chaperone_client flag** | Flag exists in data but unused | Chaperone clients may have artificially low in-vitro Tm. Downweight or exclude. |
+| **Filter by OGT reliability** | `ogt_reliable` flag exists, unused | Unreliable OGT (inferred from taxonomy) adds noise to the Tm-OGT relationship. |
+| **Separate transmembrane proteins** | `tmhmm_tm_binary`: 11% of data | TM proteins unfold differently. Single model adds label noise. Separate model or conditioning flag. |
+
+### LOSS FUNCTION — What Error Gets Optimized
+
+| Alternative | Current | Why Change |
+|---|---|---|
+| **Huber delta** | δ=1.0 (V7), was δ=5.0 (V6) | δ=1.0 treats any error >1°C as linear. Tm std=11.5°C — most errors >1°C. δ=5.0 or δ=10.0 keeps quadratic penalty for moderate errors. |
+| **Loss function** | Huber | MSE, Quantile (uncertainty), LogCosh (smooth+robust), Tukey biweight (extreme robustness). |
+| **Weight formula** | `sqrt(median/count)` | Bin 25-30°C: 4 samples, weight=11.1×. Alternatives: `cbrt`, `log1p`, or capped `min(sqrt(...), 3.0)`. |
+| **Weight capping** | None | One bad label in the 4-sample bin is catastrophic at 11× weight. Cap at 3-5×. |
+| **Source-aware weighting** | All sources equal | Weight curated ProThermDB higher than TPP-derived Meltome or NLP-extracted TemBERTure. |
+
+### SAMPLE WEIGHTING & TRAINING STRATEGY
+
+| Alternative | How | Why It Could Help |
+|---|---|---|
+| **OGT-aware Tm weighting** | Upweight proteins with unusual Tm-OGT gap | Extreme Tm-OGT cases are informative edge cases. Currently treated equally. |
+| **Curriculum learning** | Train on "easy" proteins first, add hard ones later | Prevents early instability from noisy extreme-temp labels. |
+| **Hard example mining** | After N epochs, upweight proteins with highest prediction error | Forces model to focus on errors rather than optimizing already-correct predictions. |
+
+### ARCHITECTURE CHOICES
+
+| Alternative | Current | Why Change |
+|---|---|---|
+| **Pooling** | Mean pool | CLS token, attention pooling, max pooling, or mean+max+std (3840-dim). |
+| **Normalization** | BatchNorm | LayerNorm (batch-independent, more stable for small batches). |
+| **Depth** | 2 shared layers (1280→512→256) | 3-4 layers may capture more complex nonlinear Tm relationships. |
+| **Skip connections** | None | Residual connections in shared backbone. Standard practice. |
+| **Head independence** | Shared BN, linear output | 1-2 private layers per head for task specialization. |
+| **Auxiliary inputs** | 1280-dim embedding only | Concatenate: `[embedding, ogt, ogt_reliable, tmhmm, seq_len, charged_frac, hydrophobic_frac]`. |
+
+### OPTIMIZER & SCHEDULE
+
+| Alternative | Current | Why Change |
+|---|---|---|
+| **Optimizer** | Adam | AdamW (proper weight decay), LAMB, AdaFactor. |
+| **LR warmup** | None — full LR from epoch 1 | Linear warmup 5-10 epochs. Standard with BatchNorm. |
+| **Gradient clipping** | None (V7) | Restore `clip_grad_norm_(1.0)` from V4-V6. |
+| **Multi-task strategy** | Joint accumulation (buggy) | True alternating, GradNorm, PCGrad, uncertainty weighting. |
+| **OGT data coverage** | Sees 2.7% per epoch | Full OGT epoch or weighted random sampling across all 941K. |
+
+### EVALUATION CHOICES
+
+| Alternative | Current | Why Change |
+|---|---|---|
+| **Cross-validation** | Single split, seed=42 | 5-fold CV gives confidence intervals. |
+| **Ensemble** | Simple mean of 5 seeds | Inverse-MAE-weighted, stacking, or uncertainty-weighted. |
+| **Metrics** | Overall MAE/RMSE/PCC/R² | Temperature-stratified MAE per 10°C bin. Overall MAE hides extreme-temp failures. |
+| **External benchmark** | ProThermDB (contaminated) | Use clean `test_tm` only. Add FireProtDB, BRENDA OGT benchmark. |
+| **Consistency check** | Not done | Verify Tm_pred > OGT_pred. Flag biologically implausible predictions. |
+
+### OGT DATA HANDLING
+
+| Alternative | Current | Why Change |
+|---|---|---|
+| **OGT aggregation** | Median of BacDive + original | Use BacDive exclusively when available, or weighted average by source confidence. |
+| **Integer OGT smoothing** | 83.9% of OGT values are exact integers | Add Gaussian noise (±1°C) during training to prevent learning integer artifacts. |
+| **Consistency regularization** | Each protein predicts OGT independently | Penalize variance of OGT predictions within same `tax_id`. |
+| **OGT loss scale** | 0.03 (10× lower than V6's 0.3) | Never ablated. Auto-balance with GradNorm instead. |

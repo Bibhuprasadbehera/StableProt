@@ -46,7 +46,7 @@ def main():
     
     # 1. Load Baselines
     if BASELINE_FILE.exists():
-        baselines = torch.load(BASELINE_FILE, map_location='cpu')
+        baselines = torch.load(BASELINE_FILE, map_location='cpu', weights_only=False)
         for k, v in baselines.items():
             if k != 'y_true':
                 predictions[k] = v
@@ -76,7 +76,7 @@ def main():
             input_dim=1280, hidden1=CONFIG['hidden1'], hidden2=CONFIG['hidden2'],
             dropout1=CONFIG['dropout1'], dropout2=CONFIG['dropout2']
         ).to(device)
-        model.load_state_dict(torch.load(model_path, map_location=device))
+        model.load_state_dict(torch.load(model_path, map_location=device, weights_only=False))
         model.eval()
         
         seed_preds = []

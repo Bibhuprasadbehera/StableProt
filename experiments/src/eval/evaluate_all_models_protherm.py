@@ -226,6 +226,8 @@ def main():
 
     protherm_seqs = []
     y_true_list = []
+    kept_indices = []
+    matching_idx = 0
     for record in SeqIO.parse(protherm_fasta, 'fasta'):
         seq = str(record.seq)
         uid = record.id.split('|')[0]
@@ -233,13 +235,15 @@ def main():
             if seq.upper() not in train_seqs_set:
                 protherm_seqs.append(seq)
                 y_true_list.append(protherm_dict[uid])
+                kept_indices.append(matching_idx)
+            matching_idx += 1
             
     y_true = np.array(y_true_list)
     print(f"Loaded {len(protherm_seqs)} ProThermDB validation sequences (decontaminated against V7 train).")
     
     # Load ProtT5 embeddings
     d_prott5 = torch.load(prott5_data_path, map_location='cpu', weights_only=False)
-    x_prott5 = d_prott5['test_tm']['embeddings'].to(device)
+    x_prott5 = d_prott5['test_tm']['embeddings'].to(device)[kept_indices]
     
     # Load and map ESM-2 embeddings
     print("Loading and mapping ESM-2 embeddings...")
@@ -419,7 +423,7 @@ def main():
     print("Evaluating V7 SaProt...")
     protherm_saprot_path = os.path.join(PROJECT_ROOT, "data/embeddings/saprot_1.3b/protherm_embeddings.pt")
     if os.path.exists(protherm_saprot_path):
-        x_saprot_v7 = torch.load(protherm_saprot_path, map_location=device, weights_only=False).float()
+        x_saprot_v7 = torch.load(protherm_saprot_path, map_location=device, weights_only=False).float()[kept_indices]
         print(f"  Loaded ProThermDB SaProt embeddings: {x_saprot_v7.shape}")
 
         # Import MultiHeadSaProtV7 dynamically
@@ -451,12 +455,12 @@ def main():
     if os.path.exists(baseline_path):
         print("Loading baseline predictions...")
         baselines = torch.load(baseline_path, map_location='cpu', weights_only=False)
-        results['TemBERTure'] = {'y_pred': baselines['protherm']['temberture'], 'type': 'Continuous Proxy'}
-        results['ESMStabP'] = {'y_pred': baselines['protherm']['esmstabp'], 'type': 'Continuous Proxy'}
+        results['TemBERTure'] = {'y_pred': np.array(baselines['protherm']['temberture'])[kept_indices], 'type': 'Continuous Proxy'}
+        results['ESMStabP'] = {'y_pred': np.array(baselines['protherm']['esmstabp'])[kept_indices], 'type': 'Continuous Proxy'}
         if 'deepstabp' in baselines['protherm']:
-            results['DeepSTABp'] = {'y_pred': baselines['protherm']['deepstabp'], 'type': 'Continuous Proxy'}
+            results['DeepSTABp'] = {'y_pred': np.array(baselines['protherm']['deepstabp'])[kept_indices], 'type': 'Continuous Proxy'}
         if 'thermoformer' in baselines['protherm']:
-            results['ThermoFormer'] = {'y_pred': baselines['protherm']['thermoformer'], 'type': 'Continuous Proxy'}
+            results['ThermoFormer'] = {'y_pred': np.array(baselines['protherm']['thermoformer'])[kept_indices], 'type': 'Continuous Proxy'}
     else:
         print("WARNING: Baseline predictions file missing.")
 

@@ -81,7 +81,7 @@ def compute_metrics(y_true, y_pred, threshold=60.0):
     }
 
 def evaluate_model(model_type, device):
-    seeds = [1, 2, 3]
+    seeds = [1, 2, 3, 4, 5]
     models = []
     
     if model_type == 'esm2':
@@ -94,7 +94,7 @@ def evaluate_model(model_type, device):
         key_name = 'V7 SaProt Joint'
         
     for s in seeds:
-        p = os.path.join(results_dir, f"seed{s}/model.pt")
+        p = os.path.join(results_dir, f"seed{s}/best_model.pt")
         if os.path.exists(p):
             model = MultiHeadSaProtV7(
                 input_dim=emb_dim,

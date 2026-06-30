@@ -4,7 +4,7 @@ Phase 1: Data Re-split + CD-HIT Decontamination
 
 1. Re-splits 28,739 Tm sequences into ~25,900 train + ~2,800 val (temperature-stratified)
 2. Keeps existing 2,007 test set
-3. Runs CD-HIT at 30% identity across all splits to guarantee no homology leakage
+3. Runs CD-HIT at 40% identity across all splits to guarantee no homology leakage
 4. Reports final split sizes and per-bin sample counts
 
 Usage:
@@ -66,10 +66,10 @@ def write_fasta(sequences, ids, filepath):
             f.write(f">{clean_id} {seq_id}\n{seq}\n")
 
 
-def run_cdhit_2d(query_fasta, db_fasta, output_prefix, identity=0.30):
+def run_cdhit_2d(query_fasta, db_fasta, output_prefix, identity=0.40):
     """Run CD-HIT-2D to find sequences in query that are NOT similar to db.
     
-    At 30% identity, word size must be 2. Use -G 0 for local alignment.
+    At 40% identity, word size must be 2. Use -G 0 for local alignment.
     """
     cmd = [
         "cd-hit-2d",
@@ -170,7 +170,7 @@ def main():
         print("\n  --skip-cdhit: Skipping CD-HIT decontamination.")
     else:
         # Step 2: CD-HIT decontamination
-        print("\nStep 2: CD-HIT decontamination at 30% identity...")
+        print("\nStep 2: CD-HIT decontamination at 40% identity...")
         CDHIT_WORK_DIR.mkdir(parents=True, exist_ok=True)
 
         # Build indexed sequences for each split

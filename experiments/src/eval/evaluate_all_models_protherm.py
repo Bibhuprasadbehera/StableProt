@@ -216,17 +216,26 @@ def main():
     df_p = pd.read_csv(protherm_csv)
     protherm_dict = {str(row['UniProt_ID']): float(row['Tm']) for _, row in df_p.iterrows() if not np.isnan(row['Tm'])}
     
+    # Load V7 training sequences to eliminate evaluation overlap contamination
+    v7_train_path = os.path.join(PROJECT_ROOT, "data/embeddings/prepared_data_v7_saprot1.3b_seqonly.pt")
+    train_seqs_set = set()
+    if os.path.exists(v7_train_path):
+        v7_data_tmp = torch.load(v7_train_path, map_location='cpu', weights_only=False)
+        if 'train_tm' in v7_data_tmp and 'sequences' in v7_data_tmp['train_tm']:
+            train_seqs_set = {str(s).upper() for s in v7_data_tmp['train_tm']['sequences']}
+
     protherm_seqs = []
     y_true_list = []
     for record in SeqIO.parse(protherm_fasta, 'fasta'):
         seq = str(record.seq)
         uid = record.id.split('|')[0]
         if uid in protherm_dict:
-            protherm_seqs.append(seq)
-            y_true_list.append(protherm_dict[uid])
+            if seq.upper() not in train_seqs_set:
+                protherm_seqs.append(seq)
+                y_true_list.append(protherm_dict[uid])
             
     y_true = np.array(y_true_list)
-    print(f"Loaded {len(protherm_seqs)} ProThermDB validation sequences and ground truths.")
+    print(f"Loaded {len(protherm_seqs)} ProThermDB validation sequences (decontaminated against V7 train).")
     
     # Load ProtT5 embeddings
     d_prott5 = torch.load(prott5_data_path, map_location='cpu', weights_only=False)

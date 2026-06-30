@@ -115,9 +115,8 @@ def objective(trial, data, device):
         for tm_x, tm_y in tm_loader:
             tm_x, tm_y = tm_x.to(device), tm_y.to(device)
 
-            optimizer.zero_grad()
-
             # Tm step
+            optimizer.zero_grad()
             tm_pred = model(tm_x, task='tm')
             tm_loss_raw = huber(tm_pred, tm_y)
             tm_y_np = tm_y.cpu().numpy()
@@ -128,6 +127,8 @@ def objective(trial, data, device):
             )
             tm_loss = (tm_loss_raw * batch_weights).mean()
             tm_loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            optimizer.step()
 
             # OGT step
             try:
@@ -137,10 +138,11 @@ def objective(trial, data, device):
                 ogt_x, ogt_y = next(ogt_iter)
 
             ogt_x, ogt_y = ogt_x.to(device), ogt_y.to(device)
+            optimizer.zero_grad()
             ogt_pred = model(ogt_x, task='ogt')
             ogt_loss = huber(ogt_pred, ogt_y).mean() * config['ogt_loss_scale']
             ogt_loss.backward()
-
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             optimizer.step()
 
         scheduler.step()

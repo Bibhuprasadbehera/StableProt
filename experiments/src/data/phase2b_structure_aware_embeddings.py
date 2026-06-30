@@ -24,7 +24,7 @@ import torch
 from tqdm import tqdm
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
-PDB_DIR = PROJECT_ROOT / "data" / "structures" / "tm_esmfold" / "pdbs"
+PDB_DIR = PROJECT_ROOT / "data" / "structures" / "complete_pdbs"
 FOLDSEEK_DIR = PROJECT_ROOT / "data" / "structures" / "foldseek_output"
 V7_DATA = PROJECT_ROOT / "data" / "embeddings" / "prepared_data_v7_saprot1.3b_seqonly.pt"
 SA_OUTPUT = PROJECT_ROOT / "data" / "embeddings" / "saprot_tm_struct_embeddings.pt"
@@ -136,6 +136,28 @@ def load_3di_tokens(tokens_path):
     return tokens
 
 
+D3TO1 = {'CYS': 'C', 'ASP': 'D', 'SER': 'S', 'GLN': 'Q', 'LYS': 'K',
+         'ILE': 'I', 'PRO': 'P', 'THR': 'T', 'PHE': 'F', 'ASN': 'N', 
+         'GLY': 'G', 'HIS': 'H', 'LEU': 'L', 'ARG': 'R', 'TRP': 'W', 
+         'ALA': 'A', 'VAL':'V', 'GLU': 'E', 'TYR': 'Y', 'MET': 'M'}
+
+
+def _get_pdb_seq(pdb_path):
+    seq = []
+    seen = set()
+    try:
+        with open(pdb_path) as f:
+            for line in f:
+                if line.startswith('ATOM ') and line[12:16].strip() == 'CA':
+                    r = line[22:27]
+                    if r not in seen:
+                        seen.add(r)
+                        seq.append(D3TO1.get(line[17:20].strip(), 'X'))
+    except Exception:
+        pass
+    return pdb_path.stem, ''.join(seq)
+
+
 def build_sa_sequences(v7_data, tokens_3di):
     """Combine amino acid sequences with 3Di tokens into SaProt SA format.
     
@@ -144,6 +166,18 @@ def build_sa_sequences(v7_data, tokens_3di):
     
     If 3Di token is missing, use '#' (mask token).
     """
+    from concurrent.futures import ProcessPoolExecutor
+
+    print("  Mapping PDB structures to amino acid sequences...")
+    all_pdbs = list(PDB_DIR.glob('*.pdb'))
+    with ProcessPoolExecutor(max_workers=8) as ex:
+        results = list(ex.map(_get_pdb_seq, all_pdbs))
+
+    seq_to_3di = {}
+    for stem, aa_seq in results:
+        if stem in tokens_3di and len(aa_seq) == len(tokens_3di[stem]):
+            seq_to_3di[aa_seq] = tokens_3di[stem]
+
     sa_sequences = {}
 
     for split in ['train_tm', 'val_tm', 'test_tm']:
@@ -156,11 +190,12 @@ def build_sa_sequences(v7_data, tokens_3di):
 
         for i, (seq, seq_id) in enumerate(zip(sequences, ids)):
             aa_seq = str(seq).upper()
-
-            # Try to find 3Di tokens by ID
-            # PDB files were named like: train_tm_0.pdb, train_tm_1.pdb, etc.
             pdb_id = f"{split}_{i}"
             tokens_3d = tokens_3di.get(pdb_id, None)
+
+            # Check direct ID match first, then fallback to sequence match
+            if tokens_3d is None or len(tokens_3d) != len(aa_seq):
+                tokens_3d = seq_to_3di.get(aa_seq, None)
 
             if tokens_3d is not None and len(tokens_3d) == len(aa_seq):
                 # Interleave: A1s1A2s2...
@@ -278,6 +313,10 @@ def main():
 
     # Step 2: Build SA sequences
     print("\n--- Step 2: Build SA Sequences ---")
+    padded_tokens_path = FOLDSEEK_DIR / "3di_tokens_padded.tsv"
+    if padded_tokens_path.exists():
+        print(f"  Using verified padded 3Di tokens: {padded_tokens_path}")
+        tokens_path = padded_tokens_path
     tokens_3di = load_3di_tokens(tokens_path)
     print(f"  Loaded {len(tokens_3di)} 3Di token sequences")
     sa_sequences = build_sa_sequences(v7_data, tokens_3di)

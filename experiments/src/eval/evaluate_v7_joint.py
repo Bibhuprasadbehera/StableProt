@@ -11,8 +11,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(SCRIPT_DIR)))
 sys.path.append(PROJECT_ROOT)
 
-from experiments.src.training.v7_transfer.model import StableProtV7
-from experiments.src.training.v7_transfer.config import CONFIG
+from experiments.src.training.v7_shared.train import MultiHeadSaProtV7, CONFIG
 
 def compute_metrics(y_true, y_pred, threshold=60.0):
     mae = np.mean(np.abs(y_true - y_pred))
@@ -81,55 +80,30 @@ def compute_metrics(y_true, y_pred, threshold=60.0):
         'mape': mape, 'enrich': enrich, 'roc_auc': roc_auc, 'global_auc': global_auc
     }
 
-def load_compat_state_dict(model, state_dict):
-    new_state_dict = {}
-    for k, v in state_dict.items():
-        if k.startswith('backbone.'):
-            parts = k.split('.')
-            layer_idx = int(parts[1])
-            param_name = '.'.join(parts[2:])
-            
-            if layer_idx == 0:
-                new_key = f"input_layer.{param_name}"
-            elif layer_idx == 1:
-                new_key = f"backbone_rest.0.{param_name}"
-            elif layer_idx == 4:
-                new_key = f"backbone_rest.3.{param_name}"
-            elif layer_idx == 5:
-                new_key = f"backbone_rest.4.{param_name}"
-            elif layer_idx == 6:
-                new_key = f"backbone_rest.5.{param_name}"
-            else:
-                new_key = k
-            new_state_dict[new_key] = v
-        else:
-            new_state_dict[k] = v
-    model.load_state_dict(new_state_dict)
-
 def evaluate_model(model_type, device):
     seeds = [1, 2, 3]
     models = []
     
     if model_type == 'esm2':
-        results_dir = os.path.join(PROJECT_ROOT, "experiments/src/training/v7_transfer/results")
+        results_dir = os.path.join(PROJECT_ROOT, "experiments/src/training/v7_shared/results/esm2")
         emb_dim = 2560
         key_name = 'V7 ESM-2 Joint'
     else:
-        results_dir = os.path.join(PROJECT_ROOT, "experiments/src/training/v7_transfer/results/saprot")
+        results_dir = os.path.join(PROJECT_ROOT, "experiments/src/training/v7_shared/results")
         emb_dim = 1280
         key_name = 'V7 SaProt Joint'
         
     for s in seeds:
-        p = os.path.join(results_dir, f"seed{s}/model_joint.pt")
+        p = os.path.join(results_dir, f"seed{s}/model.pt")
         if os.path.exists(p):
-            model = StableProtV7(
-                emb_dim=emb_dim,
-                use_ogt_feature=False,
-                use_tm_feature=False,
-                hidden=CONFIG['hidden_size'],
-                bottleneck=CONFIG['bottleneck_size']
+            model = MultiHeadSaProtV7(
+                input_dim=emb_dim,
+                hidden1=CONFIG['hidden1'],
+                hidden2=CONFIG['hidden2'],
+                dropout1=CONFIG['dropout1'],
+                dropout2=CONFIG['dropout2']
             ).to(device)
-            load_compat_state_dict(model, torch.load(p, map_location=device))
+            model.load_state_dict(torch.load(p, map_location=device))
             model.eval()
             models.append(model)
             print(f"Loaded seed {s} joint {model_type.upper()} model.")
@@ -171,7 +145,7 @@ def evaluate_model(model_type, device):
         preds_list = []
         with torch.no_grad():
             for model in models:
-                preds_list.append(model(x_esm2_protherm, stage='tm').cpu().numpy())
+                preds_list.append(model(x_esm2_protherm, task='tm').cpu().numpy())
         y_pred_protherm = np.mean(preds_list, axis=0)
         
         m_protherm = compute_metrics(y_true_protherm, y_pred_protherm)
@@ -202,7 +176,7 @@ def evaluate_model(model_type, device):
     preds_list_fp = []
     with torch.no_grad():
         for model in models:
-            preds_list_fp.append(model(x_fireprot, stage='tm').cpu().numpy())
+            preds_list_fp.append(model(x_fireprot, task='tm').cpu().numpy())
     y_pred_fireprot = np.mean(preds_list_fp, axis=0)
     
     m_fireprot = compute_metrics(y_true_fireprot, y_pred_fireprot)

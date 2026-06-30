@@ -65,9 +65,9 @@ class MultiHeadSaProtV7(nn.Module):
 
         # Shared backbone
         self.shared_layer1 = nn.Linear(input_dim, hidden1)
-        self.shared_bn1 = nn.BatchNorm1d(hidden1)
+        self.shared_bn1 = nn.LayerNorm(hidden1)
         self.shared_layer2 = nn.Linear(hidden1, hidden2)
-        self.shared_bn2 = nn.BatchNorm1d(hidden2)
+        self.shared_bn2 = nn.LayerNorm(hidden2)
         self.shared_residual = nn.Linear(hidden1, hidden2)
 
         # Task-specific heads
@@ -159,7 +159,7 @@ def train_one_seed(seed, config, tm_loader, ogt_loader, val_loader,
         dropout2=config['dropout2'],
     ).to(device)
 
-    optimizer = optim.Adam(
+    optimizer = optim.AdamW(
         model.parameters(),
         lr=config['lr'],
         weight_decay=config['weight_decay'],
@@ -194,11 +194,6 @@ def train_one_seed(seed, config, tm_loader, ogt_loader, val_loader,
             tm_pred = model(tm_x, task='tm')
             tm_loss_raw = huber(tm_pred, tm_y)
 
-            # Apply per-sample weights
-            batch_weights = torch.tensor(
-                [tm_weights_map.get(int(idx), 1.0) for idx in range(len(tm_y))],
-                device=device, dtype=torch.float32
-            )
             # Actually use the label-based weights
             bins = np.arange(config['bin_range'][0], config['bin_range'][1] + config['bin_width'], config['bin_width'])
             tm_y_np = tm_y.cpu().numpy()
@@ -210,6 +205,8 @@ def train_one_seed(seed, config, tm_loader, ogt_loader, val_loader,
 
             tm_loss = (tm_loss_raw * batch_weights).mean()
             tm_loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            optimizer.step()
 
             # --- OGT step ---
             try:
@@ -219,10 +216,11 @@ def train_one_seed(seed, config, tm_loader, ogt_loader, val_loader,
                 ogt_x, ogt_y = next(ogt_iter)
 
             ogt_x, ogt_y = ogt_x.to(device), ogt_y.to(device)
+            optimizer.zero_grad()
             ogt_pred = model(ogt_x, task='ogt')
             ogt_loss = huber(ogt_pred, ogt_y).mean() * ogt_scale
             ogt_loss.backward()
-
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             optimizer.step()
 
             epoch_tm_loss += tm_loss.item()
@@ -268,6 +266,7 @@ def main():
     parser.add_argument("--config", type=str, help="Path to config JSON (overrides defaults)")
     parser.add_argument("--seeds", type=str, default="1,2,3,4,5", help="Comma-separated seeds")
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
+    parser.add_argument("--data-file", type=str, default=str(DATA_FILE), help="Path to input .pt file")
     args = parser.parse_args()
 
     config = CONFIG.copy()
@@ -278,15 +277,17 @@ def main():
 
     seeds = [int(s) for s in args.seeds.split(",")]
     device = args.device
+    data_path = Path(args.data_file)
 
     print("Phase 3: V7 Shared Backbone Training")
     print(f"  Config: {json.dumps(config, indent=2)}")
     print(f"  Seeds: {seeds}")
     print(f"  Device: {device}")
+    print(f"  Data File: {data_path}")
 
     # Load data
     print("\nLoading data...")
-    data = torch.load(DATA_FILE, map_location='cpu', weights_only=False)
+    data = torch.load(data_path, map_location='cpu', weights_only=False)
 
     train_tm_emb = data['train_tm']['embeddings']
     train_tm_lbl = torch.tensor(data['train_tm']['tm_consensus']).float() \

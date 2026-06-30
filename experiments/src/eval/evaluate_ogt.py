@@ -20,12 +20,12 @@ from torch.utils.data import DataLoader
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 DATA_FILE = PROJECT_ROOT / "data" / "embeddings" / "prepared_data_v7_saprot1.3b_seqonly_ogt_split.pt"
 BASELINE_FILE = PROJECT_ROOT / "experiments" / "src" / "eval" / "ogt_baselines" / "prime_predictions.pt" # the one with PRIME added
-V7_RESULTS_DIR = PROJECT_ROOT / "experiments" / "src" / "training" / "v7_shared" / "ogt_benchmark_results"
+V7_RESULTS_DIR = PROJECT_ROOT / "experiments" / "src" / "training" / "v7_shared" / "results"
 OPTUNA_FILE = PROJECT_ROOT / "experiments" / "src" / "training" / "v7_shared" / "optuna_study" / "top3_configs.json"
 
 import sys
 sys.path.insert(0, str(PROJECT_ROOT / "experiments" / "src" / "training" / "v7_shared"))
-from train import MultiHeadSaProtV7, SimpleDataset
+from train import MultiHeadSaProtV7, SimpleDataset, CONFIG
 
 def evaluate_metrics(y_true, y_pred, name):
     mae = mean_absolute_error(y_true, y_pred)
@@ -64,8 +64,6 @@ def main():
     # 2. V7 Ensemble Inference
     print("Running V7 Ensemble inference...")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    with open(OPTUNA_FILE) as f:
-        config = json.load(f)[0]
         
     loader = DataLoader(SimpleDataset(test_emb, torch.tensor(y_true)), batch_size=256, shuffle=False)
     
@@ -75,8 +73,8 @@ def main():
         if not model_path.exists():
             continue
         model = MultiHeadSaProtV7(
-            input_dim=1280, hidden1=config['hidden1'], hidden2=config['hidden2'],
-            dropout1=config['dropout1'], dropout2=config['dropout2']
+            input_dim=1280, hidden1=CONFIG['hidden1'], hidden2=CONFIG['hidden2'],
+            dropout1=CONFIG['dropout1'], dropout2=CONFIG['dropout2']
         ).to(device)
         model.load_state_dict(torch.load(model_path, map_location=device))
         model.eval()

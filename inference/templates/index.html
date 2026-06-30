@@ -159,19 +159,25 @@
 
     <div class="container">
         <h1>StableProt</h1>
-        <p class="subtitle">V6 Multi-Head Sequence Predictor</p>
+        <p class="subtitle">V7 Structural-Aware Multi-Head Predictor (5-Seed Ensemble)</p>
 
         <div class="glass-panel">
             <form action="/predict" method="post">
                 <label for="sequence" style="display:block; margin-bottom: 0.5rem; color: var(--text-muted); font-size: 0.9rem;">Amino Acid Sequence</label>
                 <textarea id="sequence" name="sequence" placeholder="Enter protein sequence (e.g., MTEYKLVVVGAGGVGKSALTIQLIQNHFVDEYDPTIEDSYRKQVVIDGETCLLDILDTAGQ...)">{{ sequence if sequence else '' }}</textarea>
-                <button type="submit">Predict Tm</button>
+                <button type="submit">Predict Tm & OGT</button>
             </form>
 
-            {% if prediction %}
-            <div class="result-box">
-                <div class="result-title">Predicted Melting Temperature</div>
-                <div class="result-value">{{ prediction }}°C</div>
+            {% if tm and ogt %}
+            <div style="display: flex; gap: 1rem; margin-top: 2rem;">
+                <div class="result-box" style="flex: 1; margin-top: 0;">
+                    <div class="result-title">Melting Temp ($T_m$)</div>
+                    <div class="result-value">{{ tm }}°C</div>
+                </div>
+                <div class="result-box" style="flex: 1; margin-top: 0; background: rgba(99, 102, 241, 0.1); border-color: rgba(99, 102, 241, 0.2);">
+                    <div class="result-title">Optimal Growth ($OGT$)</div>
+                    <div class="result-value" style="color: #818cf8;">{{ ogt }}°C</div>
+                </div>
             </div>
             {% endif %}
 

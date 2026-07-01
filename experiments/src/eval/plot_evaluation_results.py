@@ -43,7 +43,7 @@ def plot_mae_comparison(protherm_data, fireprot_data, out_dir):
     models = list(protherm_data['metrics'].keys())
     
     # Only show StableProt + external baselines
-    show_models = ['StableProt', 'StableProt V7', 'TemStaPro', 'TemBERTure', 'ESMStabP', 'DeepSTABp', 'ThermoFormer']
+    show_models = ['StableProt', 'StableProt V7', 'TemStaPro (V0 Original)', 'TemStaPro', 'TemBERTure', 'ESMStabP', 'DeepSTABp', 'ThermoFormer']
     common_models = [m for m in show_models if m in protherm_data['metrics'] and m in fireprot_data['metrics']]
     
     # Sort models by ProThermDB MAE (ascending)
@@ -100,7 +100,7 @@ def plot_scatter_grids(data, dataset_name, out_dir):
     y_true = data['y_true']
     
     # Only show StableProt + external baselines
-    key_models = ['StableProt', 'StableProt V7', 'TemStaPro', 'TemBERTure', 'ESMStabP', 'DeepSTABp', 'ThermoFormer']
+    key_models = ['StableProt', 'StableProt V7', 'TemStaPro (V0 Original)', 'TemStaPro', 'TemBERTure', 'ESMStabP', 'DeepSTABp', 'ThermoFormer']
     display_models = [m for m in key_models if m in predictions]
 
     
@@ -157,7 +157,7 @@ def plot_error_violins(protherm_data, fireprot_data, out_dir):
     Generate violin plots of error distributions.
     """
     # Only show StableProt + external baselines
-    show_models = ['StableProt', 'StableProt V7', 'TemStaPro', 'TemBERTure', 'ESMStabP', 'DeepSTABp', 'ThermoFormer']
+    show_models = ['StableProt', 'StableProt V7', 'TemStaPro (V0 Original)', 'TemStaPro', 'TemBERTure', 'ESMStabP', 'DeepSTABp', 'ThermoFormer']
     common_models = [m for m in show_models if m in protherm_data['metrics'] and m in fireprot_data['metrics']]
     
     common_models = sorted(common_models, key=lambda m: protherm_data['metrics'][m]['mae'])

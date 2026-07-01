@@ -259,9 +259,9 @@ def main():
     results = {}
     
     # ── V0 Original ──
-    print("\nEvaluating V0 Original...")
+    print("\nEvaluating V0 Original (TemStaPro)...")
     v0_thresholds = [40, 45, 50, 55, 60, 65]
-    v0_models_dir = os.path.join(PROJECT_ROOT, "benchmark_models/StableProt/models")
+    v0_models_dir = os.path.join(PROJECT_ROOT, "benchmark_models_tm/StableProt/models")
     v0_probs = []
     for t in v0_thresholds:
         t_probs = []
@@ -419,12 +419,25 @@ def main():
         print("WARNING: SaProt data not found.")
 
     # ── V7 SaProt (Shared Backbone) ──
-    # Uses dedicated protherm_embeddings.pt for ALL 5,460 sequences (no fallback)
+    # Uses structure-aware 3Di embeddings from saprot_tm_struct_embeddings.pt where available
     print("Evaluating V7 SaProt...")
     protherm_saprot_path = os.path.join(PROJECT_ROOT, "data/embeddings/saprot_1.3b/protherm_embeddings.pt")
     if os.path.exists(protherm_saprot_path):
         x_saprot_v7 = torch.load(protherm_saprot_path, map_location=device, weights_only=False).float()[kept_indices]
-        print(f"  Loaded ProThermDB SaProt embeddings: {x_saprot_v7.shape}")
+        sa_struct_path = os.path.join(PROJECT_ROOT, "data/embeddings/saprot_tm_struct_embeddings.pt")
+        if os.path.exists(sa_struct_path):
+            d_sa = torch.load(sa_struct_path, map_location='cpu', weights_only=False)
+            seq_to_sa = {}
+            for split in ['train_tm', 'val_tm', 'test_tm']:
+                if split in d_sa and 'sequences' in d_sa[split]:
+                    for s, emb in zip(d_sa[split]['sequences'], d_sa[split]['embeddings']):
+                        seq_to_sa[str(s).upper()] = emb
+            replaced_sa = 0
+            for i, seq in enumerate(protherm_seqs):
+                if seq.upper() in seq_to_sa:
+                    x_saprot_v7[i] = seq_to_sa[seq.upper()].to(device)
+                    replaced_sa += 1
+            print(f"  Loaded ProThermDB SaProt embeddings: {x_saprot_v7.shape} ({replaced_sa}/{len(kept_indices)} with 3Di structures)")
 
         # Import MultiHeadSaProtV7 dynamically
         sys.path.append(os.path.join(PROJECT_ROOT, "experiments/src/training/v7_shared"))

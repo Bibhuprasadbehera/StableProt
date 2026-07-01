@@ -38,3 +38,5 @@ data/training_data/
 paper/writeup/plotsnew_data/
 new_data/mmseqs_hits.m8
 benchmark_models_ogt/ThermoFormer
+new_data/brenda_README_2026_1.txt
+new_data/brenda_2026_1.json

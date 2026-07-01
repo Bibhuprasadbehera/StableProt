@@ -255,9 +255,9 @@ def main():
     results = {}
     
     # ── V0 Original ──
-    print("\nEvaluating V0 Original...")
+    print("\nEvaluating V0 Original (TemStaPro)...")
     v0_thresholds = [40, 45, 50, 55, 60, 65]
-    v0_models_dir = os.path.join(PROJECT_ROOT, "benchmark_models/StableProt/models")
+    v0_models_dir = os.path.join(PROJECT_ROOT, "benchmark_models_tm/StableProt/models")
     v0_probs = []
     for t in v0_thresholds:
         t_probs = []

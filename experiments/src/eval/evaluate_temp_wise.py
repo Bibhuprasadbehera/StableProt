@@ -100,8 +100,12 @@ def main():
         data = torch.load(protherm_path, map_location='cpu', weights_only=False)
         y_true = np.array(data['y_true'])
         # Only include StableProt + external baselines
-        show_models = ['StableProt', 'TemStaPro', 'TemBERTure', 'ESMStabP', 'DeepSTABp', 'ThermoFormer']
-        predictions = {k: np.array(v) for k, v in data['predictions'].items() if k in show_models}
+        show_models = ['StableProt', 'TemStaPro (V0 Original)', 'TemStaPro', 'TemBERTure', 'ESMStabP', 'DeepSTABp', 'ThermoFormer']
+        predictions = {}
+        for k, v in data['predictions'].items():
+            if k in show_models:
+                clean_k = 'TemStaPro' if 'TemStaPro' in k else k
+                predictions[clean_k] = np.array(v)
         
         df_protherm = compute_binned_mae(y_true, predictions, bin_edges)
 
@@ -124,8 +128,12 @@ def main():
         print("\nProcessing FireProtDB holdout set...")
         data = torch.load(fireprot_path, map_location='cpu', weights_only=False)
         y_true = np.array(data['y_true'])
-        show_models = ['StableProt', 'TemStaPro', 'TemBERTure', 'ESMStabP', 'DeepSTABp', 'ThermoFormer']
-        predictions = {k: np.array(v) for k, v in data['predictions'].items() if k in show_models}
+        show_models = ['StableProt', 'TemStaPro (V0 Original)', 'TemStaPro', 'TemBERTure', 'ESMStabP', 'DeepSTABp', 'ThermoFormer']
+        predictions = {}
+        for k, v in data['predictions'].items():
+            if k in show_models:
+                clean_k = 'TemStaPro' if 'TemStaPro' in k else k
+                predictions[clean_k] = np.array(v)
         
         df_fireprot = compute_binned_mae(y_true, predictions, bin_edges)
 

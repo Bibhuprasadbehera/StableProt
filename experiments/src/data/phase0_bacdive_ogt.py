@@ -116,7 +116,7 @@ def query_bacdive_for_taxids(unique_taxids: list, cache: dict, lineage_map: dict
             completed += 1
             if result == "error":
                 errors += 1
-                cache[tax_id] = None
+                # Do not cache error as None so future runs retry
             else:
                 cache[tax_id] = result
                 if result is not None:

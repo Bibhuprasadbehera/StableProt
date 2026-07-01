@@ -28,7 +28,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset
 
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
-DATA_FILE = PROJECT_ROOT / "data" / "embeddings" / "prepared_data_v7_saprot1.3b_seqonly.pt"
+DATA_FILE = PROJECT_ROOT / "data" / "embeddings" / "saprot_tm_struct_embeddings.pt"
 RESULTS_DIR = PROJECT_ROOT / "experiments" / "src" / "training" / "v7_shared" / "results"
 
 # ── Default Config ──
@@ -46,7 +46,8 @@ CONFIG = {
     'ogt_loss_scale': 0.03,   # Scale OGT loss to prevent gradient domination
     'bin_width': 5,           # °C for temperature bins
     'bin_range': (25, 100),
-    'weight_clamp_max': 8.0,  # Max weight for rare bins
+    'weight_clamp_max': 40.0, # Max weight for rare bins
+    'delta': 15.0,            # Huber delta for tail gradient sensitivity
     'scheduler_T0': 10,
     'scheduler_Tmult': 2,
 }
@@ -145,9 +146,9 @@ def compute_sample_weights(labels, bin_width=5, bin_range=(25, 100), clamp_max=8
 
 
 # ── Training ──
-def train_one_seed(seed, config, tm_loader, ogt_loader, val_loader,
-                   tm_weights_map, device, save_dir):
-    """Train single seed of V7 model."""
+def train_one_seed(seed, config, tm_loader, ogt_loader, val_loader, val_ogt_loader,
+                   tm_weights_map, ogt_weights_map, device, save_dir):
+    """Train single seed of V7 model with infinite OGT iteration and joint validation."""
     torch.manual_seed(seed)
     np.random.seed(seed)
 
@@ -170,12 +171,18 @@ def train_one_seed(seed, config, tm_loader, ogt_loader, val_loader,
         eta_min=1e-6
     )
 
-    huber = nn.HuberLoss(reduction='none', delta=1.0)
+    huber = nn.HuberLoss(reduction='none', delta=config.get('delta', 15.0))
     ogt_scale = config['ogt_loss_scale']
+    bins = np.arange(config['bin_range'][0], config['bin_range'][1] + config['bin_width'], config['bin_width'])
+
+    scaler = torch.amp.GradScaler('cuda' if 'cuda' in str(device) else 'cpu')
 
     best_val_mae = float('inf')
     patience_counter = 0
     best_model_path = save_dir / "best_model.pt"
+
+    # Persistent OGT iterator across epochs so OGT cycles through all 941k samples
+    ogt_iter = iter(ogt_loader)
 
     for epoch in range(config['epochs']):
         model.train()
@@ -184,29 +191,28 @@ def train_one_seed(seed, config, tm_loader, ogt_loader, val_loader,
         tm_batches = 0
         ogt_batches = 0
 
-        # Alternating optimization: interleave OGT and Tm batches
-        ogt_iter = iter(ogt_loader)
         for tm_x, tm_y in tm_loader:
             tm_x, tm_y = tm_x.to(device), tm_y.to(device)
 
             # --- Tm step ---
             optimizer.zero_grad()
-            tm_pred = model(tm_x, task='tm')
-            tm_loss_raw = huber(tm_pred, tm_y)
+            with torch.amp.autocast('cuda' if 'cuda' in str(device) else 'cpu'):
+                tm_pred = model(tm_x, task='tm')
+                tm_loss_raw = huber(tm_pred, tm_y)
 
-            # Actually use the label-based weights
-            bins = np.arange(config['bin_range'][0], config['bin_range'][1] + config['bin_width'], config['bin_width'])
-            tm_y_np = tm_y.cpu().numpy()
-            bin_idx = np.digitize(tm_y_np, bins) - 1
-            batch_weights = torch.tensor(
-                [tm_weights_map.get(int(bi), 1.0) for bi in bin_idx],
-                device=device, dtype=torch.float32
-            )
+                tm_y_np = tm_y.cpu().numpy()
+                bin_idx = np.digitize(tm_y_np, bins) - 1
+                batch_weights = torch.tensor(
+                    [tm_weights_map.get(int(bi), 1.0) for bi in bin_idx],
+                    device=device, dtype=torch.float32
+                )
+                tm_loss = (tm_loss_raw * batch_weights).mean()
 
-            tm_loss = (tm_loss_raw * batch_weights).mean()
-            tm_loss.backward()
+            scaler.scale(tm_loss).backward()
+            scaler.unscale_(optimizer)
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-            optimizer.step()
+            scaler.step(optimizer)
+            scaler.update()
 
             # --- OGT step ---
             try:
@@ -217,11 +223,23 @@ def train_one_seed(seed, config, tm_loader, ogt_loader, val_loader,
 
             ogt_x, ogt_y = ogt_x.to(device), ogt_y.to(device)
             optimizer.zero_grad()
-            ogt_pred = model(ogt_x, task='ogt')
-            ogt_loss = huber(ogt_pred, ogt_y).mean() * ogt_scale
-            ogt_loss.backward()
+            with torch.amp.autocast('cuda' if 'cuda' in str(device) else 'cpu'):
+                ogt_pred = model(ogt_x, task='ogt')
+                ogt_loss_raw = huber(ogt_pred, ogt_y)
+
+                ogt_y_np = ogt_y.cpu().numpy()
+                ogt_bin_idx = np.digitize(ogt_y_np, bins) - 1
+                ogt_batch_weights = torch.tensor(
+                    [ogt_weights_map.get(int(bi), 1.0) for bi in ogt_bin_idx],
+                    device=device, dtype=torch.float32
+                )
+                ogt_loss = (ogt_loss_raw * ogt_batch_weights).mean() * ogt_scale
+
+            scaler.scale(ogt_loss).backward()
+            scaler.unscale_(optimizer)
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-            optimizer.step()
+            scaler.step(optimizer)
+            scaler.update()
 
             epoch_tm_loss += tm_loss.item()
             epoch_ogt_loss += ogt_loss.item()
@@ -231,27 +249,35 @@ def train_one_seed(seed, config, tm_loader, ogt_loader, val_loader,
         scheduler.step()
         lr = optimizer.param_groups[0]['lr']
 
-        # Validation (Tm only)
+        # Validation (Tm and OGT)
         model.eval()
-        val_mae = 0.0
+        val_tm_mae = 0.0
         with torch.no_grad():
             for x, y in val_loader:
                 x, y = x.to(device), y.to(device)
                 pred = model(x, task='tm')
-                val_mae += torch.abs(pred - y).sum().item()
-        val_mae /= len(val_loader.dataset)
+                val_tm_mae += torch.abs(pred - y).sum().item()
+        val_tm_mae /= len(val_loader.dataset)
+
+        val_ogt_mae = 0.0
+        with torch.no_grad():
+            for x, y in val_ogt_loader:
+                x, y = x.to(device), y.to(device)
+                pred = model(x, task='ogt')
+                val_ogt_mae += torch.abs(pred - y).sum().item()
+        val_ogt_mae /= len(val_ogt_loader.dataset)
 
         avg_tm_loss = epoch_tm_loss / max(tm_batches, 1)
         avg_ogt_loss = epoch_ogt_loss / max(ogt_batches, 1)
 
         print(f"  Epoch {epoch+1:>3} | Tm Loss: {avg_tm_loss:.4f} | "
-              f"OGT Loss: {avg_ogt_loss:.4f} | Val MAE: {val_mae:.4f} | LR: {lr:.6f}")
+              f"OGT Loss: {avg_ogt_loss:.4f} | Val Tm MAE: {val_tm_mae:.4f} | Val OGT MAE: {val_ogt_mae:.4f} | LR: {lr:.6f}")
 
-        if val_mae < best_val_mae:
-            best_val_mae = val_mae
+        if val_tm_mae < best_val_mae:
+            best_val_mae = val_tm_mae
             patience_counter = 0
             torch.save(model.state_dict(), best_model_path)
-            print(f"  → Saved best model (MAE: {val_mae:.4f})")
+            print(f"  → Saved best model (Tm MAE: {val_tm_mae:.4f}, OGT MAE: {val_ogt_mae:.4f})")
         else:
             patience_counter += 1
             if patience_counter >= config['early_stopping_patience']:
@@ -302,18 +328,17 @@ def main():
     ogt_emb = data['train_ogt']['embeddings']
     ogt_lbl = data['train_ogt']['ogt_consensus'].float()
 
+    if 'val_ogt' in data:
+        val_ogt_emb = data['val_ogt']['embeddings']
+        val_ogt_lbl = data['val_ogt']['ogt_consensus'].float()
+    else:
+        val_ogt_emb = ogt_emb[:2000]
+        val_ogt_lbl = ogt_lbl[:2000]
+
     print(f"  Train Tm: {train_tm_emb.shape}")
     print(f"  Val Tm:   {val_tm_emb.shape}")
-    print(f"  OGT:      {ogt_emb.shape}")
-
-    # Compute Tm sample weights
-    print("\nComputing temperature bin weights...")
-    sample_weights = compute_sample_weights(
-        train_tm_lbl,
-        bin_width=config['bin_width'],
-        bin_range=config['bin_range'],
-        clamp_max=config['weight_clamp_max']
-    )
+    print(f"  Train OGT:{ogt_emb.shape}")
+    print(f"  Val OGT:  {val_ogt_emb.shape}")
 
     # Build bin → weight mapping for efficient lookup during training
     bins = np.arange(config['bin_range'][0], config['bin_range'][1] + config['bin_width'], config['bin_width'])
@@ -326,6 +351,16 @@ def main():
     bin_weights = np.minimum(np.sqrt(median_count / bin_counts), config['weight_clamp_max'])
     tm_weights_map = {b: float(bin_weights[b]) for b in range(len(bin_weights))}
 
+    # Build OGT bin → weight mapping
+    ogt_labels_np = ogt_lbl.numpy()
+    ogt_bin_indices = np.digitize(ogt_labels_np, bins) - 1
+    ogt_bin_counts = np.zeros(len(bins) - 1)
+    for b in range(len(bins) - 1):
+        ogt_bin_counts[b] = max(1, np.sum(ogt_bin_indices == b))
+    ogt_median_count = np.median(ogt_bin_counts[ogt_bin_counts > 0])
+    ogt_bin_weights = np.minimum(np.sqrt(ogt_median_count / ogt_bin_counts), config['weight_clamp_max'])
+    ogt_weights_map = {b: float(ogt_bin_weights[b]) for b in range(len(ogt_bin_weights))}
+
     # DataLoaders
     tm_loader = DataLoader(
         SimpleDataset(train_tm_emb, train_tm_lbl),
@@ -337,6 +372,10 @@ def main():
     )
     val_loader = DataLoader(
         SimpleDataset(val_tm_emb, val_tm_lbl),
+        batch_size=config['batch_size'], shuffle=False, num_workers=2, pin_memory=True
+    )
+    val_ogt_loader = DataLoader(
+        SimpleDataset(val_ogt_emb, val_ogt_lbl),
         batch_size=config['batch_size'], shuffle=False, num_workers=2, pin_memory=True
     )
 
@@ -353,8 +392,8 @@ def main():
         seed_dir.mkdir(parents=True, exist_ok=True)
 
         best_path, best_mae = train_one_seed(
-            seed, config, tm_loader, ogt_loader, val_loader,
-            tm_weights_map, device, seed_dir
+            seed, config, tm_loader, ogt_loader, val_loader, val_ogt_loader,
+            tm_weights_map, ogt_weights_map, device, seed_dir
         )
 
         # Evaluate on test set

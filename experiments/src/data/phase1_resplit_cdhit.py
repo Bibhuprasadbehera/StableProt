@@ -78,6 +78,7 @@ def run_cdhit_2d(query_fasta, db_fasta, output_prefix, identity=0.40):
         "-o", str(output_prefix),
         "-c", str(identity),
         "-n", "2",        # Word size 2 required for <40% identity
+        "-G", "0",        # Local alignment
         "-M", "8000",     # 8GB memory
         "-T", "4",        # 4 threads
         "-d", "0",        # Full sequence name in cluster file

@@ -460,6 +460,43 @@ def main():
                 "type": "Dedicated Tm Head",
             }
             print(f"  V7 evaluated on all {len(x_saprot_v7)} ProThermDB sequences (no fallback)")
+
+        # ── V8 SaProt (Disjoint Backbone with 2-stage inference) ──
+        print("Evaluating V8 SaProt...")
+        import importlib.util
+        v8_train_path = os.path.join(PROJECT_ROOT, "experiments/src/training/v8_disjoint/train.py")
+        spec = importlib.util.spec_from_file_location("train_v8", v8_train_path)
+        train_v8 = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(train_v8)
+        MultiHeadSaProtV8 = train_v8.MultiHeadSaProtV8
+        enrich_inputs_v8 = train_v8.enrich_inputs
+        sanitize_data_v8 = train_v8.sanitize_data
+        
+        tm_data_v8 = torch.load(os.path.join(PROJECT_ROOT, "data/embeddings/saprot_tm_struct_embeddings.pt"), map_location='cpu', weights_only=False)
+        _, _, tr_lbl_v8, _, _ = sanitize_data_v8(tm_data_v8['train_tm'], is_tm=True)
+        tm_mean_v8, tm_std_v8 = tr_lbl_v8.mean().item(), tr_lbl_v8.std().item()
+
+        v8_preds = []
+        for s in range(1, 6):
+            p = os.path.join(PROJECT_ROOT, f"experiments/src/training/v8_disjoint/results/seed{s}/model.pt")
+            if os.path.exists(p):
+                model_v8 = MultiHeadSaProtV8().to(device)
+                model_v8.load_state_dict(torch.load(p, map_location=device, weights_only=False))
+                model_v8.eval()
+                with torch.no_grad():
+                    x_1288 = enrich_inputs_v8(x_saprot_v7.cpu(), protherm_seqs, tmhmm_flags=None, ogt_priors=None)
+                    pred_ogt = model_v8(x_1288.to(device), head='ogt')
+                    x_1289 = enrich_inputs_v8(x_saprot_v7.cpu(), protherm_seqs, tmhmm_flags=None, ogt_priors=pred_ogt.cpu().numpy())
+                    z_mu, _ = model_v8(x_1289.to(device), head='tm')
+                    out = (z_mu.cpu() * tm_std_v8 + tm_mean_v8).numpy()
+                v8_preds.append(out)
+
+        if v8_preds:
+            results["StableProt V8"] = {
+                "y_pred": np.mean(v8_preds, axis=0),
+                "type": "Dedicated Tm Head",
+            }
+            print(f"  V8 evaluated on all {len(x_saprot_v7)} ProThermDB sequences via 2-stage dynamic inference")
     else:
         print("WARNING: ProThermDB SaProt embeddings not found at", protherm_saprot_path)
 

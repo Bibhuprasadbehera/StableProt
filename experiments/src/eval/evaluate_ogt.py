@@ -1,168 +1,165 @@
 #!/usr/bin/env python3
 """
-Step 8: Final OGT evaluation and plotting.
-Compares V7 (ensemble), PRIME, Ridge, XGBoost, and DPC baselines.
-Generates: scatter_grid_ogt.png and temp_wise_ogt.png
+Comprehensive Temperature-Wise OGT Evaluation and Plotting.
+Compares StableProt V8 (Ours), PRIME, and ThermoFormer across temperature bins
+on both Internal BacDive Test Set and External BRENDA OOD Set.
+Generates publication-quality plots and markdown tables.
 """
 
-import json
 import os
+import sys
 from pathlib import Path
-
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import seaborn as sns
 import torch
 from scipy.stats import pearsonr, spearmanr
-from sklearn.metrics import mean_absolute_error, mean_squared_error
-from torch.utils.data import DataLoader
+from sklearn.metrics import mean_absolute_error
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
-DATA_FILE = PROJECT_ROOT / "data" / "embeddings" / "prepared_data_v7_saprot1.3b_seqonly_ogt_split.pt"
-BASELINE_FILE = PROJECT_ROOT / "experiments" / "src" / "eval" / "ogt_baselines" / "prime_predictions.pt" # the one with PRIME added
-V7_RESULTS_DIR = PROJECT_ROOT / "experiments" / "src" / "training" / "v7_shared" / "results"
-OPTUNA_FILE = PROJECT_ROOT / "experiments" / "src" / "training" / "v7_shared" / "optuna_study" / "top3_configs.json"
+sys.path.append(str(PROJECT_ROOT / "experiments" / "src" / "training" / "v8_disjoint"))
+from train import MultiHeadSaProtV8, enrich_inputs
 
-import sys
-sys.path.insert(0, str(PROJECT_ROOT / "experiments" / "src" / "training" / "v7_shared"))
-from train import MultiHeadSaProtV7, SimpleDataset, CONFIG
+def compute_binned_mae(y_true, predictions, bin_edges):
+    num_bins = len(bin_edges) - 1
+    bin_labels = [f"{bin_edges[i]}-{bin_edges[i+1]}" for i in range(num_bins)]
+    bin_indices = np.digitize(y_true, bin_edges) - 1
+    
+    results = []
+    for bin_idx in range(num_bins):
+        mask = bin_indices == bin_idx
+        count = np.sum(mask)
+        if count == 0:
+            continue
+        bin_res = {
+            'Bin': bin_labels[bin_idx],
+            'Range': f"({bin_edges[bin_idx]}, {bin_edges[bin_idx+1]}]",
+            'Count': int(count)
+        }
+        for name, y_pred in predictions.items():
+            mae = np.mean(np.abs(y_true[mask] - y_pred[mask]))
+            bin_res[name] = float(mae)
+        results.append(bin_res)
+    return pd.DataFrame(results)
 
-def evaluate_metrics(y_true, y_pred, name):
-    mae = mean_absolute_error(y_true, y_pred)
-    rmse = np.sqrt(mean_squared_error(y_true, y_pred))
-    pcc, _ = pearsonr(y_true, y_pred)
-    spearman, _ = spearmanr(y_true, y_pred)
-    print(f"[{name}] MAE: {mae:.3f} | RMSE: {rmse:.3f} | PCC: {pcc:.3f} | Spearman: {spearman:.3f}")
-    return mae, rmse, pcc, spearman
+def plot_temp_wise(df_binned, title, save_path):
+    plt.figure(figsize=(11, 6))
+    sns.set_theme(style="whitegrid")
+    
+    model_cols = [col for col in df_binned.columns if col not in ['Bin', 'Range', 'Count']]
+    palette = {'StableProt V8 (Ours)': '#3B82F6', 'PRIME': '#10B981', 'ThermoFormer': '#F59E0B'}
+    
+    for i, model_name in enumerate(model_cols):
+        color = palette.get(model_name, sns.color_palette("husl")[i])
+        linewidth = 3.0 if 'StableProt' in model_name else 2.0
+        marker = 'o' if 'StableProt' in model_name else 's'
+        plt.plot(
+            df_binned['Bin'], 
+            df_binned[model_name], 
+            label=model_name,
+            color=color,
+            linewidth=linewidth,
+            marker=marker,
+            markersize=7
+        )
+        
+    plt.xlabel("Experimental Temperature Bin (°C)", fontsize=12, fontweight='bold')
+    plt.ylabel("Mean Absolute Error (MAE, °C)", fontsize=12, fontweight='bold')
+    plt.title(title, fontsize=14, fontweight='bold', pad=15)
+    plt.legend(frameon=True, facecolor='white', edgecolor='none', fontsize=11)
+    plt.tight_layout()
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    plt.savefig(save_path, dpi=300)
+    plt.close()
+    print(f"Saved plot to {save_path}")
+
+def df_to_markdown(df):
+    headers = list(df.columns)
+    lines = ["| " + " | ".join(headers) + " |", "| " + " | ".join(["---"] * len(headers)) + " |"]
+    for _, row in df.iterrows():
+        row_str = [f"{val:.2f}" if isinstance(val, float) else str(val) for val in row]
+        lines.append("| " + " | ".join(row_str) + " |")
+    return "\n".join(lines)
+
+def evaluate_v8_ogt(embeddings, sequences, device):
+    x_1288 = enrich_inputs(embeddings, sequences, tmhmm_flags=None, ogt_priors=None)
+    v8_preds = []
+    for s in range(1, 6):
+        p = PROJECT_ROOT / f"experiments/src/training/v8_disjoint/results/seed{s}/model.pt"
+        if p.exists():
+            model = MultiHeadSaProtV8().to(device)
+            model.load_state_dict(torch.load(p, map_location=device, weights_only=False))
+            model.eval()
+            with torch.no_grad():
+                out = model(x_1288.to(device), head='ogt').cpu().numpy().squeeze()
+            v8_preds.append(out)
+    return np.mean(v8_preds, axis=0) if v8_preds else None
 
 def main():
-    print("Loading data...")
-    data = torch.load(DATA_FILE, map_location='cpu', weights_only=False)
-    test_emb = data['test_ogt']['embeddings']
-    y_true = data['test_ogt']['ogt_consensus']
-    if isinstance(y_true, torch.Tensor): y_true = y_true.numpy()
-    
-    predictions = {}
-    
-    # 1. Load Baselines
-    if BASELINE_FILE.exists():
-        baselines = torch.load(BASELINE_FILE, map_location='cpu', weights_only=False)
-        for k, v in baselines.items():
-            if k != 'y_true':
-                predictions[k] = v
-    else:
-        # fallback if PRIME is still saving or running
-        fallback = PROJECT_ROOT / "experiments" / "src" / "eval" / "ogt_baselines" / "baseline_predictions.pt"
-        if fallback.exists():
-            baselines = torch.load(fallback, map_location='cpu')
-            for k, v in baselines.items():
-                if k != 'y_true':
-                    predictions[k] = v
-        else:
-            print("Baseline predictions not found!")
-            
-    # 2. V7 Ensemble Inference
-    print("Running V7 Ensemble inference...")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        
-    loader = DataLoader(SimpleDataset(test_emb, torch.tensor(y_true)), batch_size=256, shuffle=False)
+    bin_edges = np.arange(0, 101, 10)
     
-    v7_preds = []
-    for seed in range(1, 6):
-        model_path = V7_RESULTS_DIR / f"seed{seed}" / "best_model.pt"
-        if not model_path.exists():
-            continue
-        model = MultiHeadSaProtV7(
-            input_dim=1280, hidden1=CONFIG['hidden1'], hidden2=CONFIG['hidden2'],
-            dropout1=CONFIG['dropout1'], dropout2=CONFIG['dropout2']
-        ).to(device)
-        model.load_state_dict(torch.load(model_path, map_location=device, weights_only=False))
-        model.eval()
-        
-        seed_preds = []
-        with torch.no_grad():
-            for x, _ in loader:
-                x = x.to(device)
-                pred = model(x, task='ogt')
-                seed_preds.extend(pred.cpu().numpy().tolist())
-        v7_preds.append(seed_preds)
-        
-    if v7_preds:
-        predictions['StableProt_V7'] = np.mean(v7_preds, axis=0)
-        
-    # 3. Print Metrics
-    print("\n--- Final Test Set Results ---")
-    metrics_log = {}
-    for name, pred in predictions.items():
-        metrics_log[name] = evaluate_metrics(y_true, pred, name)
-        
-    # 4. Plot Scatter Grid
-    sns.set_theme(style="whitegrid", context="paper")
-    models_to_plot = ['StableProt_V7', 'PRIME', 'XGBoost_SaProt', 'Ridge_SaProt', 'Ridge_DPC']
-    models_to_plot = [m for m in models_to_plot if m in predictions]
+    # ── 1. External OOD Set (BRENDA OOD) ──
+    print("Evaluating External BRENDA OOD OGT Benchmark...")
+    df_brenda = pd.read_csv(PROJECT_ROOT / "new_data/brenda_ood_benchmark.csv")
+    y_brenda = df_brenda['ogt'].values
+    seqs_brenda = df_brenda['sequence'].tolist()
+    emb_brenda = torch.load(PROJECT_ROOT / "data/embeddings/brenda_ood_saprot_embeddings.pt", map_location='cpu', weights_only=False)
     
-    fig, axes = plt.subplots(2, 3, figsize=(15, 10))
-    axes = axes.flatten()
+    preds_brenda = {}
+    preds_brenda['StableProt V8 (Ours)'] = evaluate_v8_ogt(emb_brenda, seqs_brenda, device)
     
-    for idx, model_name in enumerate(models_to_plot):
-        ax = axes[idx]
-        y_p = predictions[model_name]
-        
-        ax.scatter(y_true, y_p, alpha=0.1, s=1, c='royalblue')
-        ax.plot([y_true.min(), y_true.max()], [y_true.min(), y_true.max()], 'r--', lw=2)
-        
-        mae, rmse, pcc, spearman = metrics_log[model_name]
-        text_str = f"MAE: {mae:.2f}°C\nPCC: {pcc:.2f}"
-        ax.text(0.05, 0.95, text_str, transform=ax.transAxes, fontsize=11,
-                verticalalignment='top', bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
-        
-        ax.set_title(model_name.replace("_", " "))
-        ax.set_xlabel("True OGT (°C)")
-        ax.set_ylabel("Predicted OGT (°C)")
-        
-    # Hide unused subplots
-    for idx in range(len(models_to_plot), len(axes)):
-        axes[idx].set_visible(False)
-        
-    plt.tight_layout()
-    plt.savefig(PROJECT_ROOT / "scatter_grid_ogt.png", dpi=300)
-    print("Saved scatter_grid_ogt.png")
+    baselines_brenda = torch.load(PROJECT_ROOT / "data/embeddings/brenda_ood_baseline_preds.pt", map_location='cpu', weights_only=False)
+    if 'PRIME' in baselines_brenda: preds_brenda['PRIME'] = np.array(baselines_brenda['PRIME'])
+    if 'ThermoFormer' in baselines_brenda: preds_brenda['ThermoFormer'] = np.array(baselines_brenda['ThermoFormer'])
     
-    # 5. Plot Temperature-wise MAE
-    bins = [0, 20, 30, 40, 50, 60, 70, 120]
-    labels = ['<20', '20-30', '30-40', '40-50', '50-60', '60-70', '>70']
-    
-    binned_mae = {model: [] for model in models_to_plot}
-    y_true_bins = np.digitize(y_true, bins) - 1
-    
-    for i in range(len(labels)):
-        idx = (y_true_bins == i)
-        for model in models_to_plot:
-            if np.sum(idx) > 0:
-                mae = mean_absolute_error(y_true[idx], predictions[model][idx])
-            else:
-                mae = 0
-            binned_mae[model].append(mae)
-            
-    fig, ax = plt.subplots(figsize=(12, 6))
-    x = np.arange(len(labels))
-    width = 0.8 / len(models_to_plot)
-    
-    colors = sns.color_palette("husl", len(models_to_plot))
-    for i, model in enumerate(models_to_plot):
-        ax.bar(x + i*width - 0.4 + width/2, binned_mae[model], width, label=model.replace("_", " "), color=colors[i])
+    for k, v in preds_brenda.items():
+        print(f"  [BRENDA OOD] {k} MAE: {mean_absolute_error(y_brenda, v):.2f}°C")
         
-    ax.set_xticks(x)
-    ax.set_xticklabels([f"{l}\n(n={np.sum(y_true_bins==i)})" for i, l in enumerate(labels)])
-    ax.set_xlabel("True OGT Range (°C)")
-    ax.set_ylabel("Mean Absolute Error (°C)")
-    ax.set_title("OGT Prediction Error Across Temperature Bins")
-    ax.legend()
-    plt.grid(axis='y', alpha=0.3)
+    df_brenda_binned = compute_binned_mae(y_brenda, preds_brenda, bin_edges)
     
-    plt.tight_layout()
-    plt.savefig(PROJECT_ROOT / "temp_wise_ogt.png", dpi=300)
-    print("Saved temp_wise_ogt.png")
+    plot_path_ext = PROJECT_ROOT / "paper/writeup/plots/external_temp_wise_ogt.png"
+    table_path_ext = PROJECT_ROOT / "paper/writeup/tables/external_temp_wise_ogt.md"
+    plot_temp_wise(df_brenda_binned, "Temperature-Wise OGT MAE Comparison (External BRENDA OOD)", plot_path_ext)
+    os.makedirs(os.path.dirname(table_path_ext), exist_ok=True)
+    with open(table_path_ext, "w") as f:
+        f.write("# Temperature-Wise OGT MAE Benchmark (External BRENDA OOD)\n\n" + df_to_markdown(df_brenda_binned))
+        
+    # ── 2. Internal BacDive Test Set ──
+    print("\nEvaluating Internal BacDive Test Set...")
+    data_int = torch.load(PROJECT_ROOT / "data/embeddings/prepared_data_v7_saprot1.3b_seqonly_ogt_split.pt", map_location='cpu', weights_only=False)['test_ogt']
+    y_int = np.array(data_int['ogt_consensus'])
+    seqs_int = [str(s) for s in data_int['sequences']]
+    emb_int = data_int['embeddings']
+    
+    # Filter valid sequences
+    keep = [i for i, s in enumerate(seqs_int) if len(s) <= 900]
+    y_int = y_int[keep]
+    seqs_int = [seqs_int[i] for i in keep]
+    emb_int = emb_int.float()[keep]
+    
+    preds_int = {}
+    preds_int['StableProt V8 (Ours)'] = evaluate_v8_ogt(emb_int, seqs_int, device)
+    
+    # Load baselines if available
+    base_int_path = PROJECT_ROOT / "experiments/src/eval/ogt_baselines/prime_predictions.pt"
+    if base_int_path.exists():
+        base_int = torch.load(base_int_path, map_location='cpu', weights_only=False)
+        if 'PRIME' in base_int: preds_int['PRIME'] = np.array(base_int['PRIME'])[keep]
+        if 'ThermoFormer' in base_int: preds_int['ThermoFormer'] = np.array(base_int['ThermoFormer'])[keep]
+        
+    for k, v in preds_int.items():
+        print(f"  [Internal Test] {k} MAE: {mean_absolute_error(y_int, v):.2f}°C")
+        
+    df_int_binned = compute_binned_mae(y_int, preds_int, bin_edges)
+    plot_path_int = PROJECT_ROOT / "paper/writeup/plots/internal_temp_wise_ogt.png"
+    table_path_int = PROJECT_ROOT / "paper/writeup/tables/internal_temp_wise_ogt.md"
+    plot_temp_wise(df_int_binned, "Temperature-Wise OGT MAE Comparison (Internal BacDive Test)", plot_path_int)
+    with open(table_path_int, "w") as f:
+        f.write("# Temperature-Wise OGT MAE Benchmark (Internal BacDive Test)\n\n" + df_to_markdown(df_int_binned))
+        
+    print("All OGT temperature-wise evaluations complete.")
 
 if __name__ == "__main__":
     main()

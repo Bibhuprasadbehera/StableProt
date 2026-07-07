@@ -1,67 +1,42 @@
-"""StableProt V8 Disjoint Multi-Head Predictor with Enriched Auxiliary Features.
-
-Implements disjoint MLP backbones for Tm and OGT prediction with:
-1. 1289-dim / 1288-dim enriched inputs (SaProt + OGT prior + TM flag + length + 6-dim AA composition)
-2. Heteroscedastic Gaussian NLL uncertainty head for Tm (predicting mean and log-variance)
-3. Target z-score standardization and inverse frequency temperature bin weighting
-4. Data sanitization (purging unphysical Tm < OGT records and short peptides <50 AA)
-5. True alternating optimization loop with AMP mixed precision and --debug mode
+#!/usr/bin/env python3
+"""
+Training script for StableProt V8 Disjoint Multi-Head Architecture.
+Implements decoupled checkpoints (model_tm.pt, model_ogt.pt), independent schedulers,
+auxiliary projection bottleneck (Linear(9,64) Tm / Linear(8,64) OGT), bounded NLL variance,
+true val_ogt split loading, and scheduled OGT noise injection.
 """
 
 import os
 import sys
 import argparse
-import json
+from pathlib import Path
+from itertools import cycle
+import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
-import numpy as np
 from tqdm import tqdm
 
-CONFIG = {
-    'input_size_tm': 1289,
-    'input_size_ogt': 1288,
-    'hidden_size_1': 512,
-    'hidden_size_2': 256,
-    'dropout_1': 0.3,
-    'dropout_2': 0.2,
-    'learning_rate': 1e-4,
-    'weight_decay': 1e-5,
-    'batch_size': 64,
-    'max_epochs': 100,
-    'early_stopping_patience': 10,
-    'huber_delta': 5.0,
-    'grad_clip_max_norm': 1.0,
-    'seeds': [1, 2, 3, 4, 5],
-    'bin_edges': list(range(0, 106, 5)),
-    'weight_clamp_min': 0.5,
-    'weight_clamp_max': 5.0,
-    'target_jitter_std': 0.3,
-}
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+sys.path.append(str(PROJECT_ROOT / "experiments" / "src" / "training" / "v8_disjoint"))
+from config import CONFIG
 
 def compute_aa_composition(sequences):
-    """Compute 6-dim bounded AA composition vector in [0, 1]."""
     comp_list = []
     for seq in sequences:
-        s = str(seq).upper()
-        # If sequence has 3Di tokens (e.g. Foldseek MaEpKdLq), clean out lowercase 3Di characters
-        s_clean = "".join([c for c in s if c.isupper() and c.isalpha()])
+        s_clean = "".join([c for c in str(seq).upper() if c.isupper() and c.isalpha()])
         L = max(len(s_clean), 1)
-        
-        f_charged = sum(s_clean.count(aa) for aa in "DEKR") / L
-        f_hydro = sum(s_clean.count(aa) for aa in "VILMFWC") / L
+        f_charged = (s_clean.count("D") + s_clean.count("E") + s_clean.count("K") + s_clean.count("R")) / L
+        f_hydro = (s_clean.count("A") + s_clean.count("I") + s_clean.count("L") + s_clean.count("M") + s_clean.count("F") + s_clean.count("W") + s_clean.count("V")) / L
         f_proline = s_clean.count("P") / L
         f_cysteine = s_clean.count("C") / L
-        f_aromatic = sum(s_clean.count(aa) for aa in "FWY") / L
-        
-        # Aliphatic index formula normalized to [0, 1]
-        a = s_clean.count("A")
+        f_aromatic = (s_clean.count("F") + s_clean.count("W") + s_clean.count("Y")) / L
         v = s_clean.count("V")
         il = s_clean.count("I") + s_clean.count("L")
-        aliph_raw = (a + 2.9 * v + 3.9 * il) / (L * 100.0)
+        aliph_raw = (s_clean.count("A") + 2.9 * v + 3.9 * il) / (L * 100.0)
         aliph_norm = min(aliph_raw, 1.0)
-        
         comp_list.append([
             min(f_charged, 1.0),
             min(f_hydro, 1.0),
@@ -73,7 +48,7 @@ def compute_aa_composition(sequences):
     return torch.tensor(comp_list, dtype=torch.float32)
 
 def enrich_inputs(embeddings, sequences, tmhmm_flags=None, ogt_priors=None):
-    """Construct 1289-dim (if ogt_priors provided) or 1288-dim feature tensor."""
+    """Return tuple (embeddings_1280, aux_features_9_or_8)."""
     N = embeddings.shape[0]
     lengths = []
     for seq in sequences:
@@ -91,23 +66,36 @@ def enrich_inputs(embeddings, sequences, tmhmm_flags=None, ogt_priors=None):
     
     if ogt_priors is not None:
         ogt_t = torch.tensor([float(o) / 100.0 for o in ogt_priors], dtype=torch.float32).unsqueeze(-1)
-        return torch.cat([embeddings.float(), ogt_t, tm_t, lengths_t, aa_comp], dim=-1)
+        aux = torch.cat([ogt_t, tm_t, lengths_t, aa_comp], dim=-1)
     else:
-        return torch.cat([embeddings.float(), tm_t, lengths_t, aa_comp], dim=-1)
+        aux = torch.cat([tm_t, lengths_t, aa_comp], dim=-1)
+    return embeddings.float(), aux
 
 class MultiHeadSaProtV8(nn.Module):
-    def __init__(self, input_dim_tm=1289, input_dim_ogt=1288, hidden1=512, hidden2=256, dropout1=0.3, dropout2=0.2):
+    def __init__(self, emb_dim=1280, aux_dim_tm=9, aux_dim_ogt=8, proj_dim=None, hidden1=512, hidden2=256, dropout1=0.3, dropout2=0.2):
         super().__init__()
+        self.proj_dim = proj_dim
+        if proj_dim is not None:
+            self.aux_proj_tm = nn.Sequential(nn.Linear(aux_dim_tm, proj_dim), nn.GELU(), nn.LayerNorm(proj_dim))
+            self.aux_proj_ogt = nn.Sequential(nn.Linear(aux_dim_ogt, proj_dim), nn.GELU(), nn.LayerNorm(proj_dim))
+            in_dim_tm = emb_dim + proj_dim
+            in_dim_ogt = emb_dim + proj_dim
+        else:
+            self.aux_proj_tm = None
+            self.aux_proj_ogt = None
+            in_dim_tm = emb_dim + aux_dim_tm
+            in_dim_ogt = emb_dim + aux_dim_ogt
+            
         # Disjoint Tm pathway
-        self.fc1_tm = nn.Linear(input_dim_tm, hidden1)
+        self.fc1_tm = nn.Linear(in_dim_tm, hidden1)
         self.ln1_tm = nn.LayerNorm(hidden1)
         self.fc2_tm = nn.Linear(hidden1, hidden2)
         self.ln2_tm = nn.LayerNorm(hidden2)
         self.res_tm = nn.Linear(hidden1, hidden2)
-        self.head_tm = nn.Linear(hidden2, 2)  # [z_mean, log_z_var]
+        self.head_tm = nn.Linear(hidden2, 2)
         
         # Disjoint OGT pathway
-        self.fc1_ogt = nn.Linear(input_dim_ogt, hidden1)
+        self.fc1_ogt = nn.Linear(in_dim_ogt, hidden1)
         self.ln1_ogt = nn.LayerNorm(hidden1)
         self.fc2_ogt = nn.Linear(hidden1, hidden2)
         self.ln2_ogt = nn.LayerNorm(hidden2)
@@ -118,26 +106,41 @@ class MultiHeadSaProtV8(nn.Module):
         self.drop1 = nn.Dropout(dropout1)
         self.drop2 = nn.Dropout(dropout2)
         
-    def forward(self, x, head='tm'):
+    def forward(self, x_emb, x_aux=None, head='tm'):
+        if x_aux is None:
+            if head == 'tm':
+                x_aux = x_emb[:, -9:]
+                x_emb = x_emb[:, :1280]
+            else:
+                x_aux = x_emb[:, -8:]
+                x_emb = x_emb[:, :1280]
+                
         if head == 'tm':
-            h1 = self.drop1(self.act(self.ln1_tm(self.fc1_tm(x))))
+            h_aux = self.aux_proj_tm(x_aux) if self.aux_proj_tm is not None else x_aux
+            h = torch.cat([x_emb, h_aux], dim=-1)
+            h1 = self.drop1(self.act(self.ln1_tm(self.fc1_tm(h))))
             h2 = self.drop2(self.act(self.ln2_tm(self.fc2_tm(h1)) + self.res_tm(h1)))
             out = self.head_tm(h2)
-            return out[:, 0], out[:, 1]  # z_mean, log_z_var
+            z_mean = out[:, 0]
+            z_var = F.softplus(out[:, 1]) + 1e-4
+            return z_mean, z_var
         else:
-            h1 = self.drop1(self.act(self.ln1_ogt(self.fc1_ogt(x))))
+            h_aux = self.aux_proj_ogt(x_aux) if self.aux_proj_ogt is not None else x_aux
+            h = torch.cat([x_emb, h_aux], dim=-1)
+            h1 = self.drop1(self.act(self.ln1_ogt(self.fc1_ogt(h))))
             h2 = self.drop2(self.act(self.ln2_ogt(self.fc2_ogt(h1)) + self.res_ogt(h1)))
             return self.head_ogt(h2).squeeze(-1)
 
 class ProteinDataset(Dataset):
-    def __init__(self, x, y, weights=None):
-        self.x = x
+    def __init__(self, emb, aux, y, weights=None):
+        self.emb = emb
+        self.aux = aux
         self.y = y
         self.weights = weights if weights is not None else torch.ones_like(y)
     def __len__(self):
         return len(self.y)
     def __getitem__(self, idx):
-        return self.x[idx], self.y[idx], self.weights[idx]
+        return self.emb[idx], self.aux[idx], self.y[idx], self.weights[idx]
 
 def compute_bin_weights(labels, bin_edges, clamp_min=0.5, clamp_max=5.0):
     labels_np = labels.numpy() if hasattr(labels, 'numpy') else np.array(labels)
@@ -150,13 +153,7 @@ def compute_bin_weights(labels, bin_edges, clamp_min=0.5, clamp_max=5.0):
     w = np.clip(w, clamp_min, clamp_max)
     return torch.tensor(w[bin_idx], dtype=torch.float32)
 
-def cycle(iterable):
-    while True:
-        for x in iterable:
-            yield x
-
 def sanitize_data(dict_data, is_tm=True):
-    """Purge Tm < OGT outliers and <50 AA sequences."""
     seqs = dict_data['sequences']
     embs = dict_data['embeddings']
     if is_tm:
@@ -177,42 +174,39 @@ def sanitize_data(dict_data, is_tm=True):
                 continue
         keep_indices.append(idx)
         
-    print(f"  Sanitization: kept {len(keep_indices)} / {len(seqs)} sequences ({len(seqs)-len(keep_indices)} purged).")
+    print(f"  Sanitization: kept {len(keep_indices)} / {len(seqs)} sequences.")
     embs_sub = embs[keep_indices]
     seqs_sub = [seqs[i] for i in keep_indices]
     lbls_sub = torch.tensor([float(lbls[i]) for i in keep_indices], dtype=torch.float32)
+    tmhmm_sub = [dict_data.get('tmhmm_tm_binary', [0]*len(seqs))[i] for i in keep_indices]
     
     if is_tm:
         ogts_sub = [ogts[i] for i in keep_indices]
-        tmhmm_sub = [dict_data.get('tmhmm_tm_binary', [0]*len(seqs))[i] for i in keep_indices]
         return embs_sub, seqs_sub, lbls_sub, ogts_sub, tmhmm_sub
     else:
-        tmhmm_sub = [dict_data.get('tmhmm_tm_binary', [0]*len(seqs))[i] for i in keep_indices]
         return embs_sub, seqs_sub, lbls_sub, tmhmm_sub
 
 def train_seed(seed, train_tm_ds, train_ogt_ds, val_tm_ds, val_ogt_ds, tm_mean, tm_std, device, save_dir, max_epochs, patience):
-    print(f"\n{'='*50}\nTraining V8 Disjoint Ensemble (Seed {seed})\n{'='*50}")
+    print(f"\n{'='*50}\nTraining V8 Disjoint Architecture (Seed {seed})\n{'='*50}")
     torch.manual_seed(seed)
     np.random.seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
         
-    model = MultiHeadSaProtV8(
-        input_dim_tm=CONFIG['input_size_tm'],
-        input_dim_ogt=CONFIG['input_size_ogt'],
-        hidden1=CONFIG['hidden_size_1'],
-        hidden2=CONFIG['hidden_size_2'],
-        dropout1=CONFIG['dropout_1'],
-        dropout2=CONFIG['dropout_2']
-    ).to(device)
+    model = MultiHeadSaProtV8().to(device)
     
-    optimizer = optim.AdamW([
+    opt_tm = optim.AdamW([
+        {'params': model.aux_proj_tm.parameters(), 'lr': CONFIG['learning_rate']},
         {'params': model.fc1_tm.parameters(), 'lr': CONFIG['learning_rate']},
         {'params': model.ln1_tm.parameters(), 'lr': CONFIG['learning_rate']},
         {'params': model.fc2_tm.parameters(), 'lr': CONFIG['learning_rate']},
         {'params': model.ln2_tm.parameters(), 'lr': CONFIG['learning_rate']},
         {'params': model.res_tm.parameters(), 'lr': CONFIG['learning_rate']},
         {'params': model.head_tm.parameters(), 'lr': CONFIG['learning_rate']},
+    ], weight_decay=CONFIG['weight_decay'])
+    
+    opt_ogt = optim.AdamW([
+        {'params': model.aux_proj_ogt.parameters(), 'lr': CONFIG['learning_rate']},
         {'params': model.fc1_ogt.parameters(), 'lr': CONFIG['learning_rate']},
         {'params': model.ln1_ogt.parameters(), 'lr': CONFIG['learning_rate']},
         {'params': model.fc2_ogt.parameters(), 'lr': CONFIG['learning_rate']},
@@ -221,8 +215,10 @@ def train_seed(seed, train_tm_ds, train_ogt_ds, val_tm_ds, val_ogt_ds, tm_mean, 
         {'params': model.head_ogt.parameters(), 'lr': CONFIG['learning_rate']},
     ], weight_decay=CONFIG['weight_decay'])
     
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=4, min_lr=1e-6)
-    scaler = torch.amp.GradScaler('cuda') if torch.cuda.is_available() else None
+    sched_tm = optim.lr_scheduler.ReduceLROnPlateau(opt_tm, mode='min', factor=0.5, patience=4, min_lr=1e-6)
+    sched_ogt = optim.lr_scheduler.ReduceLROnPlateau(opt_ogt, mode='min', factor=0.5, patience=4, min_lr=1e-6)
+    scaler_ogt = torch.amp.GradScaler('cuda') if torch.cuda.is_available() else None
+    scaler_tm = torch.amp.GradScaler('cuda') if torch.cuda.is_available() else None
     
     tm_loader = DataLoader(train_tm_ds, batch_size=CONFIG['batch_size'], shuffle=True, drop_last=True)
     ogt_loader = DataLoader(train_ogt_ds, batch_size=CONFIG['batch_size'], shuffle=True, drop_last=True)
@@ -230,9 +226,12 @@ def train_seed(seed, train_tm_ds, train_ogt_ds, val_tm_ds, val_ogt_ds, tm_mean, 
     val_ogt_loader = DataLoader(val_ogt_ds, batch_size=CONFIG['batch_size'], shuffle=False)
     
     tm_iter = iter(cycle(tm_loader))
-    best_val_mae = float('inf')
-    patience_cnt = 0
-    best_path = os.path.join(save_dir, 'model.pt')
+    best_tm_mae = float('inf')
+    best_ogt_mae = float('inf')
+    patience_tm = 0
+    patience_ogt = 0
+    path_tm = os.path.join(save_dir, 'model_tm.pt')
+    path_ogt = os.path.join(save_dir, 'model_ogt.pt')
     
     for epoch in range(max_epochs):
         model.train()
@@ -240,103 +239,115 @@ def train_seed(seed, train_tm_ds, train_ogt_ds, val_tm_ds, val_ogt_ds, tm_mean, 
         train_ogt_loss = 0.0
         
         pbar = tqdm(ogt_loader, desc=f"Seed {seed} | Ep {epoch+1}/{max_epochs}", leave=False)
-        for x_ogt, y_ogt, w_ogt in pbar:
-            # 1. OGT Step (Huber on full 941k dataset)
-            x_ogt, y_ogt, w_ogt = x_ogt.to(device), y_ogt.to(device), w_ogt.to(device)
-            if CONFIG['target_jitter_std'] > 0:
-                y_ogt = y_ogt + torch.randn_like(y_ogt) * CONFIG['target_jitter_std']
+        for emb_ogt, aux_ogt, y_ogt, w_ogt in pbar:
+            # 1. OGT Step
+            emb_ogt, aux_ogt, y_ogt, w_ogt = emb_ogt.to(device), aux_ogt.to(device), y_ogt.to(device), w_ogt.to(device)
+            if CONFIG.get('target_jitter_std', 0.5) > 0:
+                y_ogt = y_ogt + torch.randn_like(y_ogt) * CONFIG.get('target_jitter_std', 0.5)
                 
-            optimizer.zero_grad()
-            if scaler:
+            opt_ogt.zero_grad()
+            if scaler_ogt:
                 with torch.amp.autocast('cuda'):
-                    pred_ogt = model(x_ogt, head='ogt')
-                    huber = nn.functional.huber_loss(pred_ogt, y_ogt, delta=CONFIG['huber_delta'], reduction='none')
+                    pred_o = model(emb_ogt, aux_ogt, head='ogt')
+                    huber = nn.functional.huber_loss(pred_o, y_ogt, delta=CONFIG['huber_delta'], reduction='none')
                     loss_ogt = (huber * w_ogt).mean()
-                scaler.scale(loss_ogt).backward()
-                scaler.unscale_(optimizer)
-                nn.utils.clip_grad_norm_(model.parameters(), CONFIG['grad_clip_max_norm'])
-                if not torch.isnan(loss_ogt):
-                    scaler.step(optimizer)
-                    scaler.update()
+                scaler_ogt.scale(loss_ogt).backward()
+                scaler_ogt.unscale_(opt_ogt)
+                ogt_params = [p for g in opt_ogt.param_groups for p in g['params']]
+                nn.utils.clip_grad_norm_(ogt_params, CONFIG['grad_clip_max_norm'])
+                scaler_ogt.step(opt_ogt)
+                scaler_ogt.update()
             else:
-                pred_ogt = model(x_ogt, head='ogt')
-                huber = nn.functional.huber_loss(pred_ogt, y_ogt, delta=CONFIG['huber_delta'], reduction='none')
+                pred_o = model(emb_ogt, aux_ogt, head='ogt')
+                huber = nn.functional.huber_loss(pred_o, y_ogt, delta=CONFIG['huber_delta'], reduction='none')
                 loss_ogt = (huber * w_ogt).mean()
                 loss_ogt.backward()
-                nn.utils.clip_grad_norm_(model.parameters(), CONFIG['grad_clip_max_norm'])
-                if not torch.isnan(loss_ogt):
-                    optimizer.step()
+                ogt_params = [p for g in opt_ogt.param_groups for p in g['params']]
+                nn.utils.clip_grad_norm_(ogt_params, CONFIG['grad_clip_max_norm'])
+                opt_ogt.step()
             train_ogt_loss += loss_ogt.item()
 
-            # 2. Tm Step (Gaussian NLL on cycled iterator)
-            x_tm, y_tm, w_tm = next(tm_iter)
-            x_tm, y_tm, w_tm = x_tm.to(device), y_tm.to(device), w_tm.to(device)
-            if CONFIG['target_jitter_std'] > 0:
-                y_tm = y_tm + torch.randn_like(y_tm) * CONFIG['target_jitter_std']
+            # 2. Tm Step
+            emb_tm, aux_tm, y_tm, w_tm = next(tm_iter)
+            emb_tm, aux_tm, y_tm, w_tm = emb_tm.to(device), aux_tm.to(device), y_tm.to(device), w_tm.to(device)
+            if CONFIG.get('target_jitter_std', 0.5) > 0:
+                y_tm = y_tm + torch.randn_like(y_tm) * CONFIG.get('target_jitter_std', 0.5)
+            if CONFIG.get('tm_ogt_noise_std', 4.0) > 0:
+                aux_tm = aux_tm.clone()
+                aux_tm[:, 0] = aux_tm[:, 0] + (torch.randn_like(aux_tm[:, 0]) * CONFIG.get('tm_ogt_noise_std', 4.0)) / 100.0
                 
             z_tm = (y_tm - tm_mean) / tm_std
             
-            optimizer.zero_grad()
-            if scaler:
+            opt_tm.zero_grad()
+            if scaler_tm:
                 with torch.amp.autocast('cuda'):
-                    z_mu, log_z_var = model(x_tm, head='tm')
-                    nll = 0.5 * torch.exp(-log_z_var) * (z_mu - z_tm)**2 + 0.5 * log_z_var
+                    z_mu, z_var = model(emb_tm, aux_tm, head='tm')
+                    nll = 0.5 * (z_mu - z_tm)**2 / z_var + 0.5 * torch.log(z_var)
                     loss_tm = (nll * w_tm).mean()
-                scaler.scale(loss_tm).backward()
-                scaler.unscale_(optimizer)
-                nn.utils.clip_grad_norm_(model.parameters(), CONFIG['grad_clip_max_norm'])
-                if not torch.isnan(loss_tm):
-                    scaler.step(optimizer)
-                    scaler.update()
+                scaler_tm.scale(loss_tm).backward()
+                scaler_tm.unscale_(opt_tm)
+                tm_params = [p for g in opt_tm.param_groups for p in g['params']]
+                nn.utils.clip_grad_norm_(tm_params, CONFIG['grad_clip_max_norm'])
+                scaler_tm.step(opt_tm)
+                scaler_tm.update()
             else:
-                z_mu, log_z_var = model(x_tm, head='tm')
-                nll = 0.5 * torch.exp(-log_z_var) * (z_mu - z_tm)**2 + 0.5 * log_z_var
+                z_mu, z_var = model(emb_tm, aux_tm, head='tm')
+                nll = 0.5 * (z_mu - z_tm)**2 / z_var + 0.5 * torch.log(z_var)
                 loss_tm = (nll * w_tm).mean()
                 loss_tm.backward()
-                nn.utils.clip_grad_norm_(model.parameters(), CONFIG['grad_clip_max_norm'])
-                if not torch.isnan(loss_tm):
-                    optimizer.step()
+                tm_params = [p for g in opt_tm.param_groups for p in g['params']]
+                nn.utils.clip_grad_norm_(tm_params, CONFIG['grad_clip_max_norm'])
+                opt_tm.step()
             train_tm_loss += loss_tm.item()
             
         # Validation
         model.eval()
         val_tm_mae = 0.0
         with torch.no_grad():
-            for x, y, _ in val_tm_loader:
-                x, y = x.to(device), y.to(device)
-                z_mu, _ = model(x, head='tm')
+            for emb, aux, y, _ in val_tm_loader:
+                emb, aux, y = emb.to(device), aux.to(device), y.to(device)
+                z_mu, _ = model(emb, aux, head='tm')
                 pred_y = z_mu * tm_std + tm_mean
                 val_tm_mae += torch.abs(pred_y - y).sum().item()
         val_tm_mae /= len(val_tm_loader.dataset)
         
         val_ogt_mae = 0.0
         with torch.no_grad():
-            for x, y, _ in val_ogt_loader:
-                x, y = x.to(device), y.to(device)
-                pred_o = model(x, head='ogt')
+            for emb, aux, y, _ in val_ogt_loader:
+                emb, aux, y = emb.to(device), aux.to(device), y.to(device)
+                pred_o = model(emb, aux, head='ogt')
                 val_ogt_mae += torch.abs(pred_o - y).sum().item()
         val_ogt_mae /= len(val_ogt_loader.dataset)
         
         if epoch >= 5:
-            scheduler.step(val_tm_mae)
+            sched_tm.step(val_tm_mae)
+            sched_ogt.step(val_ogt_mae)
             
         print(f"  Ep {epoch+1:3d} | Val Tm MAE: {val_tm_mae:.4f}°C | Val OGT MAE: {val_ogt_mae:.4f}°C")
         
-        if val_tm_mae < best_val_mae:
-            best_val_mae = val_tm_mae
-            patience_cnt = 0
-            torch.save(model.state_dict(), best_path)
+        if val_tm_mae < best_tm_mae:
+            best_tm_mae = val_tm_mae
+            patience_tm = 0
+            torch.save(model.state_dict(), path_tm)
         else:
-            patience_cnt += 1
-            if patience_cnt >= patience:
-                print(f"  Early stopping triggered after {epoch+1} epochs.")
-                break
-                
-    return best_path, best_val_mae
+            patience_tm += 1
+            
+        if val_ogt_mae < best_ogt_mae:
+            best_ogt_mae = val_ogt_mae
+            patience_ogt = 0
+            torch.save(model.state_dict(), path_ogt)
+        else:
+            patience_ogt += 1
+            
+        if patience_tm >= patience and patience_ogt >= patience:
+            print(f"  Early stopping triggered for both heads after {epoch+1} epochs.")
+            break
+            
+    return path_tm, best_tm_mae, path_ogt, best_ogt_mae
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--debug", action="store_true", help="Run quick 5-epoch debug test on 1% subset")
+    parser.add_argument("--debug", action="store_true", help="Run quick debug test on subset")
     args = parser.parse_args()
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -344,33 +355,31 @@ def main():
     
     data_path = "data/embeddings/saprot_tm_struct_embeddings.pt"
     print(f"Loading master dataset from {data_path}...")
-    data = torch.load(data_path, map_location='cpu')
+    data = torch.load(data_path, map_location='cpu', weights_only=False)
+    
+    print("Loading true OGT validation set...")
+    ogt_split = torch.load("data/embeddings/prepared_data_v7_saprot1.3b_seqonly_ogt_split.pt", map_location='cpu', weights_only=False)
+    data['val_ogt'] = ogt_split['val_ogt']
     
     if args.debug:
         print("Debug mode enabled: slicing dictionaries to 1% subset before sanitization...")
         for k in ['embeddings', 'sequences', 'tm_consensus', 'ogt', 'tmhmm_tm_binary', 'ids']:
-            if k in data['train_tm']:
-                data['train_tm'][k] = data['train_tm'][k][:200]
-            if k in data['val_tm']:
-                data['val_tm'][k] = data['val_tm'][k][:50]
+            if k in data['train_tm']: data['train_tm'][k] = data['train_tm'][k][:200]
+            if k in data['val_tm']: data['val_tm'][k] = data['val_tm'][k][:50]
         for k in ['embeddings', 'sequences', 'ogt_consensus', 'ogt_original', 'tmhmm_tm_binary', 'ids']:
-            if k in data['train_ogt']:
-                data['train_ogt'][k] = data['train_ogt'][k][:1000]
+            if k in data['train_ogt']: data['train_ogt'][k] = data['train_ogt'][k][:1000]
+            if k in data['val_ogt']: data['val_ogt'][k] = data['val_ogt'][k][:200]
 
     print("Sanitizing datasets...")
     tr_tm_emb, tr_tm_seq, tr_tm_lbl, tr_tm_ogt, tr_tm_tmhmm = sanitize_data(data['train_tm'], is_tm=True)
     val_tm_emb, val_tm_seq, val_tm_lbl, val_tm_ogt, val_tm_tmhmm = sanitize_data(data['val_tm'], is_tm=True)
     tr_ogt_emb, tr_ogt_seq, tr_ogt_lbl, tr_ogt_tmhmm = sanitize_data(data['train_ogt'], is_tm=False)
-    
-    val_ogt_emb = tr_ogt_emb[:min(2000, len(tr_ogt_emb))]
-    val_ogt_seq = tr_ogt_seq[:min(2000, len(tr_ogt_seq))]
-    val_ogt_lbl = tr_ogt_lbl[:min(2000, len(tr_ogt_lbl))]
-    val_ogt_tmhmm = tr_ogt_tmhmm[:min(2000, len(tr_ogt_tmhmm))]
+    val_ogt_emb, val_ogt_seq, val_ogt_lbl, val_ogt_tmhmm = sanitize_data(data['val_ogt'], is_tm=False)
     
     if args.debug:
         seeds = [1]
-        max_epochs = 5
-        patience = 5
+        max_epochs = 2
+        patience = 2
     else:
         seeds = CONFIG['seeds']
         max_epochs = CONFIG['max_epochs']
@@ -380,33 +389,39 @@ def main():
     tm_std = tr_tm_lbl.std().item()
     print(f"Target Tm Z-score scaling | Mean: {tm_mean:.2f}°C, Std: {tm_std:.2f}°C")
     
-    print("Enriching features (1289-dim Tm / 1288-dim OGT)...")
-    tr_tm_x = enrich_inputs(tr_tm_emb, tr_tm_seq, tr_tm_tmhmm, tr_tm_ogt)
-    val_tm_x = enrich_inputs(val_tm_emb, val_tm_seq, val_tm_tmhmm, val_tm_ogt)
-    tr_ogt_x = enrich_inputs(tr_ogt_emb, tr_ogt_seq, tr_ogt_tmhmm)
-    val_ogt_x = enrich_inputs(val_ogt_emb, val_ogt_seq, val_ogt_tmhmm)
+    print("Enriching features (1280-dim embedding + aux features)...")
+    tr_tm_e, tr_tm_aux = enrich_inputs(tr_tm_emb, tr_tm_seq, tr_tm_tmhmm, tr_tm_ogt)
+    val_tm_e, val_tm_aux = enrich_inputs(val_tm_emb, val_tm_seq, val_tm_tmhmm, val_tm_ogt)
+    tr_ogt_e, tr_ogt_aux = enrich_inputs(tr_ogt_emb, tr_ogt_seq, tr_ogt_tmhmm)
+    val_ogt_e, val_ogt_aux = enrich_inputs(val_ogt_emb, val_ogt_seq, val_ogt_tmhmm)
     
     tr_tm_w = compute_bin_weights(tr_tm_lbl, CONFIG['bin_edges'])
     val_tm_w = torch.ones_like(val_tm_lbl)
     tr_ogt_w = compute_bin_weights(tr_ogt_lbl, CONFIG['bin_edges'])
     val_ogt_w = torch.ones_like(val_ogt_lbl)
     
-    train_tm_ds = ProteinDataset(tr_tm_x, tr_tm_lbl, tr_tm_w)
-    val_tm_ds = ProteinDataset(val_tm_x, val_tm_lbl, val_tm_w)
-    train_ogt_ds = ProteinDataset(tr_ogt_x, tr_ogt_lbl, tr_ogt_w)
-    val_ogt_ds = ProteinDataset(val_ogt_x, val_ogt_lbl, val_ogt_w)
+    train_tm_ds = ProteinDataset(tr_tm_e, tr_tm_aux, tr_tm_lbl, tr_tm_w)
+    val_tm_ds = ProteinDataset(val_tm_e, val_tm_aux, val_tm_lbl, val_tm_w)
+    train_ogt_ds = ProteinDataset(tr_ogt_e, tr_ogt_aux, tr_ogt_lbl, tr_ogt_w)
+    val_ogt_ds = ProteinDataset(val_ogt_e, val_ogt_aux, val_ogt_lbl, val_ogt_w)
     
-    save_dir = "experiments/src/training/v8_disjoint/results"
+    save_dir = os.path.join(PROJECT_ROOT, "experiments/src/training/v8_disjoint/results")
     os.makedirs(save_dir, exist_ok=True)
     
-    seed_maes = []
-    for s in seeds:
-        s_dir = os.path.join(save_dir, f"seed{s}")
-        os.makedirs(s_dir, exist_ok=True)
-        _, best_mae = train_seed(s, train_tm_ds, train_ogt_ds, val_tm_ds, val_ogt_ds, tm_mean, tm_std, device, s_dir, max_epochs, patience)
-        seed_maes.append(best_mae)
+    results = {}
+    for seed in seeds:
+        seed_dir = os.path.join(save_dir, f"seed{seed}")
+        os.makedirs(seed_dir, exist_ok=True)
+        path_tm, best_tm, path_ogt, best_ogt = train_seed(
+            seed, train_tm_ds, train_ogt_ds, val_tm_ds, val_ogt_ds,
+            tm_mean, tm_std, device, seed_dir, max_epochs, patience
+        )
+        results[seed] = {'best_val_tm_mae': best_tm, 'best_val_ogt_mae': best_ogt}
+        print(f"Seed {seed} complete | Best Val Tm MAE: {best_tm:.4f}°C | Best Val OGT MAE: {best_ogt:.4f}°C")
         
-    print(f"\nTraining Complete | Mean Val MAE across seeds: {np.mean(seed_maes):.4f}°C")
+    avg_tm = np.mean([r['best_val_tm_mae'] for r in results.values()])
+    avg_ogt = np.mean([r['best_val_ogt_mae'] for r in results.values()])
+    print(f"\n{'='*50}\nTraining Complete. 5-Seed Ensemble Summary:\nAvg Val Tm MAE: {avg_tm:.4f}°C | Avg Val OGT MAE: {avg_ogt:.4f}°C\n{'='*50}")
 
 if __name__ == "__main__":
     main()

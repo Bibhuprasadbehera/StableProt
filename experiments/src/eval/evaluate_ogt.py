@@ -83,16 +83,18 @@ def df_to_markdown(df):
     return "\n".join(lines)
 
 def evaluate_v8_ogt(embeddings, sequences, device):
-    x_1288 = enrich_inputs(embeddings, sequences, tmhmm_flags=None, ogt_priors=None)
+    emb_v8, aux_v8 = enrich_inputs(embeddings, sequences, tmhmm_flags=None, ogt_priors=None)
     v8_preds = []
     for s in range(1, 6):
-        p = PROJECT_ROOT / f"experiments/src/training/v8_disjoint/results/seed{s}/model.pt"
+        p_ogt = PROJECT_ROOT / f"experiments/src/training/v8_disjoint/results/seed{s}/model_ogt.pt"
+        p_comb = PROJECT_ROOT / f"experiments/src/training/v8_disjoint/results/seed{s}/model.pt"
+        p = p_ogt if p_ogt.exists() else p_comb
         if p.exists():
             model = MultiHeadSaProtV8().to(device)
             model.load_state_dict(torch.load(p, map_location=device, weights_only=False))
             model.eval()
             with torch.no_grad():
-                out = model(x_1288.to(device), head='ogt').cpu().numpy().squeeze()
+                out = model(emb_v8.to(device), aux_v8.to(device), head='ogt').cpu().numpy().squeeze()
             v8_preds.append(out)
     return np.mean(v8_preds, axis=0) if v8_preds else None
 

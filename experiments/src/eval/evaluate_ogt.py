@@ -95,6 +95,13 @@ def evaluate_v8_ogt(embeddings, sequences, device):
             model.eval()
             with torch.no_grad():
                 out = model(emb_v8.to(device), aux_v8.to(device), head='ogt').cpu().numpy().squeeze()
+            norm_p = PROJECT_ROOT / f"experiments/src/training/v8_disjoint/results/seed{s}/normalization_stats.pt"
+            if not norm_p.exists():
+                norm_p = PROJECT_ROOT / "experiments/src/training/v8_disjoint/results/normalization_stats.pt"
+            if norm_p.exists():
+                norms = torch.load(norm_p, map_location='cpu', weights_only=False)
+                if 'ogt_mean' in norms and 'ogt_std' in norms:
+                    out = out * norms['ogt_std'] + norms['ogt_mean']
             v8_preds.append(out)
     return np.mean(v8_preds, axis=0) if v8_preds else None
 

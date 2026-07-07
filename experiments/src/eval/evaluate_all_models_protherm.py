@@ -216,13 +216,18 @@ def main():
     df_p = pd.read_csv(protherm_csv)
     protherm_dict = {str(row['UniProt_ID']): float(row['Tm']) for _, row in df_p.iterrows() if not np.isnan(row['Tm'])}
     
-    # Load V7 training sequences to eliminate evaluation overlap contamination
+    # Load V7 & V8 training sequences to eliminate evaluation overlap contamination
     v7_train_path = os.path.join(PROJECT_ROOT, "data/embeddings/prepared_data_v7_saprot1.3b_seqonly.pt")
     train_seqs_set = set()
     if os.path.exists(v7_train_path):
         v7_data_tmp = torch.load(v7_train_path, map_location='cpu', weights_only=False)
         if 'train_tm' in v7_data_tmp and 'sequences' in v7_data_tmp['train_tm']:
             train_seqs_set = {str(s).upper() for s in v7_data_tmp['train_tm']['sequences']}
+    v8_train_path = os.path.join(PROJECT_ROOT, "data/embeddings/saprot_tm_struct_embeddings.pt")
+    if os.path.exists(v8_train_path):
+        v8_data_tmp = torch.load(v8_train_path, map_location='cpu', weights_only=False)
+        if 'train_tm' in v8_data_tmp and 'sequences' in v8_data_tmp['train_tm']:
+            train_seqs_set.update({str(s).upper() for s in v8_data_tmp['train_tm']['sequences']})
 
     protherm_seqs = []
     y_true_list = []
@@ -492,6 +497,11 @@ def main():
             pt_tm = os.path.join(PROJECT_ROOT, f"experiments/src/training/v8_disjoint/results/seed{s}/model_tm.pt")
             pt_ogt = os.path.join(PROJECT_ROOT, f"experiments/src/training/v8_disjoint/results/seed{s}/model_ogt.pt")
             pt_comb = os.path.join(PROJECT_ROOT, f"experiments/src/training/v8_disjoint/results/seed{s}/model.pt")
+            norm_p = os.path.join(PROJECT_ROOT, f"experiments/src/training/v8_disjoint/results/seed{s}/normalization_stats.pt")
+            if not os.path.exists(norm_p):
+                norm_p = os.path.join(PROJECT_ROOT, "experiments/src/training/v8_disjoint/results/normalization_stats.pt")
+            norms = torch.load(norm_p, map_location='cpu', weights_only=False) if os.path.exists(norm_p) else {}
+            
             m_t, m_o = None, None
             if os.path.exists(pt_tm) and os.path.exists(pt_ogt):
                 m_t = MultiHeadSaProtV8().to(device)
@@ -507,8 +517,10 @@ def main():
                 m_o.eval()
                 with torch.no_grad():
                     emb_o, aux_o = enrich_inputs_v8(embs_v8, protherm_seqs, tmhmm_flags=None, ogt_priors=None)
-                    pred_ogt = m_o(emb_o.to(device), aux_o.to(device), head='ogt')
-                    emb_t, aux_t = enrich_inputs_v8(embs_v8, protherm_seqs, tmhmm_flags=None, ogt_priors=pred_ogt.cpu().numpy())
+                    pred_ogt = m_o(emb_o.to(device), aux_o.to(device), head='ogt').cpu()
+                    if 'ogt_mean' in norms and 'ogt_std' in norms:
+                        pred_ogt = pred_ogt * norms['ogt_std'] + norms['ogt_mean']
+                    emb_t, aux_t = enrich_inputs_v8(embs_v8, protherm_seqs, tmhmm_flags=None, ogt_priors=pred_ogt.numpy())
                     z_mu, _ = m_t(emb_t.to(device), aux_t.to(device), head='tm')
                     out = (z_mu.cpu() * tm_std_v8 + tm_mean_v8).numpy()
                 v8_preds.append(out)

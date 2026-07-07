@@ -20,36 +20,59 @@ except ImportError:
     from config import CONFIG
     from train import MultiHeadSaProtV8, enrich_inputs, sanitize_data
 
-def evaluate_ensemble_2stage(models_tm, models_ogt, embs, seqs, tmhmms, tm_mean, tm_std, device):
-    """Run 2-stage forward pass across ensemble models."""
+def evaluate_ensemble_1stage(models_tm, embs, seqs, tmhmms, ogt_trues, tm_mean, tm_std, device):
+    """Run 1-stage forward pass using true OGT priors (evaluates pure Tm head quality)."""
     mus = []
-    log_vars = []
+    vars_list = []
+    with torch.no_grad():
+        for m_tm in models_tm:
+            m_tm.eval()
+            emb_t, aux_t = enrich_inputs(embs, seqs, tmhmms, ogt_priors=ogt_trues)
+            z_mu, z_lv = m_tm(emb_t.to(device), aux_t.to(device), head='tm')
+            pred_mu = z_mu.cpu() * tm_std + tm_mean
+            pred_var = z_lv.cpu() * (tm_std ** 2)
+            mus.append(pred_mu)
+            vars_list.append(pred_var)
+            
+    mus_stack = torch.stack(mus, dim=0)
+    vars_stack = torch.stack(vars_list, dim=0)
+    weights = 1.0 / (vars_stack + 1e-6)
+    ens_mu = (mus_stack * weights).sum(dim=0) / weights.sum(dim=0)
+    total_var = 1.0 / weights.sum(dim=0)
+    return ens_mu, torch.sqrt(total_var)
+
+def evaluate_ensemble_2stage(models_tm, models_ogt, embs, seqs, tmhmms, tm_mean, tm_std, device, ogt_mean=None, ogt_std=None):
+    """Run 2-stage forward pass across ensemble models (no TTA)."""
+    mus = []
+    vars_list = []
     with torch.no_grad():
         for m_tm, m_ogt in zip(models_tm, models_ogt):
             m_tm.eval()
             m_ogt.eval()
-            
-            # Stage 1: Predict OGT
+
+            # Forward pass
             emb_o, aux_o = enrich_inputs(embs, seqs, tmhmms, ogt_priors=None)
             pred_ogt = m_ogt(emb_o.to(device), aux_o.to(device), head='ogt')
-            
-            # Stage 2: Predict Tm using predicted OGT prior
-            emb_t, aux_t = enrich_inputs(embs, seqs, tmhmms, ogt_priors=pred_ogt.cpu().numpy())
+            if ogt_mean is not None and ogt_std is not None:
+                pred_ogt_raw = pred_ogt.cpu() * ogt_std + ogt_mean
+            else:
+                pred_ogt_raw = pred_ogt.cpu()
+                
+            emb_t, aux_t = enrich_inputs(embs, seqs, tmhmms, ogt_priors=pred_ogt_raw.numpy())
             z_mu, z_lv = m_tm(emb_t.to(device), aux_t.to(device), head='tm')
-            
             pred_mu = z_mu.cpu() * tm_std + tm_mean
             pred_var = z_lv.cpu() * (tm_std ** 2)
             mus.append(pred_mu)
-            log_vars.append(torch.log(pred_var + 1e-8))
-            
+            vars_list.append(pred_var)
+
     mus_stack = torch.stack(mus, dim=0)
-    vars_stack = torch.exp(torch.stack(log_vars, dim=0))
-    
-    ens_mu = mus_stack.mean(dim=0)
-    alea_var = vars_stack.mean(dim=0)
-    epis_var = mus_stack.var(dim=0)
-    total_var = alea_var + epis_var
-    
+    vars_stack = torch.stack(vars_list, dim=0)
+
+    # Confidence-weighted ensemble: weight by inverse variance
+    weights = 1.0 / (vars_stack + 1e-6)
+    ens_mu = (mus_stack * weights).sum(dim=0) / weights.sum(dim=0)
+    total_var = 1.0 / weights.sum(dim=0)
+
     return ens_mu, torch.sqrt(total_var)
 
 def compute_metrics(y_true, y_pred):
@@ -125,13 +148,37 @@ def main():
     embs = test_data['embeddings']
     seqs = test_data['sequences']
     lbls = test_data['tm_consensus']
+    ogts = test_data.get('ogt', [50.0]*len(seqs))
     tmhmms = test_data.get('tmhmm_tm_binary', [0]*len(seqs))
     sources = test_data.get('source', ['test']*len(seqs))
     
-    preds_mu, preds_sigma = evaluate_ensemble_2stage(models_tm, models_ogt, embs, seqs, tmhmms, tm_mean, tm_std, device)
+    norm_path = os.path.join(args.models_dir, 'normalization_stats.pt')
+    if os.path.exists(norm_path):
+        norms = torch.load(norm_path, map_location='cpu')
+        ogt_mean, ogt_std = norms.get('ogt_mean'), norms.get('ogt_std')
+    else:
+        ogt_mean, ogt_std = None, None
+        
+    # 1. Evaluate 1-Stage (True OGT Priors - M2 Check)
+    preds_mu_1s, _ = evaluate_ensemble_1stage(models_tm, embs, seqs, tmhmms, ogts, tm_mean, tm_std, device)
+    metrics_1s = compute_metrics(lbls, preds_mu_1s.numpy())
     
-    overall = compute_metrics(lbls, preds_mu.numpy())
-    print(f"\nOverall Internal Test Set (N={len(lbls)}): MAE={overall['MAE']:.4f}°C | PCC={overall['PCC']:.4f} | R2={overall['R2']:.4f}")
+    # 2. Evaluate 2-Stage (Predicted OGT Priors - M3 Check)
+    preds_mu_2s, preds_sigma_2s = evaluate_ensemble_2stage(
+        models_tm, models_ogt, embs, seqs, tmhmms, tm_mean, tm_std, device, ogt_mean, ogt_std)
+    metrics_2s = compute_metrics(lbls, preds_mu_2s.numpy())
+    
+    # 3. Uncertainty Calibration Check (M5)
+    errs_2s = np.abs(lbls - preds_mu_2s.numpy())
+    unc_corr, _ = spearmanr(preds_sigma_2s.numpy(), errs_2s)
+    
+    print(f"\n{'='*60}")
+    print(f"Internal Test Set Results (N={len(lbls)}):")
+    print(f"  1-Stage (True OGT)      | MAE: {metrics_1s['MAE']:.4f}°C | PCC: {metrics_1s['PCC']:.4f} | R2: {metrics_1s['R2']:.4f}")
+    print(f"  2-Stage (Predicted OGT) | MAE: {metrics_2s['MAE']:.4f}°C | PCC: {metrics_2s['PCC']:.4f} | R2: {metrics_2s['R2']:.4f}")
+    print(f"  2-Stage Error Penalty   | +{metrics_2s['MAE'] - metrics_1s['MAE']:.4f}°C (M3 Amplification Check)")
+    print(f"  Uncertainty Calibration | Spearman Corr(sigma, |error|): {unc_corr:.4f} (M5 Check)")
+    print(f"{'='*60}\n")
 
 if __name__ == "__main__":
     main()

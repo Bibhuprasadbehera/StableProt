@@ -19,7 +19,7 @@ import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 from tqdm import tqdm
 
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
+PROJECT_ROOT = Path(__file__).resolve().parents[4]
 sys.path.append(str(PROJECT_ROOT / "experiments" / "src" / "training" / "v8_disjoint"))
 from config import CONFIG
 
@@ -72,7 +72,7 @@ def enrich_inputs(embeddings, sequences, tmhmm_flags=None, ogt_priors=None):
     return embeddings.float(), aux
 
 class MultiHeadSaProtV8(nn.Module):
-    def __init__(self, emb_dim=1280, aux_dim_tm=9, aux_dim_ogt=8, proj_dim=None, hidden1=512, hidden2=256, dropout1=0.3, dropout2=0.2):
+    def __init__(self, emb_dim=1280, aux_dim_tm=9, aux_dim_ogt=8, proj_dim=64, hidden1=512, hidden2=256, dropout1=0.3, dropout2=0.2):
         super().__init__()
         self.proj_dim = proj_dim
         if proj_dim is not None:
@@ -132,26 +132,98 @@ class MultiHeadSaProtV8(nn.Module):
             return self.head_ogt(h2).squeeze(-1)
 
 class ProteinDataset(Dataset):
-    def __init__(self, emb, aux, y, weights=None):
+    def __init__(self, emb, aux, y, weights=None, augment=False):
         self.emb = emb
         self.aux = aux
         self.y = y
         self.weights = weights if weights is not None else torch.ones_like(y)
+        self.augment = augment
     def __len__(self):
         return len(self.y)
     def __getitem__(self, idx):
-        return self.emb[idx], self.aux[idx], self.y[idx], self.weights[idx]
+        e, a, y, w = self.emb[idx], self.aux[idx], self.y[idx], self.weights[idx]
+        if self.augment and torch.rand(1).item() < 0.15:
+            noise = torch.randn_like(e) * 0.02
+            e = e + noise
+        return e, a, y, w
 
-def compute_bin_weights(labels, bin_edges, clamp_min=0.5, clamp_max=5.0):
+def compute_bin_weights(labels, bin_edges, clamp_min=0.3, clamp_max=22.0, power=0.75):
     labels_np = labels.numpy() if hasattr(labels, 'numpy') else np.array(labels)
     bin_idx = np.digitize(labels_np, bin_edges) - 1
     bin_idx = np.clip(bin_idx, 0, len(bin_edges) - 2)
     counts = np.bincount(bin_idx, minlength=len(bin_edges)-1).astype(float)
     counts[counts == 0] = 1.0
     med = np.median(counts[counts > 0])
-    w = np.sqrt(med / counts)
-    w = np.clip(w, clamp_min, clamp_max)
+    w = np.clip((med / counts) ** power, clamp_min, clamp_max)
     return torch.tensor(w[bin_idx], dtype=torch.float32)
+
+def build_tm_iqr_weights(train_sequences):
+    """Compute inverse-IQR sample weights from raw cross-database Tm readings."""
+    import pandas as pd
+    
+    meltome = pd.read_csv(str(PROJECT_ROOT / 'data/flip_meltome/mixed_split.csv'))
+    tember_files = [
+        PROJECT_ROOT / 'benchmark_models_tm/TemBERTure_repo/data/TemBERTureTrain_reg.txt',
+        PROJECT_ROOT / 'benchmark_models_tm/TemBERTure_repo/data/TemBERTureVal_reg.txt',
+        PROJECT_ROOT / 'benchmark_models_tm/TemBERTure_repo/data/TemBERTureTest_reg.txt',
+    ]
+    tember = pd.concat([pd.read_csv(str(f)) for f in tember_files], ignore_index=True)
+    
+    m_sub = meltome[['sequence', 'label']].rename(columns={'label': 'tm'})
+    t_sub = tember[['Sequence', 'Tm']].rename(columns={'Sequence': 'sequence', 'Tm': 'tm'})
+    combined = pd.concat([m_sub, t_sub], ignore_index=True)
+    
+    def iqr(x):
+        return np.percentile(x, 75) - np.percentile(x, 25)
+    
+    seq_iqr = combined.groupby('sequence')['tm'].agg(['count', iqr])
+    seq_iqr.columns = ['count', 'iqr']
+    seq_iqr_map = seq_iqr[seq_iqr['count'] > 1]['iqr'].to_dict()
+    
+    weights = []
+    matched = 0
+    iqr_scale = CONFIG.get('iqr_scale', 6.34)
+    iqr_impute = CONFIG.get('iqr_impute_val', 0.62)
+    for seq in train_sequences:
+        s = str(seq)
+        if s in seq_iqr_map:
+            w = 1.0 / (1.0 + (seq_iqr_map[s] / iqr_scale) ** 2)
+            matched += 1
+        else:
+            w = 1.0 / (1.0 + (iqr_impute / iqr_scale) ** 2)
+        weights.append(w)
+    
+    print(f"  IQR weights: {matched}/{len(train_sequences)} sequences matched ({100*matched/len(train_sequences):.1f}%)")
+    return torch.tensor(weights, dtype=torch.float32)
+
+def focal_huber_loss(pred, target, delta=15.0, gamma=2.0, beta=0.5, weights=None):
+    """Focal regression: upweight hard examples (large errors) with Huber base."""
+    huber = F.huber_loss(pred, target, delta=delta, reduction='none')
+    error = torch.abs(pred - target).detach()
+    focal_weight = (error / (error + beta)) ** gamma
+    loss = huber * focal_weight
+    if weights is not None:
+        loss = loss * weights
+    return loss.mean()
+
+class MesophilicSubsampler:
+    """Per-epoch random subsampler that keeps mesophilic OGT samples."""
+    def __init__(self, labels, meso_low=25.0, meso_high=40.0, keep_rate=0.14):
+        labels_np = labels.numpy() if hasattr(labels, 'numpy') else np.array(labels)
+        self.meso_mask = (labels_np >= meso_low) & (labels_np <= meso_high)
+        self.non_meso_idx = np.where(~self.meso_mask)[0]
+        self.meso_idx = np.where(self.meso_mask)[0]
+        self.keep_rate = keep_rate
+        self.n_meso_keep = int(len(self.meso_idx) * keep_rate)
+        print(f"  MesophilicSubsampler: {len(self.meso_idx)} mesophilic ({meso_low}-{meso_high}°C), "
+              f"keeping {self.n_meso_keep}/epoch + {len(self.non_meso_idx)} non-mesophilic")
+    
+    def sample_epoch_indices(self):
+        """Return shuffled indices for one epoch."""
+        meso_sample = np.random.choice(self.meso_idx, size=self.n_meso_keep, replace=False)
+        all_idx = np.concatenate([self.non_meso_idx, meso_sample])
+        np.random.shuffle(all_idx)
+        return all_idx
 
 def sanitize_data(dict_data, is_tm=True):
     seqs = dict_data['sequences']
@@ -186,14 +258,14 @@ def sanitize_data(dict_data, is_tm=True):
     else:
         return embs_sub, seqs_sub, lbls_sub, tmhmm_sub
 
-def train_seed(seed, train_tm_ds, train_ogt_ds, val_tm_ds, val_ogt_ds, tm_mean, tm_std, device, save_dir, max_epochs, patience):
+def train_seed(seed, train_tm_ds, train_ogt_ds, val_tm_ds, val_ogt_ds, tm_mean, tm_std, ogt_mean, ogt_std, ogt_subsampler, device, save_dir, max_epochs, patience):
     print(f"\n{'='*50}\nTraining V8 Disjoint Architecture (Seed {seed})\n{'='*50}")
     torch.manual_seed(seed)
     np.random.seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
         
-    model = MultiHeadSaProtV8().to(device)
+    model = MultiHeadSaProtV8(proj_dim=CONFIG.get('proj_dim', 64)).to(device)
     
     opt_tm = optim.AdamW([
         {'params': model.aux_proj_tm.parameters(), 'lr': CONFIG['learning_rate']},
@@ -215,8 +287,10 @@ def train_seed(seed, train_tm_ds, train_ogt_ds, val_tm_ds, val_ogt_ds, tm_mean, 
         {'params': model.head_ogt.parameters(), 'lr': CONFIG['learning_rate']},
     ], weight_decay=CONFIG['weight_decay'])
     
-    sched_tm = optim.lr_scheduler.ReduceLROnPlateau(opt_tm, mode='min', factor=0.5, patience=4, min_lr=1e-6)
-    sched_ogt = optim.lr_scheduler.ReduceLROnPlateau(opt_ogt, mode='min', factor=0.5, patience=4, min_lr=1e-6)
+    sched_tm = optim.lr_scheduler.CosineAnnealingWarmRestarts(
+        opt_tm, T_0=CONFIG.get('scheduler_T0', 10), T_mult=CONFIG.get('scheduler_Tmult', 2), eta_min=1e-6)
+    sched_ogt = optim.lr_scheduler.CosineAnnealingWarmRestarts(
+        opt_ogt, T_0=CONFIG.get('scheduler_T0', 10), T_mult=CONFIG.get('scheduler_Tmult', 2), eta_min=1e-6)
     scaler_ogt = torch.amp.GradScaler('cuda') if torch.cuda.is_available() else None
     scaler_tm = torch.amp.GradScaler('cuda') if torch.cuda.is_available() else None
     
@@ -238,19 +312,34 @@ def train_seed(seed, train_tm_ds, train_ogt_ds, val_tm_ds, val_ogt_ds, tm_mean, 
         train_tm_loss = 0.0
         train_ogt_loss = 0.0
         
+        # Per-epoch OGT subsampling
+        if ogt_subsampler is not None:
+            epoch_idx = ogt_subsampler.sample_epoch_indices()
+            epoch_ogt_ds = torch.utils.data.Subset(train_ogt_ds, epoch_idx)
+            ogt_loader = DataLoader(epoch_ogt_ds, batch_size=CONFIG['batch_size'], shuffle=True, drop_last=True)
+        
+        tm_iter = iter(cycle(tm_loader))
+        
         pbar = tqdm(ogt_loader, desc=f"Seed {seed} | Ep {epoch+1}/{max_epochs}", leave=False)
         for emb_ogt, aux_ogt, y_ogt, w_ogt in pbar:
             # 1. OGT Step
             emb_ogt, aux_ogt, y_ogt, w_ogt = emb_ogt.to(device), aux_ogt.to(device), y_ogt.to(device), w_ogt.to(device)
             if CONFIG.get('target_jitter_std', 0.5) > 0:
-                y_ogt = y_ogt + torch.randn_like(y_ogt) * CONFIG.get('target_jitter_std', 0.5)
+                y_ogt_raw = y_ogt * ogt_std + ogt_mean
+                y_ogt_raw = y_ogt_raw + torch.randn_like(y_ogt_raw) * CONFIG['target_jitter_std']
+                y_ogt = (y_ogt_raw - ogt_mean) / ogt_std
                 
             opt_ogt.zero_grad()
             if scaler_ogt:
                 with torch.amp.autocast('cuda'):
                     pred_o = model(emb_ogt, aux_ogt, head='ogt')
-                    huber = nn.functional.huber_loss(pred_o, y_ogt, delta=CONFIG['huber_delta'], reduction='none')
-                    loss_ogt = (huber * w_ogt).mean()
+                    loss_ogt = focal_huber_loss(
+                        pred_o, y_ogt,
+                        delta=CONFIG['huber_delta_ogt'] / ogt_std,
+                        gamma=CONFIG['focal_gamma'],
+                        beta=CONFIG['focal_beta'],
+                        weights=w_ogt
+                    )
                 scaler_ogt.scale(loss_ogt).backward()
                 scaler_ogt.unscale_(opt_ogt)
                 ogt_params = [p for g in opt_ogt.param_groups for p in g['params']]
@@ -259,8 +348,13 @@ def train_seed(seed, train_tm_ds, train_ogt_ds, val_tm_ds, val_ogt_ds, tm_mean, 
                 scaler_ogt.update()
             else:
                 pred_o = model(emb_ogt, aux_ogt, head='ogt')
-                huber = nn.functional.huber_loss(pred_o, y_ogt, delta=CONFIG['huber_delta'], reduction='none')
-                loss_ogt = (huber * w_ogt).mean()
+                loss_ogt = focal_huber_loss(
+                    pred_o, y_ogt,
+                    delta=CONFIG['huber_delta_ogt'] / ogt_std,
+                    gamma=CONFIG['focal_gamma'],
+                    beta=CONFIG['focal_beta'],
+                    weights=w_ogt
+                )
                 loss_ogt.backward()
                 ogt_params = [p for g in opt_ogt.param_groups for p in g['params']]
                 nn.utils.clip_grad_norm_(ogt_params, CONFIG['grad_clip_max_norm'])
@@ -272,9 +366,16 @@ def train_seed(seed, train_tm_ds, train_ogt_ds, val_tm_ds, val_ogt_ds, tm_mean, 
             emb_tm, aux_tm, y_tm, w_tm = emb_tm.to(device), aux_tm.to(device), y_tm.to(device), w_tm.to(device)
             if CONFIG.get('target_jitter_std', 0.5) > 0:
                 y_tm = y_tm + torch.randn_like(y_tm) * CONFIG.get('target_jitter_std', 0.5)
-            if CONFIG.get('tm_ogt_noise_std', 4.0) > 0:
+            if CONFIG.get('tm_ogt_noise_std', 6.0) > 0:
                 aux_tm = aux_tm.clone()
-                aux_tm[:, 0] = aux_tm[:, 0] + (torch.randn_like(aux_tm[:, 0]) * CONFIG.get('tm_ogt_noise_std', 4.0)) / 100.0
+                aux_tm[:, 0] = aux_tm[:, 0] + (torch.randn_like(aux_tm[:, 0]) * CONFIG.get('tm_ogt_noise_std', 6.0)) / 100.0
+                
+            if CONFIG.get('mixup_alpha', 0) > 0:
+                lam = np.random.beta(CONFIG['mixup_alpha'], CONFIG['mixup_alpha'])
+                idx = torch.randperm(emb_tm.size(0))
+                emb_tm = lam * emb_tm + (1 - lam) * emb_tm[idx]
+                y_tm = lam * y_tm + (1 - lam) * y_tm[idx]
+                w_tm = lam * w_tm + (1 - lam) * w_tm[idx]
                 
             z_tm = (y_tm - tm_mean) / tm_std
             
@@ -316,12 +417,12 @@ def train_seed(seed, train_tm_ds, train_ogt_ds, val_tm_ds, val_ogt_ds, tm_mean, 
             for emb, aux, y, _ in val_ogt_loader:
                 emb, aux, y = emb.to(device), aux.to(device), y.to(device)
                 pred_o = model(emb, aux, head='ogt')
-                val_ogt_mae += torch.abs(pred_o - y).sum().item()
+                pred_o_raw = pred_o * ogt_std + ogt_mean
+                val_ogt_mae += torch.abs(pred_o_raw - y).sum().item()
         val_ogt_mae /= len(val_ogt_loader.dataset)
         
-        if epoch >= 5:
-            sched_tm.step(val_tm_mae)
-            sched_ogt.step(val_ogt_mae)
+        sched_tm.step()
+        sched_ogt.step()
             
         print(f"  Ep {epoch+1:3d} | Val Tm MAE: {val_tm_mae:.4f}°C | Val OGT MAE: {val_ogt_mae:.4f}°C")
         
@@ -387,7 +488,10 @@ def main():
         
     tm_mean = tr_tm_lbl.mean().item()
     tm_std = tr_tm_lbl.std().item()
-    print(f"Target Tm Z-score scaling | Mean: {tm_mean:.2f}°C, Std: {tm_std:.2f}°C")
+    ogt_mean = tr_ogt_lbl.mean().item()
+    ogt_std = tr_ogt_lbl.std().item()
+    print(f"Target Tm Z-score scaling  | Mean: {tm_mean:.2f}°C, Std: {tm_std:.2f}°C")
+    print(f"Target OGT Z-score scaling | Mean: {ogt_mean:.2f}°C, Std: {ogt_std:.2f}°C")
     
     print("Enriching features (1280-dim embedding + aux features)...")
     tr_tm_e, tr_tm_aux = enrich_inputs(tr_tm_emb, tr_tm_seq, tr_tm_tmhmm, tr_tm_ogt)
@@ -395,18 +499,37 @@ def main():
     tr_ogt_e, tr_ogt_aux = enrich_inputs(tr_ogt_emb, tr_ogt_seq, tr_ogt_tmhmm)
     val_ogt_e, val_ogt_aux = enrich_inputs(val_ogt_emb, val_ogt_seq, val_ogt_tmhmm)
     
-    tr_tm_w = compute_bin_weights(tr_tm_lbl, CONFIG['bin_edges'])
+    print("Computing inverse-IQR weights from raw Meltome + TemBERTure data...")
+    tm_iqr_weights = build_tm_iqr_weights(tr_tm_seq)
+    tr_tm_w = compute_bin_weights(tr_tm_lbl, CONFIG['bin_edges'],
+        CONFIG['weight_clamp_min'], CONFIG['weight_clamp_max'], CONFIG.get('weight_power', 0.75))
+    tr_tm_w = tr_tm_w * tm_iqr_weights
     val_tm_w = torch.ones_like(val_tm_lbl)
-    tr_ogt_w = compute_bin_weights(tr_ogt_lbl, CONFIG['bin_edges'])
+    
+    tr_ogt_w = compute_bin_weights(tr_ogt_lbl, CONFIG['bin_edges'],
+        CONFIG['weight_clamp_min'], CONFIG['weight_clamp_max'], CONFIG.get('weight_power', 0.75))
     val_ogt_w = torch.ones_like(val_ogt_lbl)
     
-    train_tm_ds = ProteinDataset(tr_tm_e, tr_tm_aux, tr_tm_lbl, tr_tm_w)
+    if CONFIG.get('ogt_normalize', False):
+        tr_ogt_lbl_z = (tr_ogt_lbl - ogt_mean) / ogt_std
+    else:
+        tr_ogt_lbl_z = tr_ogt_lbl
+        
+    train_tm_ds = ProteinDataset(tr_tm_e, tr_tm_aux, tr_tm_lbl, tr_tm_w, augment=True)
     val_tm_ds = ProteinDataset(val_tm_e, val_tm_aux, val_tm_lbl, val_tm_w)
-    train_ogt_ds = ProteinDataset(tr_ogt_e, tr_ogt_aux, tr_ogt_lbl, tr_ogt_w)
+    train_ogt_ds = ProteinDataset(tr_ogt_e, tr_ogt_aux, tr_ogt_lbl_z, tr_ogt_w, augment=True)
     val_ogt_ds = ProteinDataset(val_ogt_e, val_ogt_aux, val_ogt_lbl, val_ogt_w)
+    
+    ogt_subsampler = MesophilicSubsampler(
+        tr_ogt_lbl,
+        keep_rate=CONFIG.get('ogt_subsample_meso_rate', 0.14)
+    ) if CONFIG.get('ogt_subsample_meso_rate', 1.0) < 1.0 else None
     
     save_dir = os.path.join(PROJECT_ROOT, "experiments/src/training/v8_disjoint/results")
     os.makedirs(save_dir, exist_ok=True)
+    
+    torch.save({'tm_mean': tm_mean, 'tm_std': tm_std, 'ogt_mean': ogt_mean, 'ogt_std': ogt_std},
+               os.path.join(save_dir, 'normalization_stats.pt'))
     
     results = {}
     for seed in seeds:
@@ -414,7 +537,7 @@ def main():
         os.makedirs(seed_dir, exist_ok=True)
         path_tm, best_tm, path_ogt, best_ogt = train_seed(
             seed, train_tm_ds, train_ogt_ds, val_tm_ds, val_ogt_ds,
-            tm_mean, tm_std, device, seed_dir, max_epochs, patience
+            tm_mean, tm_std, ogt_mean, ogt_std, ogt_subsampler, device, seed_dir, max_epochs, patience
         )
         results[seed] = {'best_val_tm_mae': best_tm, 'best_val_ogt_mae': best_ogt}
         print(f"Seed {seed} complete | Best Val Tm MAE: {best_tm:.4f}°C | Best Val OGT MAE: {best_ogt:.4f}°C")

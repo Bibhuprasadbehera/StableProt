@@ -104,6 +104,35 @@ def load_v7_ensemble(device):
             models.append(model)
     return models
 
+def evaluate_v8_ensemble(embeddings, sequences, device):
+    print("Loading 5-seed ensemble of StableProt V8 (Ours)...")
+    v8_dir = str(PROJECT_ROOT / "experiments/src/training/v8_disjoint")
+    if v8_dir not in sys.path:
+        sys.path.insert(0, v8_dir)
+    from train import MultiHeadSaProtV8, enrich_inputs
+    
+    emb_v8, aux_v8 = enrich_inputs(embeddings, sequences, tmhmm_flags=None, ogt_priors=None)
+    v8_preds = []
+    for s in range(1, 6):
+        p_ogt = PROJECT_ROOT / f"experiments/src/training/v8_disjoint/results/seed{s}/model_ogt.pt"
+        p_comb = PROJECT_ROOT / f"experiments/src/training/v8_disjoint/results/seed{s}/model.pt"
+        p = p_ogt if p_ogt.exists() else p_comb
+        if p.exists():
+            model = MultiHeadSaProtV8().to(device)
+            model.load_state_dict(torch.load(p, map_location=device, weights_only=False))
+            model.eval()
+            with torch.no_grad():
+                out = model(emb_v8.to(device), aux_v8.to(device), head='ogt').cpu().numpy().squeeze()
+            norm_p = PROJECT_ROOT / f"experiments/src/training/v8_disjoint/results/seed{s}/normalization_stats.pt"
+            if not norm_p.exists():
+                norm_p = PROJECT_ROOT / "experiments/src/training/v8_disjoint/results/normalization_stats.pt"
+            if norm_p.exists():
+                norms = torch.load(norm_p, map_location='cpu', weights_only=False)
+                if 'ogt_mean' in norms and 'ogt_std' in norms:
+                    out = out * norms['ogt_std'] + norms['ogt_mean']
+            v8_preds.append(out)
+    return np.mean(v8_preds, axis=0) if v8_preds else None
+
 def run_prime(sequences):
     print("Running PRIME baseline inference on CPU...")
     device = torch.device('cpu')
@@ -165,14 +194,15 @@ def main():
     print(f"Loaded {len(df)} OOD benchmark sequences.")
     y_true = df['ogt'].values
 
-    # 1. StableProt V7
+    # 1. StableProt V7 & V8
     X = extract_embeddings(df, device)
     models = load_v7_ensemble(device)
     preds_list = []
     with torch.no_grad():
         for m in models:
             preds_list.append(m(X, task='ogt').cpu().numpy().squeeze())
-    y_v7 = np.mean(preds_list, axis=0)
+    y_v7 = np.mean(preds_list, axis=0) if preds_list else None
+    y_v8 = evaluate_v8_ensemble(X, df['sequence'].tolist(), device)
 
     # Load or compute baselines
     baselines = {}
@@ -191,7 +221,8 @@ def main():
 
     # Compute comparison table
     model_preds = {
-        'StableProt V7 (Ours)': y_v7,
+        'StableProt V8 (Ours)': y_v8,
+        'StableProt V7': y_v7,
         'PRIME (AI4Protein/Prime_690M)': baselines.get('PRIME', None),
         'ThermoFormer (GinnM/ThermoFormer)': baselines.get('ThermoFormer', None)
     }

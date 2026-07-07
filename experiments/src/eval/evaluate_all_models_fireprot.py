@@ -245,12 +245,31 @@ def main():
     saprot_data_path = os.path.join(PROJECT_ROOT, "data/test_data/fireprot_holdout_saprot.pt")
     
     d_prott5 = torch.load(prott5_data_path, map_location='cpu', weights_only=False)
-    x_prott5 = d_prott5['embeddings_prott5'].to(device)
-    x_esm2 = d_prott5['embeddings_esm2'].to(device)
-    y_true = d_prott5['temperatures'].numpy() if hasattr(d_prott5['temperatures'], 'numpy') else np.array(d_prott5['temperatures'])
-    
     d_saprot = torch.load(saprot_data_path, map_location='cpu', weights_only=False)
-    x_saprot = d_saprot['embeddings_saprot'].to(device)
+    
+    # Load V7 & V8 training sequences to eliminate evaluation overlap contamination
+    v7_train_path = os.path.join(PROJECT_ROOT, "data/embeddings/prepared_data_v7_saprot1.3b_seqonly.pt")
+    train_seqs_set = set()
+    if os.path.exists(v7_train_path):
+        v7_data_tmp = torch.load(v7_train_path, map_location='cpu', weights_only=False)
+        if 'train_tm' in v7_data_tmp and 'sequences' in v7_data_tmp['train_tm']:
+            train_seqs_set = {str(s).upper() for s in v7_data_tmp['train_tm']['sequences']}
+    v8_train_path = os.path.join(PROJECT_ROOT, "data/embeddings/saprot_tm_struct_embeddings.pt")
+    if os.path.exists(v8_train_path):
+        v8_data_tmp = torch.load(v8_train_path, map_location='cpu', weights_only=False)
+        if 'train_tm' in v8_data_tmp and 'sequences' in v8_data_tmp['train_tm']:
+            train_seqs_set.update({str(s).upper() for s in v8_data_tmp['train_tm']['sequences']})
+
+    seqs_all = [str(s) for s in d_saprot['sequences']]
+    kept_indices = [i for i, s in enumerate(seqs_all) if s.upper() not in train_seqs_set]
+    print(f"Loaded {len(kept_indices)}/{len(seqs_all)} FireProtDB validation sequences (decontaminated against V7/V8 train).")
+
+    x_prott5 = d_prott5['embeddings_prott5'].to(device)[kept_indices]
+    x_esm2 = d_prott5['embeddings_esm2'].to(device)[kept_indices]
+    y_true_raw = d_prott5['temperatures'].numpy() if hasattr(d_prott5['temperatures'], 'numpy') else np.array(d_prott5['temperatures'])
+    y_true = y_true_raw[kept_indices]
+    x_saprot = d_saprot['embeddings_saprot'].to(device)[kept_indices]
+    seqs_fp = [seqs_all[i] for i in kept_indices]
     
     results = {}
     
@@ -414,12 +433,25 @@ def main():
     _, _, tr_lbl_v8, _, _ = sanitize_data_v8(tm_data_v8['train_tm'], is_tm=True)
     tm_mean_v8, tm_std_v8 = tr_lbl_v8.mean().item(), tr_lbl_v8.std().item()
 
-    seqs_fp = [str(s) for s in d_saprot['sequences']]
+    seqs_fp = [seqs_all[i] for i in kept_indices]
     v8_preds = []
+    struct_path = os.path.join(PROJECT_ROOT, "data/embeddings/fireprot_v8_struct_embeddings.pt")
+    if os.path.exists(struct_path):
+        d_struct = torch.load(struct_path, map_location='cpu', weights_only=False)
+        embs_v8_list = [d_struct.get(seq, x_saprot[i].cpu()) for i, seq in enumerate(seqs_fp)]
+        embs_v8 = torch.stack(embs_v8_list, dim=0)
+    else:
+        embs_v8 = x_saprot.cpu()
+
     for s in range(1, 6):
         pt_tm = os.path.join(PROJECT_ROOT, f"experiments/src/training/v8_disjoint/results/seed{s}/model_tm.pt")
         pt_ogt = os.path.join(PROJECT_ROOT, f"experiments/src/training/v8_disjoint/results/seed{s}/model_ogt.pt")
         pt_comb = os.path.join(PROJECT_ROOT, f"experiments/src/training/v8_disjoint/results/seed{s}/model.pt")
+        norm_p = os.path.join(PROJECT_ROOT, f"experiments/src/training/v8_disjoint/results/seed{s}/normalization_stats.pt")
+        if not os.path.exists(norm_p):
+            norm_p = os.path.join(PROJECT_ROOT, "experiments/src/training/v8_disjoint/results/normalization_stats.pt")
+        norms = torch.load(norm_p, map_location='cpu', weights_only=False) if os.path.exists(norm_p) else {}
+        
         m_t, m_o = None, None
         if os.path.exists(pt_tm) and os.path.exists(pt_ogt):
             m_t = MultiHeadSaProtV8().to(device)
@@ -434,9 +466,11 @@ def main():
             m_t.eval()
             m_o.eval()
             with torch.no_grad():
-                emb_o, aux_o = enrich_inputs_v8(x_saprot, seqs_fp, tmhmm_flags=None, ogt_priors=None)
-                pred_ogt = m_o(emb_o.to(device), aux_o.to(device), head='ogt')
-                emb_t, aux_t = enrich_inputs_v8(x_saprot, seqs_fp, tmhmm_flags=None, ogt_priors=pred_ogt.cpu().numpy())
+                emb_o, aux_o = enrich_inputs_v8(embs_v8, seqs_fp, tmhmm_flags=None, ogt_priors=None)
+                pred_ogt = m_o(emb_o.to(device), aux_o.to(device), head='ogt').cpu()
+                if 'ogt_mean' in norms and 'ogt_std' in norms:
+                    pred_ogt = pred_ogt * norms['ogt_std'] + norms['ogt_mean']
+                emb_t, aux_t = enrich_inputs_v8(embs_v8, seqs_fp, tmhmm_flags=None, ogt_priors=pred_ogt.numpy())
                 z_mu, _ = m_t(emb_t.to(device), aux_t.to(device), head='tm')
                 out = (z_mu.cpu() * tm_std_v8 + tm_mean_v8).numpy()
             v8_preds.append(out)
@@ -453,12 +487,12 @@ def main():
     if os.path.exists(baseline_path):
         print("Loading baseline predictions...")
         baselines = torch.load(baseline_path, map_location='cpu', weights_only=False)
-        results['TemBERTure'] = {'y_pred': baselines['fireprot']['temberture'], 'type': 'Continuous Proxy'}
-        results['ESMStabP'] = {'y_pred': baselines['fireprot']['esmstabp'], 'type': 'Continuous Proxy'}
+        results['TemBERTure'] = {'y_pred': np.array(baselines['fireprot']['temberture'])[kept_indices], 'type': 'Continuous Proxy'}
+        results['ESMStabP'] = {'y_pred': np.array(baselines['fireprot']['esmstabp'])[kept_indices], 'type': 'Continuous Proxy'}
         if 'deepstabp' in baselines['fireprot']:
-            results['DeepSTABp'] = {'y_pred': baselines['fireprot']['deepstabp'], 'type': 'Continuous Proxy'}
+            results['DeepSTABp'] = {'y_pred': np.array(baselines['fireprot']['deepstabp'])[kept_indices], 'type': 'Continuous Proxy'}
         if 'thermoformer' in baselines['fireprot']:
-            results['ThermoFormer'] = {'y_pred': baselines['fireprot']['thermoformer'], 'type': 'Continuous Proxy'}
+            results['ThermoFormer'] = {'y_pred': np.array(baselines['fireprot']['thermoformer'])[kept_indices], 'type': 'Continuous Proxy'}
     else:
         print("WARNING: Baseline predictions file missing.")
 

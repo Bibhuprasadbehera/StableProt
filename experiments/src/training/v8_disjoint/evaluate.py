@@ -147,7 +147,7 @@ def main():
     test_data = data['test_tm']
     embs = test_data['embeddings']
     seqs = test_data['sequences']
-    lbls = test_data['tm_consensus']
+    lbls = np.array(test_data['tm_consensus'])
     ogts = test_data.get('ogt', [50.0]*len(seqs))
     tmhmms = test_data.get('tmhmm_tm_binary', [0]*len(seqs))
     sources = test_data.get('source', ['test']*len(seqs))

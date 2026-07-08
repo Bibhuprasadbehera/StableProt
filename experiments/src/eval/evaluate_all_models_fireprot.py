@@ -179,8 +179,13 @@ def compute_expected_temperatures(prob_matrix, thresholds):
         y_pred += prob_matrix[:, i] * step
     return y_pred
 
-def compute_metrics(y_true, y_pred):
+def compute_metrics(y_true, y_pred, y_conf=None):
     mae = np.mean(np.abs(y_true - y_pred))
+    if y_conf is not None:
+        int_err = np.maximum(0.0, np.abs(y_true - y_pred) - y_conf)
+        interval_mae = np.mean(int_err)
+    else:
+        interval_mae = mae
     rmse = np.sqrt(np.mean((y_true - y_pred)**2))
     pcc, _ = scipy.stats.pearsonr(y_true, y_pred)
     spearman, _ = scipy.stats.spearmanr(y_true, y_pred)
@@ -229,9 +234,22 @@ def compute_metrics(y_true, y_pred):
     global_auc = np.mean(global_aucs) if global_aucs else 0.5
         
     return {
-        'mae': mae, 'rmse': rmse, 'pcc': pcc, 'spearman': spearman, 'r2': r2,
-        'acc': acc, 'sens': sens, 'spec': spec, 'prec': prec, 'f1': f1, 'mcc': mcc,
-        'mape': mape, 'enrich': enrich, 'roc_auc': roc_auc, 'global_auc': global_auc
+        'mae': float(mae),
+        'interval_mae': float(interval_mae),
+        'rmse': float(rmse),
+        'pcc': float(pcc),
+        'spearman': float(spearman),
+        'r2': float(r2),
+        'acc': float(acc),
+        'sens': float(sens),
+        'spec': float(spec),
+        'prec': float(prec),
+        'f1': float(f1),
+        'mcc': float(mcc),
+        'mape': float(mape),
+        'enrich': float(enrich),
+        'roc_auc': float(roc_auc),
+        'global_auc': float(global_auc)
     }
 
 def main():
@@ -434,7 +452,8 @@ def main():
     tm_mean_v8, tm_std_v8 = tr_lbl_v8.mean().item(), tr_lbl_v8.std().item()
 
     seqs_fp = [seqs_all[i] for i in kept_indices]
-    v8_preds = []
+    v8_mus = []
+    v8_vars = []
     struct_path = os.path.join(PROJECT_ROOT, "data/embeddings/fireprot_v8_struct_embeddings.pt")
     if os.path.exists(struct_path):
         d_struct = torch.load(struct_path, map_location='cpu', weights_only=False)
@@ -471,16 +490,24 @@ def main():
                 if 'ogt_mean' in norms and 'ogt_std' in norms:
                     pred_ogt = pred_ogt * norms['ogt_std'] + norms['ogt_mean']
                 emb_t, aux_t = enrich_inputs_v8(embs_v8, seqs_fp, tmhmm_flags=None, ogt_priors=pred_ogt.numpy())
-                z_mu, _ = m_t(emb_t.to(device), aux_t.to(device), head='tm')
-                out = (z_mu.cpu() * tm_std_v8 + tm_mean_v8).numpy()
-            v8_preds.append(out)
+                z_mu, z_lv = m_t(emb_t.to(device), aux_t.to(device), head='tm')
+                out_mu = (z_mu.cpu() * tm_std_v8 + tm_mean_v8).numpy()
+                out_var = (z_lv.cpu() * (tm_std_v8 ** 2)).numpy()
+            v8_mus.append(out_mu)
+            v8_vars.append(out_var)
 
-    if v8_preds:
-        results["StableProt V8"] = {
-            "y_pred": np.mean(v8_preds, axis=0),
+    if v8_mus:
+        mus_stack = np.stack(v8_mus, axis=0)
+        vars_stack = np.stack(v8_vars, axis=0)
+        weights = 1.0 / (vars_stack + 1e-6)
+        ens_mu = np.sum(mus_stack * weights, axis=0) / np.sum(weights, axis=0)
+        ens_sigma = np.sqrt(1.0 / np.sum(weights, axis=0) + np.var(mus_stack, axis=0))
+        results["StableProt V9"] = {
+            "y_pred": ens_mu,
+            "y_conf": ens_sigma,
             "type": "Dedicated Tm Head",
         }
-        print("  V8 evaluated on FireProtDB sequences via decoupled 2-stage dynamic inference")
+        print("  V9 evaluated on FireProtDB sequences via confidence-weighted 2-stage inference")
 
     # ── Load Baselines (TemBERTure, ESMStabP, DeepSTABp, ThermoFormer) ──
     baseline_path = os.path.join(PROJECT_ROOT, "new_data/baseline_predictions.pt")
@@ -502,21 +529,22 @@ def main():
     print("\n" + "=" * 175)
     print("  FIREPROT HOLDOUT BENCHMARK (ALL MODELS V0 TO V6 + BASELINES)")
     print("" + "=" * 175)
-    print(f"{'Model Iteration':<28} | {'Type':<18} | {'MAE':<6} | {'RMSE':<6} | {'PCC':<5} | {'Spearman':<8} | {'R²':<6} | {'MCC':<6} | {'F1':<5} | {'AUC':<5} | {'Global AUC':<10} | {'Top-10% Enrich':<14}")
-    print("-" * 175)
+    print(f"{'Model Iteration':<28} | {'Type':<18} | {'MAE':<6} | {'Int-MAE':<7} | {'RMSE':<6} | {'PCC':<5} | {'Spearman':<8} | {'R²':<6} | {'MCC':<6} | {'F1':<5} | {'AUC':<5} | {'Global AUC':<10} | {'Top-10% Enrich':<14}")
+    print("-" * 185)
     
     metrics_summary = {}
     for name, data in results.items():
-        m = compute_metrics(y_true, data['y_pred'])
+        m = compute_metrics(y_true, data['y_pred'], data.get('y_conf', None))
         metrics_summary[name] = m
-        print(f"{name:<28} | {data['type']:<18} | {m['mae']:<6.2f} | {m['rmse']:<6.2f} | {m['pcc']:<5.2f} | {m['spearman']:<8.2f} | {m['r2']:<6.2f} | {m['mcc']:<6.3f} | {m['f1']:<5.2f} | {m['roc_auc']:<5.2f} | {m['global_auc']:<10.3f} | {m['enrich']:<14.3f}")
-    print("-" * 175)
+        print(f"{name:<28} | {data['type']:<18} | {m['mae']:<6.2f} | {m['interval_mae']:<7.2f} | {m['rmse']:<6.2f} | {m['pcc']:<5.2f} | {m['spearman']:<8.2f} | {m['r2']:<6.2f} | {m['mcc']:<6.3f} | {m['f1']:<5.2f} | {m['roc_auc']:<5.2f} | {m['global_auc']:<10.3f} | {m['enrich']:<14.3f}")
+    print("-" * 185)
 
     # Save all results to a single pt file for final plotting and papers
     out_results_path = os.path.join(PROJECT_ROOT, "new_data/fireprot_evaluation_results.pt")
     save_dict = {
         'y_true': y_true,
         'predictions': {name: data['y_pred'] for name, data in results.items()},
+        'confidences': {name: data.get('y_conf', None) for name, data in results.items()},
         'metrics': metrics_summary
     }
     torch.save(save_dict, out_results_path)

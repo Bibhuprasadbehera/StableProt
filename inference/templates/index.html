@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>StableProt V6 Predictor</title>
+    <title>StableProt V9 Predictor</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Outfit:wght@400;700&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -159,7 +159,7 @@
 
     <div class="container">
         <h1>StableProt</h1>
-        <p class="subtitle">V7 Structural-Aware Multi-Head Predictor (5-Seed Ensemble)</p>
+        <p class="subtitle">V9 Structural-Aware Multi-Head Predictor (5-Seed Ensemble with Confidence Intervals)</p>
 
         <div class="glass-panel">
             <form action="/predict" method="post">
@@ -173,10 +173,12 @@
                 <div class="result-box" style="flex: 1; margin-top: 0;">
                     <div class="result-title">Melting Temp ($T_m$)</div>
                     <div class="result-value">{{ tm }}°C</div>
+                    {% if tm_conf %}<div style="font-size: 0.9rem; color: var(--text-muted); margin-top: 0.3rem;">± {{ tm_conf }}°C Confidence</div>{% endif %}
                 </div>
                 <div class="result-box" style="flex: 1; margin-top: 0; background: rgba(99, 102, 241, 0.1); border-color: rgba(99, 102, 241, 0.2);">
                     <div class="result-title">Optimal Growth ($OGT$)</div>
                     <div class="result-value" style="color: #818cf8;">{{ ogt }}°C</div>
+                    {% if ogt_conf %}<div style="font-size: 0.9rem; color: var(--text-muted); margin-top: 0.3rem;">± {{ ogt_conf }}°C Confidence</div>{% endif %}
                 </div>
             </div>
             {% endif %}

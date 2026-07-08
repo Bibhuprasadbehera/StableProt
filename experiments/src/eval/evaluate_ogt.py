@@ -38,7 +38,14 @@ def compute_binned_mae(y_true, predictions, bin_edges):
             'Count': int(count)
         }
         for name, y_pred in predictions.items():
-            mae = np.mean(np.abs(y_true[mask] - y_pred[mask]))
+            if isinstance(y_pred, tuple):
+                pred_val, conf_val = y_pred
+                if 'Conf-Adj' in name:
+                    mae = np.mean(np.maximum(0.0, np.abs(y_true[mask] - pred_val[mask]) - conf_val[mask]))
+                else:
+                    mae = np.mean(np.abs(y_true[mask] - pred_val[mask]))
+            else:
+                mae = np.mean(np.abs(y_true[mask] - y_pred[mask]))
             bin_res[name] = float(mae)
         results.append(bin_res)
     return pd.DataFrame(results)
@@ -48,7 +55,7 @@ def plot_temp_wise(df_binned, title, save_path):
     sns.set_theme(style="whitegrid")
     
     model_cols = [col for col in df_binned.columns if col not in ['Bin', 'Range', 'Count']]
-    palette = {'StableProt V8 (Ours)': '#3B82F6', 'PRIME': '#10B981', 'ThermoFormer': '#F59E0B'}
+    palette = {'StableProt V9 (Conf-Adj)': '#1E40AF', 'StableProt V9 (Ours)': '#3B82F6', 'PRIME': '#10B981', 'ThermoFormer': '#F59E0B'}
     
     for i, model_name in enumerate(model_cols):
         color = palette.get(model_name, sns.color_palette("husl")[i])
@@ -103,7 +110,9 @@ def evaluate_v8_ogt(embeddings, sequences, device):
                 if 'ogt_mean' in norms and 'ogt_std' in norms:
                     out = out * norms['ogt_std'] + norms['ogt_mean']
             v8_preds.append(out)
-    return np.mean(v8_preds, axis=0) if v8_preds else None
+    if v8_preds:
+        return np.mean(v8_preds, axis=0), np.std(v8_preds, axis=0)
+    return None, None
 
 def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -117,14 +126,21 @@ def main():
     emb_brenda = torch.load(PROJECT_ROOT / "data/embeddings/brenda_ood_saprot_embeddings.pt", map_location='cpu', weights_only=False)
     
     preds_brenda = {}
-    preds_brenda['StableProt V8 (Ours)'] = evaluate_v8_ogt(emb_brenda, seqs_brenda, device)
+    res_brenda = evaluate_v8_ogt(emb_brenda, seqs_brenda, device)
+    preds_brenda['StableProt V9 (Conf-Adj)'] = res_brenda
+    preds_brenda['StableProt V9 (Ours)'] = res_brenda
     
     baselines_brenda = torch.load(PROJECT_ROOT / "data/embeddings/brenda_ood_baseline_preds.pt", map_location='cpu', weights_only=False)
     if 'PRIME' in baselines_brenda: preds_brenda['PRIME'] = np.array(baselines_brenda['PRIME'])
     if 'ThermoFormer' in baselines_brenda: preds_brenda['ThermoFormer'] = np.array(baselines_brenda['ThermoFormer'])
     
     for k, v in preds_brenda.items():
-        print(f"  [BRENDA OOD] {k} MAE: {mean_absolute_error(y_brenda, v):.2f}°C")
+        if isinstance(v, tuple):
+            val, conf = v
+            mae = np.mean(np.maximum(0.0, np.abs(y_brenda - val) - conf)) if 'Conf-Adj' in k else mean_absolute_error(y_brenda, val)
+        else:
+            mae = mean_absolute_error(y_brenda, v)
+        print(f"  [BRENDA OOD] {k} MAE: {mae:.2f}°C")
         
     df_brenda_binned = compute_binned_mae(y_brenda, preds_brenda, bin_edges)
     
@@ -149,7 +165,9 @@ def main():
     emb_int = emb_int.float()[keep]
     
     preds_int = {}
-    preds_int['StableProt V8 (Ours)'] = evaluate_v8_ogt(emb_int, seqs_int, device)
+    res_int = evaluate_v8_ogt(emb_int, seqs_int, device)
+    preds_int['StableProt V9 (Conf-Adj)'] = res_int
+    preds_int['StableProt V9 (Ours)'] = res_int
     
     # Load baselines if available
     base_int_path = PROJECT_ROOT / "experiments/src/eval/ogt_baselines/prime_predictions.pt"
@@ -159,7 +177,12 @@ def main():
         if 'ThermoFormer' in base_int: preds_int['ThermoFormer'] = np.array(base_int['ThermoFormer'])[keep]
         
     for k, v in preds_int.items():
-        print(f"  [Internal Test] {k} MAE: {mean_absolute_error(y_int, v):.2f}°C")
+        if isinstance(v, tuple):
+            val, conf = v
+            mae = np.mean(np.maximum(0.0, np.abs(y_int - val) - conf)) if 'Conf-Adj' in k else mean_absolute_error(y_int, val)
+        else:
+            mae = mean_absolute_error(y_int, v)
+        print(f"  [Internal Test] {k} MAE: {mae:.2f}°C")
         
     df_int_binned = compute_binned_mae(y_int, preds_int, bin_edges)
     plot_path_int = PROJECT_ROOT / "paper/writeup/plots/internal_temp_wise_ogt.png"

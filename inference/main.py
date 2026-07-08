@@ -5,9 +5,9 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import os
 import torch
-from .v7_predict import V7Predictor
+from .v9_predict import V9Predictor
 
-app = FastAPI(title="StableProt V7 Predictor")
+app = FastAPI(title="StableProt V9 Predictor")
 
 # Setup templates
 templates = Jinja2Templates(directory="inference/templates")
@@ -19,22 +19,22 @@ predictor = None
 async def startup_event():
     global predictor
     root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    models_dir = os.path.join(root_dir, "experiments/src/training/v7_shared/results")
+    models_dir = os.path.join(root_dir, "experiments/src/training/v8_disjoint/results")
     
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    print(f"Loading V7 5-seed ensemble from {models_dir} onto {device}...")
+    print(f"Loading V9 5-seed ensemble from {models_dir} onto {device}...")
     try:
-        predictor = V7Predictor(models_dir=models_dir, device=device)
-        print("V7 Ensemble loaded successfully.")
+        predictor = V9Predictor(models_dir=models_dir, device=device)
+        print("V9 Ensemble loaded successfully.")
     except Exception as e:
-        print(f"Failed to load V7 ensemble: {e}")
+        print(f"Failed to load V9 ensemble: {e}")
 
 class PredictRequest(BaseModel):
     sequence: str
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
-    return templates.TemplateResponse(request=request, name="index.html", context={"tm": None, "ogt": None})
+    return templates.TemplateResponse(request=request, name="index.html", context={"tm": None, "tm_conf": None, "ogt": None, "ogt_conf": None})
 
 @app.post("/predict", response_class=HTMLResponse)
 async def predict_gui(request: Request, sequence: str = Form(...)):
@@ -47,8 +47,8 @@ async def predict_gui(request: Request, sequence: str = Form(...)):
         if not seq:
             return templates.TemplateResponse(request=request, name="index.html", context={"error": "Empty sequence", "sequence": sequence})
             
-        tm, ogt = predictor.predict(seq)
-        return templates.TemplateResponse(request=request, name="index.html", context={"tm": f"{tm:.2f}", "ogt": f"{ogt:.2f}", "sequence": sequence})
+        tm, tm_conf, ogt, ogt_conf = predictor.predict(seq)
+        return templates.TemplateResponse(request=request, name="index.html", context={"tm": f"{tm:.2f}", "tm_conf": f"{tm_conf:.2f}", "ogt": f"{ogt:.2f}", "ogt_conf": f"{ogt_conf:.2f}", "sequence": sequence})
     except Exception as e:
         return templates.TemplateResponse(request=request, name="index.html", context={"error": str(e), "sequence": sequence})
 
@@ -59,7 +59,7 @@ async def predict_api(req: PredictRequest):
         return {"error": "Model not loaded"}
     try:
         seq = req.sequence.strip().upper()
-        tm, ogt = predictor.predict(seq)
-        return {"tm": tm, "ogt": ogt}
+        tm, tm_conf, ogt, ogt_conf = predictor.predict(seq)
+        return {"tm": tm, "tm_conf": tm_conf, "ogt": ogt, "ogt_conf": ogt_conf}
     except Exception as e:
         return {"error": str(e)}

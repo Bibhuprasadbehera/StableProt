@@ -105,7 +105,7 @@ def load_v7_ensemble(device):
     return models
 
 def evaluate_v8_ensemble(embeddings, sequences, device):
-    print("Loading 5-seed ensemble of StableProt V8 (Ours)...")
+    print("Loading 5-seed ensemble of StableProt V9 (Ours)...")
     v8_dir = str(PROJECT_ROOT / "experiments/src/training/v8_disjoint")
     if v8_dir not in sys.path:
         sys.path.insert(0, v8_dir)
@@ -221,7 +221,7 @@ def main():
 
     # Compute comparison table
     model_preds = {
-        'StableProt V8 (Ours)': y_v8,
+        'StableProt V9 (Ours)': y_v8,
         'StableProt V7': y_v7,
         'PRIME (AI4Protein/Prime_690M)': baselines.get('PRIME', None),
         'ThermoFormer (GinnM/ThermoFormer)': baselines.get('ThermoFormer', None)

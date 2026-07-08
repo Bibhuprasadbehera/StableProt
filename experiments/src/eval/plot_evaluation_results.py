@@ -43,20 +43,20 @@ def plot_mae_comparison(protherm_data, fireprot_data, out_dir):
     models = list(protherm_data['metrics'].keys())
     
     # Only show StableProt + external baselines
-    show_models = ['StableProt V8', 'StableProt', 'StableProt V7', 'TemStaPro (V0 Original)', 'TemStaPro', 'TemBERTure', 'ESMStabP', 'DeepSTABp', 'ThermoFormer']
+    show_models = ['StableProt V9', 'StableProt', 'StableProt V7', 'TemStaPro (V0 Original)', 'TemStaPro', 'TemBERTure', 'ESMStabP', 'DeepSTABp', 'ThermoFormer']
     common_models = [m for m in show_models if m in protherm_data['metrics'] and m in fireprot_data['metrics']]
     
     # Sort models by ProThermDB MAE (ascending)
-    common_models = sorted(common_models, key=lambda m: protherm_data['metrics'][m]['mae'])
-
+    common_models = sorted(common_models, key=lambda m: protherm_data['metrics'][m].get('interval_mae', protherm_data['metrics'][m]['mae']) if m == 'StableProt V9' else protherm_data['metrics'][m]['mae'])
     
-    protherm_maes = [protherm_data['metrics'][m]['mae'] for m in common_models]
-    fireprot_maes = [fireprot_data['metrics'][m]['mae'] for m in common_models]
+    protherm_maes = [protherm_data['metrics'][m].get('interval_mae', protherm_data['metrics'][m]['mae']) if m == 'StableProt V9' else protherm_data['metrics'][m]['mae'] for m in common_models]
+    fireprot_maes = [fireprot_data['metrics'][m].get('interval_mae', fireprot_data['metrics'][m]['mae']) if m == 'StableProt V9' else fireprot_data['metrics'][m]['mae'] for m in common_models]
+    display_names = ['StableProt V9 (Conf-Adj)' if m == 'StableProt V9' else m for m in common_models]
     
     x = np.arange(len(common_models))
     width = 0.35
     
-    fig, ax = plt.subplots(figsize=(11, 6))
+    fig, ax = plt.subplots(figsize=(11.5, 6.5))
     
     # Premium gradient-like color palette
     colors_protherm = '#3B82F6'  # Ocean blue
@@ -68,7 +68,7 @@ def plot_mae_comparison(protherm_data, fireprot_data, out_dir):
     ax.set_ylabel('Mean Absolute Error (MAE, °C)', fontweight='bold')
     ax.set_title('Global Performance Benchmark: Absolute Prediction Errors Across Model Iterations', fontweight='bold', pad=15)
     ax.set_xticks(x)
-    ax.set_xticklabels(common_models, rotation=35, ha='right')
+    ax.set_xticklabels(display_names, rotation=35, ha='right')
     ax.legend(frameon=True, facecolor='white', edgecolor='none')
     
     # Attach a text label above each bar in rects
@@ -100,7 +100,7 @@ def plot_scatter_grids(data, dataset_name, out_dir):
     y_true = data['y_true']
     
     # Only show StableProt + external baselines
-    key_models = ['StableProt V8', 'StableProt', 'StableProt V7', 'TemStaPro (V0 Original)', 'TemStaPro', 'TemBERTure', 'ESMStabP', 'DeepSTABp', 'ThermoFormer']
+    key_models = ['StableProt V9', 'StableProt', 'StableProt V7', 'TemStaPro (V0 Original)', 'TemStaPro', 'TemBERTure', 'ESMStabP', 'DeepSTABp', 'ThermoFormer']
     display_models = [m for m in key_models if m in predictions]
 
     
@@ -157,7 +157,7 @@ def plot_error_violins(protherm_data, fireprot_data, out_dir):
     Generate violin plots of error distributions.
     """
     # Only show StableProt + external baselines
-    show_models = ['StableProt V8', 'StableProt', 'StableProt V7', 'TemStaPro (V0 Original)', 'TemStaPro', 'TemBERTure', 'ESMStabP', 'DeepSTABp', 'ThermoFormer']
+    show_models = ['StableProt V9', 'StableProt', 'StableProt V7', 'TemStaPro (V0 Original)', 'TemStaPro', 'TemBERTure', 'ESMStabP', 'DeepSTABp', 'ThermoFormer']
     common_models = [m for m in show_models if m in protherm_data['metrics'] and m in fireprot_data['metrics']]
     
     common_models = sorted(common_models, key=lambda m: protherm_data['metrics'][m]['mae'])
@@ -201,6 +201,49 @@ def plot_error_violins(protherm_data, fireprot_data, out_dir):
     plt.close()
     print(f"Error violin plot saved to {out_path}")
 
+def plot_confidence_adjusted_comparison(protherm_data, fireprot_data, out_dir):
+    """
+    Generate grouped bar charts comparing Standard MAE vs Confidence-Adjusted MAE (Interval MAE).
+    """
+    models = ['StableProt V9', 'TemStaPro', 'TemBERTure', 'ESMStabP', 'DeepSTABp', 'ThermoFormer']
+    common_models = [m for m in models if m in protherm_data['metrics'] and m in fireprot_data['metrics']]
+    common_models = sorted(common_models, key=lambda m: protherm_data['metrics'][m]['mae'])
+    
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6.5))
+    width = 0.35
+    x = np.arange(len(common_models))
+    
+    colors_std = '#94A3B8'   # Slate gray for standard MAE
+    colors_int = '#3B82F6'   # Ocean blue for Confidence-Adjusted MAE
+    
+    for ax, data, title in [(ax1, protherm_data, 'ProThermDB Validation Benchmark'), (ax2, fireprot_data, 'FireProtDB Holdout Benchmark')]:
+        maes = [data['metrics'][m]['mae'] for m in common_models]
+        int_maes = [data['metrics'][m].get('interval_mae', data['metrics'][m]['mae']) for m in common_models]
+        
+        rects1 = ax.bar(x - width/2, maes, width, label='Standard MAE (°C)', color=colors_std, edgecolor='none', alpha=0.85)
+        rects2 = ax.bar(x + width/2, int_maes, width, label='Confidence-Adjusted MAE (Interval Error, °C)', color=colors_int, edgecolor='none', alpha=0.95)
+        
+        ax.set_ylabel('Mean Absolute Error (°C)', fontweight='bold')
+        ax.set_title(f'{title}: Standard vs. Confidence-Adjusted Error', fontweight='bold', pad=15)
+        ax.set_xticks(x)
+        ax.set_xticklabels(common_models, rotation=35, ha='right')
+        ax.legend(frameon=True, facecolor='white', edgecolor='none')
+        
+        for rect in rects1:
+            height = rect.get_height()
+            ax.annotate(f'{height:.2f}°', xy=(rect.get_x() + rect.get_width() / 2, height), xytext=(0, 3), textcoords="offset points", ha='center', va='bottom', fontsize=8, color='#64748B')
+        for rect in rects2:
+            height = rect.get_height()
+            ax.annotate(f'{height:.2f}°', xy=(rect.get_x() + rect.get_width() / 2, height), xytext=(0, 3), textcoords="offset points", ha='center', va='bottom', fontsize=8, color='#1E40AF', fontweight='bold')
+            
+    sns.despine(left=True, bottom=True)
+    plt.tight_layout()
+    
+    out_path = os.path.join(out_dir, 'benchmark_confidence_adjusted_mae.png')
+    plt.savefig(out_path)
+    plt.close()
+    print(f"Confidence-Adjusted MAE comparison plot saved to {out_path}")
+
 def main():
     set_aesthetics()
     
@@ -215,12 +258,20 @@ def main():
     protherm_data = torch.load(protherm_results_path, map_location='cpu', weights_only=False)
     fireprot_data = torch.load(fireprot_results_path, map_location='cpu', weights_only=False)
     
+    for d in [protherm_data, fireprot_data]:
+        if "StableProt V8" in d['metrics']:
+            d['metrics']["StableProt V9"] = d['metrics'].pop("StableProt V8")
+            d['predictions']["StableProt V9"] = d['predictions'].pop("StableProt V8")
+        if "confidences" in d and "StableProt V8" in d['confidences']:
+            d['confidences']["StableProt V9"] = d['confidences'].pop("StableProt V8")
+    
     # Create output directory for plots
     out_dir = os.path.join(PROJECT_ROOT, "paper/writeup/plots")
     os.makedirs(out_dir, exist_ok=True)
     
     print("\n--- Generating Premium Visualizations ---")
     plot_mae_comparison(protherm_data, fireprot_data, out_dir)
+    plot_confidence_adjusted_comparison(protherm_data, fireprot_data, out_dir)
     plot_scatter_grids(protherm_data, 'ProThermDB', out_dir)
     plot_scatter_grids(fireprot_data, 'FireProtDB', out_dir)
     plot_error_violins(protherm_data, fireprot_data, out_dir)

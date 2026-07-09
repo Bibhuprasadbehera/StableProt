@@ -7,7 +7,7 @@ import os
 import torch
 from .v9_predict import V9Predictor
 
-app = FastAPI(title="StableProt V9 Predictor")
+app = FastAPI(title="StableProt V8 Predictor")
 
 # Setup templates
 templates = Jinja2Templates(directory="inference/templates")

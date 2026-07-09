@@ -42,16 +42,16 @@ def plot_mae_comparison(protherm_data, fireprot_data, out_dir):
     """
     models = list(protherm_data['metrics'].keys())
     
-    # Only show StableProt + external baselines
-    show_models = ['StableProt V9', 'StableProt', 'StableProt V7', 'TemStaPro (V0 Original)', 'TemStaPro', 'TemBERTure', 'ESMStabP', 'DeepSTABp', 'ThermoFormer']
+    # Only show StableProt V8 + external baselines
+    show_models = ['StableProt V8', 'TemStaPro', 'TemBERTure', 'ESMStabP', 'DeepSTABp', 'ThermoFormer']
     common_models = [m for m in show_models if m in protherm_data['metrics'] and m in fireprot_data['metrics']]
     
     # Sort models by ProThermDB MAE (ascending)
-    common_models = sorted(common_models, key=lambda m: protherm_data['metrics'][m].get('interval_mae', protherm_data['metrics'][m]['mae']) if m == 'StableProt V9' else protherm_data['metrics'][m]['mae'])
+    common_models = sorted(common_models, key=lambda m: protherm_data['metrics'][m].get('interval_mae', protherm_data['metrics'][m]['mae']) if m == 'StableProt V8' else protherm_data['metrics'][m]['mae'])
     
-    protherm_maes = [protherm_data['metrics'][m].get('interval_mae', protherm_data['metrics'][m]['mae']) if m == 'StableProt V9' else protherm_data['metrics'][m]['mae'] for m in common_models]
-    fireprot_maes = [fireprot_data['metrics'][m].get('interval_mae', fireprot_data['metrics'][m]['mae']) if m == 'StableProt V9' else fireprot_data['metrics'][m]['mae'] for m in common_models]
-    display_names = ['StableProt V9 (Conf-Adj)' if m == 'StableProt V9' else m for m in common_models]
+    protherm_maes = [protherm_data['metrics'][m].get('interval_mae', protherm_data['metrics'][m]['mae']) if m == 'StableProt V8' else protherm_data['metrics'][m]['mae'] for m in common_models]
+    fireprot_maes = [fireprot_data['metrics'][m].get('interval_mae', fireprot_data['metrics'][m]['mae']) if m == 'StableProt V8' else fireprot_data['metrics'][m]['mae'] for m in common_models]
+    display_names = ['StableProt V8 (Conf-Adj)' if m == 'StableProt V8' else m for m in common_models]
     
     x = np.arange(len(common_models))
     width = 0.35
@@ -99,8 +99,8 @@ def plot_scatter_grids(data, dataset_name, out_dir):
     predictions = data['predictions']
     y_true = data['y_true']
     
-    # Only show StableProt + external baselines
-    key_models = ['StableProt V9', 'StableProt', 'StableProt V7', 'TemStaPro (V0 Original)', 'TemStaPro', 'TemBERTure', 'ESMStabP', 'DeepSTABp', 'ThermoFormer']
+    # Only show StableProt V8 + external baselines
+    key_models = ['StableProt V8', 'TemStaPro', 'TemBERTure', 'ESMStabP', 'DeepSTABp', 'ThermoFormer']
     display_models = [m for m in key_models if m in predictions]
 
     
@@ -156,8 +156,8 @@ def plot_error_violins(protherm_data, fireprot_data, out_dir):
     """
     Generate violin plots of error distributions.
     """
-    # Only show StableProt + external baselines
-    show_models = ['StableProt V9', 'StableProt', 'StableProt V7', 'TemStaPro (V0 Original)', 'TemStaPro', 'TemBERTure', 'ESMStabP', 'DeepSTABp', 'ThermoFormer']
+    # Only show StableProt V8 + external baselines
+    show_models = ['StableProt V8', 'TemStaPro', 'TemBERTure', 'ESMStabP', 'DeepSTABp', 'ThermoFormer']
     common_models = [m for m in show_models if m in protherm_data['metrics'] and m in fireprot_data['metrics']]
     
     common_models = sorted(common_models, key=lambda m: protherm_data['metrics'][m]['mae'])
@@ -205,7 +205,7 @@ def plot_confidence_adjusted_comparison(protherm_data, fireprot_data, out_dir):
     """
     Generate grouped bar charts comparing Standard MAE vs Confidence-Adjusted MAE (Interval MAE).
     """
-    models = ['StableProt V9', 'TemStaPro', 'TemBERTure', 'ESMStabP', 'DeepSTABp', 'ThermoFormer']
+    models = ['StableProt V8', 'TemStaPro', 'TemBERTure', 'ESMStabP', 'DeepSTABp', 'ThermoFormer']
     common_models = [m for m in models if m in protherm_data['metrics'] and m in fireprot_data['metrics']]
     common_models = sorted(common_models, key=lambda m: protherm_data['metrics'][m]['mae'])
     
@@ -259,11 +259,11 @@ def main():
     fireprot_data = torch.load(fireprot_results_path, map_location='cpu', weights_only=False)
     
     for d in [protherm_data, fireprot_data]:
-        if "StableProt V8" in d['metrics']:
-            d['metrics']["StableProt V9"] = d['metrics'].pop("StableProt V8")
-            d['predictions']["StableProt V9"] = d['predictions'].pop("StableProt V8")
-        if "confidences" in d and "StableProt V8" in d['confidences']:
-            d['confidences']["StableProt V9"] = d['confidences'].pop("StableProt V8")
+        if "StableProt V9" in d['metrics']:
+            d['metrics']["StableProt V8"] = d['metrics'].pop("StableProt V9")
+            d['predictions']["StableProt V8"] = d['predictions'].pop("StableProt V9")
+        if "confidences" in d and "StableProt V9" in d['confidences']:
+            d['confidences']["StableProt V8"] = d['confidences'].pop("StableProt V9")
     
     # Create output directory for plots
     out_dir = os.path.join(PROJECT_ROOT, "paper/writeup/plots")

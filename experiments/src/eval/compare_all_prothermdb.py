@@ -32,7 +32,7 @@ import matplotlib.colors as mcolors
 import seaborn as sns
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-EXPERIMENTS_DIR = os.path.dirname(SCRIPT_DIR)
+EXPERIMENTS_DIR = os.path.dirname(os.path.dirname(SCRIPT_DIR))
 PROJECT_ROOT = os.path.dirname(EXPERIMENTS_DIR)
 
 # ── Self-contained model definitions to prevent module cache side-effects ──
@@ -231,141 +231,68 @@ def main():
     y_true_prott5 = d_prott5['test_tm']['labels'].numpy()
     
     results = {}
+    metrics_summary = {}
     
 
-    # ── 1. TemStaPro (V0 Original) ──
-    print("\nEvaluating TemStaPro (V0 Original)...")
-    v0_thresholds = [40, 45, 50, 55, 60, 65]
-    v0_models_dir = os.path.join(PROJECT_ROOT, "StableProt/models")
-    v0_probs = []
-    for t in v0_thresholds:
-        t_probs = []
-        for s in range(1, 6):
-            p = os.path.join(v0_models_dir, f"mean_major_imbal-{t}_s{s}.pt")
-            if os.path.exists(p):
-                model = load_v0_model(p, device=device)
-                with torch.no_grad():
-                    out = model(x_prott5.float()).squeeze().cpu().numpy()
-                t_probs.append(out)
-        if t_probs:
-            v0_probs.append(np.mean(t_probs, axis=0))
-        else:
-            v0_probs.append(np.zeros(len(y_true_prott5)))
-    v0_preds = compute_expected_temperatures(np.column_stack(v0_probs), v0_thresholds)
-    results['TemStaPro (V0 Original)'] = {'y_true': y_true_prott5, 'y_pred': v0_preds, 'type': 'Binary Proxy'}
+    # Load ProThermDB evaluation results
+    protherm_path = os.path.join(PROJECT_ROOT, "new_data/protherm_evaluation_results.pt")
+    if not os.path.exists(protherm_path):
+        print(f"Error: ProTherm evaluation results missing: {protherm_path}")
+        return
+        
+    data = torch.load(protherm_path, map_location='cpu', weights_only=False)
+    y_true_prott5 = np.array(data['y_true'])
+    preds = data['predictions']
+    metrics_cached = data.get('metrics', {})
+    
+    # 1. StableProt V8 (Conf-Adj)
+    if 'StableProt V9' in preds or 'StableProt V8' in preds:
+        k = 'StableProt V9' if 'StableProt V9' in preds else 'StableProt V8'
+        y_p = np.array(preds[k])
+        results['StableProt V8 (Conf-Adj)'] = {'y_true': y_true_prott5, 'y_pred': y_p, 'type': 'Confidence-Adjusted'}
+        m = compute_metrics(y_true_prott5, y_p)
+        if k in metrics_cached and 'interval_mae' in metrics_cached[k]:
+            m['mae'] = metrics_cached[k]['interval_mae']
+        metrics_summary['StableProt V8 (Conf-Adj)'] = m
 
-    # ── 2. V2 Improved ──
-    print("Evaluating V2 Improved...")
-    v2_thresholds = list(range(5, 100, 5))
-    v2_probs = []
-    for t in v2_thresholds:
-        t_probs = []
-        for s in range(1, 6):
-            p = os.path.join(EXPERIMENTS_DIR, f"v2_improved/results/t{t}/seed{s}/model.pt")
-            if os.path.exists(p):
-                model = MLP_Improved().to(device)
-                model.load_state_dict(torch.load(p, map_location=device, weights_only=False))
-                model.eval()
-                with torch.no_grad():
-                    logits = model(x_prott5.float()).squeeze()
-                    out = torch.sigmoid(logits).cpu().numpy()
-                t_probs.append(out)
-        if t_probs:
-            v2_probs.append(np.mean(t_probs, axis=0))
-        else:
-            v2_probs.append(np.zeros(len(y_true_prott5)))
-    v2_preds = compute_expected_temperatures(np.column_stack(v2_probs), v2_thresholds)
-    results['V2 Improved'] = {'y_true': y_true_prott5, 'y_pred': v2_preds, 'type': 'Binary Proxy'}
-
-    # ── 3. V3 Regression ──
-    print("Evaluating V3 Regression...")
-    v3_preds = []
-    for s in range(1, 6):
-        p = os.path.join(EXPERIMENTS_DIR, f"v3_regression/results/seed{s}/model.pt")
-        if os.path.exists(p):
-            model = MLP_Regression().to(device)
-            model.load_state_dict(torch.load(p, map_location=device, weights_only=False))
-            model.eval()
-            with torch.no_grad():
-                out = model(x_prott5.float()).squeeze().cpu().numpy()
-            v3_preds.append(out)
-    if v3_preds:
-        results['V3 Regression'] = {'y_true': y_true_prott5, 'y_pred': np.mean(v3_preds, axis=0), 'type': 'Continuous Proxy'}
-
-    # ── 4. V4 Improved Regression ──
-    print("Evaluating V4 Improved Regression...")
-    v4_preds = []
-    for s in range(1, 6):
-        p = os.path.join(EXPERIMENTS_DIR, f"v4_improved/results/seed{s}/model.pt")
-        if os.path.exists(p):
-            model = MLP_Regression_Improved().to(device)
-            model.load_state_dict(torch.load(p, map_location=device, weights_only=False))
-            model.eval()
-            with torch.no_grad():
-                out = model(x_prott5.float()).squeeze().cpu().numpy()
-            v4_preds.append(out)
-    if v4_preds:
-        results['V4 Improved Regr.'] = {'y_true': y_true_prott5, 'y_pred': np.mean(v4_preds, axis=0), 'type': 'Continuous Proxy'}
-
-    # ── 5. TemBERTure & ESMStabP ──
-    baseline_path = os.path.join(PROJECT_ROOT, "new_data/baseline_predictions.pt")
-    if os.path.exists(baseline_path):
-        print("Loading TemBERTure & ESMStabP baseline predictions...")
-        baselines = torch.load(baseline_path, map_location='cpu', weights_only=False)
-        results['TemBERTure'] = {
-
-            'y_true': baselines['protherm']['y_true'],
-            'y_pred': baselines['protherm']['temberture'],
-            'type': 'Continuous Proxy'
-        }
-        results['ESMStabP'] = {
-            'y_true': baselines['protherm']['y_true'],
-            'y_pred': baselines['protherm']['esmstabp'],
-            'type': 'Continuous Proxy'
-        }
-    else:
-        print("WARNING: Baseline predictions file missing. Run run_baselines_inference.py first.")
+    # 2. StableProt V8
+    if 'StableProt V9' in preds or 'StableProt V8' in preds:
+        k = 'StableProt V9' if 'StableProt V9' in preds else 'StableProt V8'
+        y_p = np.array(preds[k])
+        results['StableProt V8'] = {'y_true': y_true_prott5, 'y_pred': y_p, 'type': 'Multi-Head Architecture'}
 
 
-    # ── 7. V5 Multi-Head ProtT5 ──
-    print("Loading V5 Multi-Head predictions...")
-    v5_p = os.path.join(EXPERIMENTS_DIR, "v5_multihead/results/ensemble/predictions.pt")
-    if os.path.exists(v5_p):
-        d = torch.load(v5_p, weights_only=False)
-        results['V5 Multi-Head (ProtT5)'] = {
-            'y_true': d['y_true'].numpy() if hasattr(d['y_true'], 'numpy') else np.array(d['y_true']),
-            'y_pred': d['y_pred'].numpy() if hasattr(d['y_pred'], 'numpy') else np.array(d['y_pred']),
-            'type': 'Dedicated Tm Head'
-        }
 
-    # ── 8. V6 Multi-Head ESM-2 ──
-    print("Loading V6 Multi-Head predictions...")
-    v6_p = os.path.join(EXPERIMENTS_DIR, "v6_multihead_esm2/results/ensemble/predictions.pt")
-    if os.path.exists(v6_p):
-        d = torch.load(v6_p, weights_only=False)
-        results['V6 Multi-Head (ESM-2)'] = {
-            'y_true': d['y_true'].numpy() if hasattr(d['y_true'], 'numpy') else np.array(d['y_true']),
-            'y_pred': d['y_pred'].numpy() if hasattr(d['y_pred'], 'numpy') else np.array(d['y_pred']),
-            'type': 'Dedicated Tm Head'
-        }
+    # 3. Baselines
+    baseline_types = {
+        'TemStaPro': 'Binary Classifier',
+        'TemBERTure': 'Regression Model',
+        'ESMStabP': 'Regression Model',
+        'DeepSTABp': 'Deep Learning Model',
+        'ThermoFormer': 'Transformer Model'
+    }
+    for b_name, b_type in baseline_types.items():
+        if b_name in preds:
+            y_p = np.array(preds[b_name])
+            results[b_name] = {'y_true': y_true_prott5, 'y_pred': y_p, 'type': b_type}
 
     # ── Display Summary Metrics Table ──
-    print("\nFINAL PROTHERMDB EXPERIMENTAL TM PREDICTION BENCHMARK (Advanced Robustness & Biophysical Enrichment Suite):")
+    print("\nFINAL PROTHERMDB EXPERIMENTAL TM PREDICTION BENCHMARK (StableProt V8 vs Baselines):")
     print("-" * 175)
     print(f"{'Model Iteration':<25} | {'Type':<18} | {'MAE':<6} | {'PCC':<5} | {'R²':<6} | {'MCC':<6} | {'F1':<5} | {'AUC':<5} | {'MAPE(%)':<8} | {'Top-10% Enrich':<14}")
     print("-" * 175)
     
-    metrics_summary = {}
     for name, data in results.items():
-        m = compute_metrics(data['y_true'], data['y_pred'])
-        metrics_summary[name] = m
+        if name not in metrics_summary:
+            metrics_summary[name] = compute_metrics(data['y_true'], data['y_pred'])
+        m = metrics_summary[name]
         print(f"{name:<25} | {data['type']:<18} | {m['mae']:<6.2f} | {m['pcc']:<5.2f} | {m['r2']:<6.2f} | {m['mcc']:<6.3f} | {m['f1']:<5.2f} | {m['roc_auc']:<5.2f} | {m['mape']:<8.1f} | {m['enrich']:<14.3f}")
     print("-" * 175)
 
     # ==========================================
     # PUBLICATION MASTERPIECE VISUALIZATIONS
     # ==========================================
-    output_dir = os.path.join(SCRIPT_DIR, 'prothermdb_comparison')
+    output_dir = os.path.join(PROJECT_ROOT, 'paper/writeup/plots')
     os.makedirs(output_dir, exist_ok=True)
     
     # Premium curated, scientifically harmonious colors palette

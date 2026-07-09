@@ -55,7 +55,7 @@ def plot_temp_wise(df_binned, title, save_path):
     sns.set_theme(style="whitegrid")
     
     model_cols = [col for col in df_binned.columns if col not in ['Bin', 'Range', 'Count']]
-    palette = {'StableProt V9 (Conf-Adj)': '#1E40AF', 'StableProt V9 (Ours)': '#3B82F6', 'PRIME': '#10B981', 'ThermoFormer': '#F59E0B'}
+    palette = {'StableProt V8 (Conf-Adj)': '#1E40AF', 'StableProt V8 (Ours)': '#3B82F6', 'PRIME': '#10B981', 'ThermoFormer': '#F59E0B'}
     
     for i, model_name in enumerate(model_cols):
         color = palette.get(model_name, sns.color_palette("husl")[i])
@@ -127,8 +127,8 @@ def main():
     
     preds_brenda = {}
     res_brenda = evaluate_v8_ogt(emb_brenda, seqs_brenda, device)
-    preds_brenda['StableProt V9 (Conf-Adj)'] = res_brenda
-    preds_brenda['StableProt V9 (Ours)'] = res_brenda
+    preds_brenda['StableProt V8 (Conf-Adj)'] = res_brenda
+    preds_brenda['StableProt V8 (Ours)'] = res_brenda
     
     baselines_brenda = torch.load(PROJECT_ROOT / "data/embeddings/brenda_ood_baseline_preds.pt", map_location='cpu', weights_only=False)
     if 'PRIME' in baselines_brenda: preds_brenda['PRIME'] = np.array(baselines_brenda['PRIME'])
@@ -166,8 +166,8 @@ def main():
     
     preds_int = {}
     res_int = evaluate_v8_ogt(emb_int, seqs_int, device)
-    preds_int['StableProt V9 (Conf-Adj)'] = res_int
-    preds_int['StableProt V9 (Ours)'] = res_int
+    preds_int['StableProt V8 (Conf-Adj)'] = res_int
+    preds_int['StableProt V8 (Ours)'] = res_int
     
     # Load baselines if available
     base_int_path = PROJECT_ROOT / "experiments/src/eval/ogt_baselines/prime_predictions.pt"

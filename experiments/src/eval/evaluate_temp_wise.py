@@ -50,10 +50,10 @@ def plot_temp_wise_mae(df_binned, title, save_path):
     
     # Plot line for each model
     for i, model_name in enumerate(model_cols):
-        # We can make our key models (V9, V8, V7, V6) thicker
-        linewidth = 3.0 if 'V9' in model_name or 'V8' in model_name or 'V7' in model_name or 'V6' in model_name else 1.5
-        linestyle = '-' if 'V9' in model_name or 'V8' in model_name or 'V7' in model_name or 'V6' in model_name else '--'
-        marker = 'o' if 'V9' in model_name or 'V8' in model_name or 'V7' in model_name or 'V6' in model_name else 's'
+        # We can make our key models (V8, V7, V6) thicker
+        linewidth = 3.0 if 'V8' in model_name or 'V7' in model_name or 'V6' in model_name else 1.5
+        linestyle = '-' if 'V8' in model_name or 'V7' in model_name or 'V6' in model_name else '--'
+        marker = 'o' if 'V8' in model_name or 'V7' in model_name or 'V6' in model_name else 's'
         
         plt.plot(
             df_binned['Bin'], 
@@ -103,18 +103,18 @@ def main():
         print("Processing ProThermDB validation set...")
         data = torch.load(protherm_path, map_location='cpu', weights_only=False)
         y_true = np.array(data['y_true'])
-        # Only include StableProt + external baselines
-        show_models = ['StableProt V9 (Conf-Adj)', 'StableProt V9', 'StableProt', 'TemStaPro (V0 Original)', 'TemStaPro', 'TemBERTure', 'ESMStabP', 'DeepSTABp', 'ThermoFormer']
+        # Only include StableProt V8 + external baselines
+        show_models = ['StableProt V8 (Conf-Adj)', 'StableProt V8', 'TemStaPro', 'TemBERTure', 'ESMStabP', 'DeepSTABp', 'ThermoFormer']
         predictions = {}
         for k, v in data['predictions'].items():
-            if k == 'StableProt V8': k = 'StableProt V9'
+            if k == 'StableProt V9': k = 'StableProt V8'
             if k in show_models:
                 clean_k = 'TemStaPro' if 'TemStaPro' in k else k
                 predictions[clean_k] = np.array(v)
         if 'confidences' in data and 'StableProt V8' in data['confidences'] and data['confidences']['StableProt V8'] is not None:
-            predictions['StableProt V9 (Conf-Adj)'] = (np.array(data['predictions']['StableProt V8']), np.array(data['confidences']['StableProt V8']))
+            predictions['StableProt V8 (Conf-Adj)'] = (np.array(data['predictions']['StableProt V8']), np.array(data['confidences']['StableProt V8']))
         elif 'confidences' in data and 'StableProt V9' in data['confidences'] and data['confidences']['StableProt V9'] is not None:
-            predictions['StableProt V9 (Conf-Adj)'] = (np.array(data['predictions']['StableProt V9']), np.array(data['confidences']['StableProt V9']))
+            predictions['StableProt V8 (Conf-Adj)'] = (np.array(data['predictions']['StableProt V9']), np.array(data['confidences']['StableProt V9']))
         
         df_protherm = compute_binned_mae(y_true, predictions, bin_edges)
 
@@ -137,17 +137,17 @@ def main():
         print("\nProcessing FireProtDB holdout set...")
         data = torch.load(fireprot_path, map_location='cpu', weights_only=False)
         y_true = np.array(data['y_true'])
-        show_models = ['StableProt V9 (Conf-Adj)', 'StableProt V9', 'StableProt', 'TemStaPro (V0 Original)', 'TemStaPro', 'TemBERTure', 'ESMStabP', 'DeepSTABp', 'ThermoFormer']
+        show_models = ['StableProt V8 (Conf-Adj)', 'StableProt V8', 'TemStaPro', 'TemBERTure', 'ESMStabP', 'DeepSTABp', 'ThermoFormer']
         predictions = {}
         for k, v in data['predictions'].items():
-            if k == 'StableProt V8': k = 'StableProt V9'
+            if k == 'StableProt V9': k = 'StableProt V8'
             if k in show_models:
                 clean_k = 'TemStaPro' if 'TemStaPro' in k else k
                 predictions[clean_k] = np.array(v)
         if 'confidences' in data and 'StableProt V8' in data['confidences'] and data['confidences']['StableProt V8'] is not None:
-            predictions['StableProt V9 (Conf-Adj)'] = (np.array(data['predictions']['StableProt V8']), np.array(data['confidences']['StableProt V8']))
+            predictions['StableProt V8 (Conf-Adj)'] = (np.array(data['predictions']['StableProt V8']), np.array(data['confidences']['StableProt V8']))
         elif 'confidences' in data and 'StableProt V9' in data['confidences'] and data['confidences']['StableProt V9'] is not None:
-            predictions['StableProt V9 (Conf-Adj)'] = (np.array(data['predictions']['StableProt V9']), np.array(data['confidences']['StableProt V9']))
+            predictions['StableProt V8 (Conf-Adj)'] = (np.array(data['predictions']['StableProt V9']), np.array(data['confidences']['StableProt V9']))
         
         df_fireprot = compute_binned_mae(y_true, predictions, bin_edges)
 

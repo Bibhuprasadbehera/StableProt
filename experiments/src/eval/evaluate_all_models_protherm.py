@@ -552,12 +552,12 @@ def main():
             weights = 1.0 / (vars_stack + 1e-6)
             ens_mu = np.sum(mus_stack * weights, axis=0) / np.sum(weights, axis=0)
             ens_sigma = np.sqrt(1.0 / np.sum(weights, axis=0) + np.var(mus_stack, axis=0))
-            results["StableProt V9"] = {
+            results["StableProt V8"] = {
                 "y_pred": ens_mu,
                 "y_conf": ens_sigma,
                 "type": "Dedicated Tm Head",
             }
-            print(f"  V9 evaluated on all {len(protherm_seqs)} ProThermDB sequences via confidence-weighted 2-stage inference")
+            print(f"  V8 evaluated on all {len(protherm_seqs)} ProThermDB sequences via confidence-weighted 2-stage inference")
     else:
         print("WARNING: ProThermDB SaProt embeddings not found at", protherm_saprot_path)
 

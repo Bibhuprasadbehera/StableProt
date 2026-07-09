@@ -105,7 +105,7 @@ def load_v7_ensemble(device):
     return models
 
 def evaluate_v8_ensemble(embeddings, sequences, device):
-    print("Loading 5-seed ensemble of StableProt V9 (Ours)...")
+    print("Loading 5-seed ensemble of StableProt V8 (Ours)...")
     v8_dir = str(PROJECT_ROOT / "experiments/src/training/v8_disjoint")
     if v8_dir not in sys.path:
         sys.path.insert(0, v8_dir)
@@ -221,8 +221,7 @@ def main():
 
     # Compute comparison table
     model_preds = {
-        'StableProt V9 (Ours)': y_v8,
-        'StableProt V7': y_v7,
+        'StableProt V8 (Ours)': y_v8,
         'PRIME (AI4Protein/Prime_690M)': baselines.get('PRIME', None),
         'ThermoFormer (GinnM/ThermoFormer)': baselines.get('ThermoFormer', None)
     }
@@ -245,7 +244,7 @@ def main():
     TABLE_OUT.parent.mkdir(parents=True, exist_ok=True)
     with open(TABLE_OUT, "w") as f:
         f.write("# Out-Of-Distribution (OOD) BRENDA OGT Benchmark Comparative Results\n\n")
-        f.write("Evaluation of StableProt V7 vs State-Of-The-Art baselines on strictly decontaminated out-of-distribution enzyme optimal growth temperatures from BRENDA (<40% sequence identity to training data, N=525).\n\n")
+        f.write("Evaluation of StableProt V8 vs State-Of-The-Art baselines on strictly decontaminated out-of-distribution enzyme optimal growth temperatures from BRENDA (<40% sequence identity to training data, N=525).\n\n")
         f.write("| Model | MAE (°C) | RMSE (°C) | Pearson (r) | Spearman (ρ) |\n")
         f.write("| :--- | :---: | :---: | :---: | :---: |\n")
         for r in summary_rows:
@@ -260,7 +259,7 @@ def main():
     plot_data = []
     for name, y_p in model_preds.items():
         if y_p is None: continue
-        short_name = name.split(' ')[0]
+        short_name = name.split(' (')[0]
         errors = np.abs(y_true - y_p)
         for err in errors:
             plot_data.append({'Model': short_name, 'Absolute Error (°C)': err})

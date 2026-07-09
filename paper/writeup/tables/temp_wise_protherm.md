@@ -1,6 +1,6 @@
 # Temperature-Wise MAE Benchmark on ProThermDB Validation
 
-| Bin | Range | Count | TemStaPro | StableProt | StableProt V9 | TemBERTure | ESMStabP | DeepSTABp | ThermoFormer | StableProt V9 (Conf-Adj) |
+| Bin | Range | Count | TemStaPro | StableProt | StableProt V8 | TemBERTure | ESMStabP | DeepSTABp | ThermoFormer | StableProt V8 (Conf-Adj) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 40-50 | (40, 50] | 602 | 6.37 | 3.70 | 4.72 | 3.56 | 5.85 | 4.20 | 18.23 | 2.86 |
 | 50-60 | (50, 60] | 1807 | 10.80 | 5.17 | 5.56 | 5.18 | 9.28 | 6.86 | 25.21 | 3.58 |

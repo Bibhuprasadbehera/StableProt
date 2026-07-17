@@ -7,7 +7,7 @@ import os
 import torch
 from .v9_predict import V9Predictor
 
-app = FastAPI(title="StableProt V8 Predictor")
+app = FastAPI(title="StableProt V9 Predictor")
 
 # Setup templates
 templates = Jinja2Templates(directory="inference/templates")
@@ -19,7 +19,7 @@ predictor = None
 async def startup_event():
     global predictor
     root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    models_dir = os.path.join(root_dir, "experiments/src/training/v8_disjoint/results")
+    models_dir = os.path.join(root_dir, "experiments/src/training/v9_disjoint/results")
     
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Loading V9 5-seed ensemble from {models_dir} onto {device}...")

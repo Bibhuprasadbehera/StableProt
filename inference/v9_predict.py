@@ -7,9 +7,9 @@ import numpy as np
 from transformers import EsmTokenizer, EsmModel
 
 root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-v8_dir = os.path.join(root_dir, "experiments/src/training/v8_disjoint")
-if v8_dir not in sys.path:
-    sys.path.insert(0, v8_dir)
+v9_dir = os.path.join(root_dir, "experiments/src/training/v9_disjoint")
+if v9_dir not in sys.path:
+    sys.path.insert(0, v9_dir)
 
 from train import MultiHeadSaProtV8, enrich_inputs
 from inference.v7_predict import load_saprot_model, get_saprot_embedding

@@ -132,18 +132,20 @@ class MultiHeadSaProtV8(nn.Module):
             return self.head_ogt(h2).squeeze(-1)
 
 class ProteinDataset(Dataset):
-    def __init__(self, emb, aux, y, weights=None, augment=False):
+    def __init__(self, emb, aux, y, weights=None, augment=False, augment_prob=0.15, augment_noise_std=0.02):
         self.emb = emb
         self.aux = aux
         self.y = y
         self.weights = weights if weights is not None else torch.ones_like(y)
         self.augment = augment
+        self.augment_prob = augment_prob
+        self.augment_noise_std = augment_noise_std
     def __len__(self):
         return len(self.y)
     def __getitem__(self, idx):
         e, a, y, w = self.emb[idx], self.aux[idx], self.y[idx], self.weights[idx]
-        if self.augment and torch.rand(1).item() < 0.15:
-            noise = torch.randn_like(e) * 0.02
+        if self.augment and torch.rand(1).item() < self.augment_prob:
+            noise = torch.randn_like(e) * self.augment_noise_std
             e = e + noise
         return e, a, y, w
 

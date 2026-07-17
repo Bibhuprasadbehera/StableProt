@@ -433,10 +433,13 @@ def main():
     if v7_saprot_preds:
         results['StableProt V7'] = {'y_pred': np.mean(v7_saprot_preds, axis=0), 'type': 'Dedicated Tm Head'}
 
-    # ── V8 SaProt (Disjoint Backbone with 2-stage inference) ──
-    print("Evaluating V8 SaProt...")
+    # ── V8/V9 SaProt (Disjoint Backbone with 2-stage inference) ──
+    VERSION = os.environ.get("STABLEPROT_VERSION", "v8_disjoint")
+    label_version = "StableProt V8" if VERSION == "v8_disjoint" else "StableProt V9"
+    print(f"Evaluating {label_version}...")
     import importlib.util
-    v8_dir = os.path.join(PROJECT_ROOT, "experiments/src/training/v8_disjoint")
+    import inspect
+    v8_dir = os.path.join(PROJECT_ROOT, f"experiments/src/training/{VERSION}")
     if v8_dir not in sys.path:
         sys.path.insert(0, v8_dir)
     v8_train_path = os.path.join(v8_dir, "train.py")
@@ -462,23 +465,28 @@ def main():
     else:
         embs_v8 = x_saprot.cpu()
 
+    sig = inspect.signature(MultiHeadSaProtV8.__init__)
+    model_kwargs = {}
+    if 'use_residuals' in sig.parameters:
+        model_kwargs['use_residuals'] = train_v8.CONFIG.get('use_residuals', True)
+
     for s in range(1, 6):
-        pt_tm = os.path.join(PROJECT_ROOT, f"experiments/src/training/v8_disjoint/results/seed{s}/model_tm.pt")
-        pt_ogt = os.path.join(PROJECT_ROOT, f"experiments/src/training/v8_disjoint/results/seed{s}/model_ogt.pt")
-        pt_comb = os.path.join(PROJECT_ROOT, f"experiments/src/training/v8_disjoint/results/seed{s}/model.pt")
-        norm_p = os.path.join(PROJECT_ROOT, f"experiments/src/training/v8_disjoint/results/seed{s}/normalization_stats.pt")
+        pt_tm = os.path.join(PROJECT_ROOT, f"experiments/src/training/{VERSION}/results/seed{s}/model_tm.pt")
+        pt_ogt = os.path.join(PROJECT_ROOT, f"experiments/src/training/{VERSION}/results/seed{s}/model_ogt.pt")
+        pt_comb = os.path.join(PROJECT_ROOT, f"experiments/src/training/{VERSION}/results/seed{s}/model.pt")
+        norm_p = os.path.join(PROJECT_ROOT, f"experiments/src/training/{VERSION}/results/seed{s}/normalization_stats.pt")
         if not os.path.exists(norm_p):
-            norm_p = os.path.join(PROJECT_ROOT, "experiments/src/training/v8_disjoint/results/normalization_stats.pt")
+            norm_p = os.path.join(PROJECT_ROOT, f"experiments/src/training/{VERSION}/results/normalization_stats.pt")
         norms = torch.load(norm_p, map_location='cpu', weights_only=False) if os.path.exists(norm_p) else {}
         
         m_t, m_o = None, None
         if os.path.exists(pt_tm) and os.path.exists(pt_ogt):
-            m_t = MultiHeadSaProtV8().to(device)
+            m_t = MultiHeadSaProtV8(**model_kwargs).to(device)
             m_t.load_state_dict(torch.load(pt_tm, map_location=device, weights_only=False))
-            m_o = MultiHeadSaProtV8().to(device)
+            m_o = MultiHeadSaProtV8(**model_kwargs).to(device)
             m_o.load_state_dict(torch.load(pt_ogt, map_location=device, weights_only=False))
         elif os.path.exists(pt_comb):
-            m_comb = MultiHeadSaProtV8().to(device)
+            m_comb = MultiHeadSaProtV8(**model_kwargs).to(device)
             m_comb.load_state_dict(torch.load(pt_comb, map_location=device, weights_only=False))
             m_t, m_o = m_comb, m_comb
         if m_t is not None and m_o is not None:
@@ -502,12 +510,12 @@ def main():
         weights = 1.0 / (vars_stack + 1e-6)
         ens_mu = np.sum(mus_stack * weights, axis=0) / np.sum(weights, axis=0)
         ens_sigma = np.sqrt(1.0 / np.sum(weights, axis=0) + np.var(mus_stack, axis=0))
-        results["StableProt V8"] = {
+        results[label_version] = {
             "y_pred": ens_mu,
             "y_conf": ens_sigma,
             "type": "Dedicated Tm Head",
         }
-        print("  V8 evaluated on FireProtDB sequences via confidence-weighted 2-stage inference")
+        print(f"  {label_version} evaluated on FireProtDB sequences via confidence-weighted 2-stage inference")
 
     # ── Load Baselines (TemBERTure, ESMStabP, DeepSTABp, ThermoFormer) ──
     baseline_path = os.path.join(PROJECT_ROOT, "new_data/baseline_predictions.pt")

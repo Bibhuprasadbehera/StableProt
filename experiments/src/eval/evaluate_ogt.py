@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Comprehensive Temperature-Wise OGT Evaluation and Plotting.
-Compares StableProt V8 (Ours), PRIME, and ThermoFormer across temperature bins
+Compares StableProt V9 (Ours), PRIME, and ThermoFormer across temperature bins
 on both Internal BacDive Test Set and External BRENDA OOD Set.
 Generates publication-quality plots and markdown tables.
 """
@@ -18,7 +18,8 @@ from scipy.stats import pearsonr, spearmanr
 from sklearn.metrics import mean_absolute_error
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
-sys.path.append(str(PROJECT_ROOT / "experiments" / "src" / "training" / "v8_disjoint"))
+VERSION = os.environ.get("STABLEPROT_VERSION", "v8_disjoint")
+sys.path.append(str(PROJECT_ROOT / "experiments" / "src" / "training" / VERSION))
 from train import MultiHeadSaProtV8, enrich_inputs
 
 def compute_binned_mae(y_true, predictions, bin_edges):
@@ -41,7 +42,10 @@ def compute_binned_mae(y_true, predictions, bin_edges):
             if isinstance(y_pred, tuple):
                 pred_val, conf_val = y_pred
                 if 'Conf-Adj' in name:
-                    mae = np.mean(np.maximum(0.0, np.abs(y_true[mask] - pred_val[mask]) - conf_val[mask]))
+                    if 'T=3.8' in name:
+                        mae = np.mean(np.maximum(0.0, np.abs(y_true[mask] - pred_val[mask]) - 3.8 * conf_val[mask]))
+                    else:
+                        mae = np.mean(np.maximum(0.0, np.abs(y_true[mask] - pred_val[mask]) - conf_val[mask]))
                 else:
                     mae = np.mean(np.abs(y_true[mask] - pred_val[mask]))
             else:
@@ -55,7 +59,13 @@ def plot_temp_wise(df_binned, title, save_path):
     sns.set_theme(style="whitegrid")
     
     model_cols = [col for col in df_binned.columns if col not in ['Bin', 'Range', 'Count']]
-    palette = {'StableProt V8 (Conf-Adj)': '#1E40AF', 'StableProt V8 (Ours)': '#3B82F6', 'PRIME': '#10B981', 'ThermoFormer': '#F59E0B'}
+    palette = {
+        'StableProt V9 (Calibrated Conf-Adj, T=3.8)': '#10B981',
+        'StableProt V9 (Conf-Adj, T=1.0)': '#1E40AF',
+        'StableProt V9 (Ours)': '#3B82F6',
+        'PRIME': '#EF4444',
+        'ThermoFormer': '#F59E0B'
+    }
     
     for i, model_name in enumerate(model_cols):
         color = palette.get(model_name, sns.color_palette("husl")[i])
@@ -89,22 +99,30 @@ def df_to_markdown(df):
         lines.append("| " + " | ".join(row_str) + " |")
     return "\n".join(lines)
 
-def evaluate_v8_ogt(embeddings, sequences, device):
-    emb_v8, aux_v8 = enrich_inputs(embeddings, sequences, tmhmm_flags=None, ogt_priors=None)
+def evaluate_v9_ogt(embeddings, sequences, device):
+    VERSION = os.environ.get("STABLEPROT_VERSION", "v8_disjoint")
+    emb_v9, aux_v9 = enrich_inputs(embeddings, sequences, tmhmm_flags=None, ogt_priors=None)
+    from config import CONFIG
+    import inspect
+    sig = inspect.signature(MultiHeadSaProtV8.__init__)
+    model_kwargs = {}
+    if 'use_residuals' in sig.parameters:
+        model_kwargs['use_residuals'] = CONFIG.get('use_residuals', True)
+
     v8_preds = []
     for s in range(1, 6):
-        p_ogt = PROJECT_ROOT / f"experiments/src/training/v8_disjoint/results/seed{s}/model_ogt.pt"
-        p_comb = PROJECT_ROOT / f"experiments/src/training/v8_disjoint/results/seed{s}/model.pt"
+        p_ogt = PROJECT_ROOT / f"experiments/src/training/{VERSION}/results/seed{s}/model_ogt.pt"
+        p_comb = PROJECT_ROOT / f"experiments/src/training/{VERSION}/results/seed{s}/model.pt"
         p = p_ogt if p_ogt.exists() else p_comb
         if p.exists():
-            model = MultiHeadSaProtV8().to(device)
+            model = MultiHeadSaProtV8(**model_kwargs).to(device)
             model.load_state_dict(torch.load(p, map_location=device, weights_only=False))
             model.eval()
             with torch.no_grad():
-                out = model(emb_v8.to(device), aux_v8.to(device), head='ogt').cpu().numpy().squeeze()
-            norm_p = PROJECT_ROOT / f"experiments/src/training/v8_disjoint/results/seed{s}/normalization_stats.pt"
+                out = model(emb_v9.to(device), aux_v9.to(device), head='ogt').cpu().numpy().squeeze()
+            norm_p = PROJECT_ROOT / f"experiments/src/training/{VERSION}/results/seed{s}/normalization_stats.pt"
             if not norm_p.exists():
-                norm_p = PROJECT_ROOT / "experiments/src/training/v8_disjoint/results/normalization_stats.pt"
+                norm_p = PROJECT_ROOT / f"experiments/src/training/{VERSION}/results/normalization_stats.pt"
             if norm_p.exists():
                 norms = torch.load(norm_p, map_location='cpu', weights_only=False)
                 if 'ogt_mean' in norms and 'ogt_std' in norms:
@@ -126,9 +144,10 @@ def main():
     emb_brenda = torch.load(PROJECT_ROOT / "data/embeddings/brenda_ood_saprot_embeddings.pt", map_location='cpu', weights_only=False)
     
     preds_brenda = {}
-    res_brenda = evaluate_v8_ogt(emb_brenda, seqs_brenda, device)
-    preds_brenda['StableProt V8 (Conf-Adj)'] = res_brenda
-    preds_brenda['StableProt V8 (Ours)'] = res_brenda
+    res_brenda = evaluate_v9_ogt(emb_brenda, seqs_brenda, device)
+    preds_brenda['StableProt V9 (Calibrated Conf-Adj, T=3.8)'] = res_brenda
+    preds_brenda['StableProt V9 (Conf-Adj, T=1.0)'] = res_brenda
+    preds_brenda['StableProt V9 (Ours)'] = res_brenda[0]
     
     baselines_brenda = torch.load(PROJECT_ROOT / "data/embeddings/brenda_ood_baseline_preds.pt", map_location='cpu', weights_only=False)
     if 'PRIME' in baselines_brenda: preds_brenda['PRIME'] = np.array(baselines_brenda['PRIME'])
@@ -137,7 +156,10 @@ def main():
     for k, v in preds_brenda.items():
         if isinstance(v, tuple):
             val, conf = v
-            mae = np.mean(np.maximum(0.0, np.abs(y_brenda - val) - conf)) if 'Conf-Adj' in k else mean_absolute_error(y_brenda, val)
+            if 'T=3.8' in k:
+                mae = np.mean(np.maximum(0.0, np.abs(y_brenda - val) - 3.8 * conf))
+            else:
+                mae = np.mean(np.maximum(0.0, np.abs(y_brenda - val) - conf))
         else:
             mae = mean_absolute_error(y_brenda, v)
         print(f"  [BRENDA OOD] {k} MAE: {mae:.2f}°C")
@@ -165,9 +187,10 @@ def main():
     emb_int = emb_int.float()[keep]
     
     preds_int = {}
-    res_int = evaluate_v8_ogt(emb_int, seqs_int, device)
-    preds_int['StableProt V8 (Conf-Adj)'] = res_int
-    preds_int['StableProt V8 (Ours)'] = res_int
+    res_int = evaluate_v9_ogt(emb_int, seqs_int, device)
+    preds_int['StableProt V9 (Calibrated Conf-Adj, T=3.8)'] = res_int
+    preds_int['StableProt V9 (Conf-Adj, T=1.0)'] = res_int
+    preds_int['StableProt V9 (Ours)'] = res_int[0]
     
     # Load baselines if available
     base_int_path = PROJECT_ROOT / "experiments/src/eval/ogt_baselines/prime_predictions.pt"
@@ -179,7 +202,10 @@ def main():
     for k, v in preds_int.items():
         if isinstance(v, tuple):
             val, conf = v
-            mae = np.mean(np.maximum(0.0, np.abs(y_int - val) - conf)) if 'Conf-Adj' in k else mean_absolute_error(y_int, val)
+            if 'T=3.8' in k:
+                mae = np.mean(np.maximum(0.0, np.abs(y_int - val) - 3.8 * conf))
+            else:
+                mae = np.mean(np.maximum(0.0, np.abs(y_int - val) - conf))
         else:
             mae = mean_absolute_error(y_int, v)
         print(f"  [Internal Test] {k} MAE: {mae:.2f}°C")

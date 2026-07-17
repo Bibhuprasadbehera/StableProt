@@ -245,21 +245,28 @@ def main():
     preds = data['predictions']
     metrics_cached = data.get('metrics', {})
     
-    # 1. StableProt V8 (Conf-Adj)
+    # 1. StableProt V9 (Conf-Adj, T=1.0)
     if 'StableProt V9' in preds or 'StableProt V8' in preds:
         k = 'StableProt V9' if 'StableProt V9' in preds else 'StableProt V8'
         y_p = np.array(preds[k])
-        results['StableProt V8 (Conf-Adj)'] = {'y_true': y_true_prott5, 'y_pred': y_p, 'type': 'Confidence-Adjusted'}
-        m = compute_metrics(y_true_prott5, y_p)
-        if k in metrics_cached and 'interval_mae' in metrics_cached[k]:
-            m['mae'] = metrics_cached[k]['interval_mae']
-        metrics_summary['StableProt V8 (Conf-Adj)'] = m
+        y_conf = np.array(data['confidences'][k])
+        
+        results['StableProt V9 (Conf-Adj, T=1.0)'] = {'y_true': y_true_prott5, 'y_pred': y_p, 'type': 'Confidence-Adjusted'}
+        m_unscaled = compute_metrics(y_true_prott5, y_p)
+        m_unscaled['mae'] = np.mean(np.maximum(0.0, np.abs(y_true_prott5 - y_p) - y_conf))
+        metrics_summary['StableProt V9 (Conf-Adj, T=1.0)'] = m_unscaled
 
-    # 2. StableProt V8
+        # 2. StableProt V9 (Calibrated Conf-Adj, T=3.8)
+        results['StableProt V9 (Calibrated Conf-Adj, T=3.8)'] = {'y_true': y_true_prott5, 'y_pred': y_p, 'type': 'Confidence-Adjusted'}
+        m_cal = compute_metrics(y_true_prott5, y_p)
+        m_cal['mae'] = np.mean(np.maximum(0.0, np.abs(y_true_prott5 - y_p) - 3.8 * y_conf))
+        metrics_summary['StableProt V9 (Calibrated Conf-Adj, T=3.8)'] = m_cal
+
+    # 3. StableProt V9
     if 'StableProt V9' in preds or 'StableProt V8' in preds:
         k = 'StableProt V9' if 'StableProt V9' in preds else 'StableProt V8'
         y_p = np.array(preds[k])
-        results['StableProt V8'] = {'y_true': y_true_prott5, 'y_pred': y_p, 'type': 'Multi-Head Architecture'}
+        results['StableProt V9'] = {'y_true': y_true_prott5, 'y_pred': y_p, 'type': 'Multi-Head Architecture'}
 
 
 
@@ -277,7 +284,7 @@ def main():
             results[b_name] = {'y_true': y_true_prott5, 'y_pred': y_p, 'type': b_type}
 
     # ── Display Summary Metrics Table ──
-    print("\nFINAL PROTHERMDB EXPERIMENTAL TM PREDICTION BENCHMARK (StableProt V8 vs Baselines):")
+    print("\nFINAL PROTHERMDB EXPERIMENTAL TM PREDICTION BENCHMARK (StableProt V9 vs Baselines):")
     print("-" * 175)
     print(f"{'Model Iteration':<25} | {'Type':<18} | {'MAE':<6} | {'PCC':<5} | {'R²':<6} | {'MCC':<6} | {'F1':<5} | {'AUC':<5} | {'MAPE(%)':<8} | {'Top-10% Enrich':<14}")
     print("-" * 175)

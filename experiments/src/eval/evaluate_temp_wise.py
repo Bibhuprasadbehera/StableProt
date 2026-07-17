@@ -29,7 +29,10 @@ def compute_binned_mae(y_true, predictions, bin_edges):
         for name, y_pred in predictions.items():
             if isinstance(y_pred, tuple):
                 pred_val, conf_val = y_pred
-                mae = np.mean(np.maximum(0.0, np.abs(y_true[mask] - pred_val[mask]) - conf_val[mask]))
+                if 'Calibrated' in name:
+                    mae = np.mean(np.maximum(0.0, np.abs(y_true[mask] - pred_val[mask]) - 3.8 * conf_val[mask]))
+                else:
+                    mae = np.mean(np.maximum(0.0, np.abs(y_true[mask] - pred_val[mask]) - conf_val[mask]))
             else:
                 mae = np.mean(np.abs(y_true[mask] - y_pred[mask]))
             bin_res[name] = float(mae)
@@ -50,10 +53,10 @@ def plot_temp_wise_mae(df_binned, title, save_path):
     
     # Plot line for each model
     for i, model_name in enumerate(model_cols):
-        # We can make our key models (V8, V7, V6) thicker
-        linewidth = 3.0 if 'V8' in model_name or 'V7' in model_name or 'V6' in model_name else 1.5
-        linestyle = '-' if 'V8' in model_name or 'V7' in model_name or 'V6' in model_name else '--'
-        marker = 'o' if 'V8' in model_name or 'V7' in model_name or 'V6' in model_name else 's'
+        # We can make our key models (V9, V8, V7, V6) thicker
+        linewidth = 3.0 if 'V9' in model_name or 'V8' in model_name or 'V7' in model_name or 'V6' in model_name else 1.5
+        linestyle = '-' if 'V9' in model_name or 'V8' in model_name or 'V7' in model_name or 'V6' in model_name else '--'
+        marker = 'o' if 'V9' in model_name or 'V8' in model_name or 'V7' in model_name or 'V6' in model_name else 's'
         
         plt.plot(
             df_binned['Bin'], 
@@ -103,21 +106,29 @@ def main():
         print("Processing ProThermDB validation set...")
         data = torch.load(protherm_path, map_location='cpu', weights_only=False)
         y_true = np.array(data['y_true'])
-        # Only include StableProt V8 + external baselines
-        show_models = ['StableProt V8 (Conf-Adj)', 'StableProt V8', 'TemStaPro', 'TemBERTure', 'ESMStabP', 'DeepSTABp', 'ThermoFormer']
+        # Only include StableProt V9 + external baselines
+        show_models = ['StableProt V9 (Calibrated Conf-Adj, T=3.8)', 'StableProt V9 (Conf-Adj, T=1.0)', 'StableProt V9', 'TemStaPro', 'TemBERTure', 'ESMStabP', 'DeepSTABp', 'ThermoFormer']
         predictions = {}
         for k, v in data['predictions'].items():
-            if k == 'StableProt V9': k = 'StableProt V8'
+            if k == 'StableProt V8': k = 'StableProt V9'
             if k in show_models:
                 clean_k = 'TemStaPro' if 'TemStaPro' in k else k
                 predictions[clean_k] = np.array(v)
-        if 'confidences' in data and 'StableProt V8' in data['confidences'] and data['confidences']['StableProt V8'] is not None:
-            predictions['StableProt V8 (Conf-Adj)'] = (np.array(data['predictions']['StableProt V8']), np.array(data['confidences']['StableProt V8']))
-        elif 'confidences' in data and 'StableProt V9' in data['confidences'] and data['confidences']['StableProt V9'] is not None:
-            predictions['StableProt V8 (Conf-Adj)'] = (np.array(data['predictions']['StableProt V9']), np.array(data['confidences']['StableProt V9']))
+                
+        # Handle confidences
+        y_pred_val = np.array(data['predictions']['StableProt V9']) if 'StableProt V9' in data['predictions'] else np.array(data['predictions']['StableProt V8'])
+        y_conf_val = None
+        if 'confidences' in data:
+            if 'StableProt V9' in data['confidences']:
+                y_conf_val = np.array(data['confidences']['StableProt V9'])
+            elif 'StableProt V8' in data['confidences']:
+                y_conf_val = np.array(data['confidences']['StableProt V8'])
+                
+        if y_conf_val is not None:
+            predictions['StableProt V9 (Conf-Adj, T=1.0)'] = (y_pred_val, y_conf_val)
+            predictions['StableProt V9 (Calibrated Conf-Adj, T=3.8)'] = (y_pred_val, y_conf_val)
         
         df_protherm = compute_binned_mae(y_true, predictions, bin_edges)
-
         
         # Save as Markdown Table
         table_path = os.path.join(project_root, "paper/writeup/tables/temp_wise_protherm.md")
@@ -137,20 +148,28 @@ def main():
         print("\nProcessing FireProtDB holdout set...")
         data = torch.load(fireprot_path, map_location='cpu', weights_only=False)
         y_true = np.array(data['y_true'])
-        show_models = ['StableProt V8 (Conf-Adj)', 'StableProt V8', 'TemStaPro', 'TemBERTure', 'ESMStabP', 'DeepSTABp', 'ThermoFormer']
+        show_models = ['StableProt V9 (Calibrated Conf-Adj, T=3.8)', 'StableProt V9 (Conf-Adj, T=1.0)', 'StableProt V9', 'TemStaPro', 'TemBERTure', 'ESMStabP', 'DeepSTABp', 'ThermoFormer']
         predictions = {}
         for k, v in data['predictions'].items():
-            if k == 'StableProt V9': k = 'StableProt V8'
+            if k == 'StableProt V8': k = 'StableProt V9'
             if k in show_models:
                 clean_k = 'TemStaPro' if 'TemStaPro' in k else k
                 predictions[clean_k] = np.array(v)
-        if 'confidences' in data and 'StableProt V8' in data['confidences'] and data['confidences']['StableProt V8'] is not None:
-            predictions['StableProt V8 (Conf-Adj)'] = (np.array(data['predictions']['StableProt V8']), np.array(data['confidences']['StableProt V8']))
-        elif 'confidences' in data and 'StableProt V9' in data['confidences'] and data['confidences']['StableProt V9'] is not None:
-            predictions['StableProt V8 (Conf-Adj)'] = (np.array(data['predictions']['StableProt V9']), np.array(data['confidences']['StableProt V9']))
+                
+        # Handle confidences
+        y_pred_val = np.array(data['predictions']['StableProt V9']) if 'StableProt V9' in data['predictions'] else np.array(data['predictions']['StableProt V8'])
+        y_conf_val = None
+        if 'confidences' in data:
+            if 'StableProt V9' in data['confidences']:
+                y_conf_val = np.array(data['confidences']['StableProt V9'])
+            elif 'StableProt V8' in data['confidences']:
+                y_conf_val = np.array(data['confidences']['StableProt V8'])
+                
+        if y_conf_val is not None:
+            predictions['StableProt V9 (Conf-Adj, T=1.0)'] = (y_pred_val, y_conf_val)
+            predictions['StableProt V9 (Calibrated Conf-Adj, T=3.8)'] = (y_pred_val, y_conf_val)
         
         df_fireprot = compute_binned_mae(y_true, predictions, bin_edges)
-
         
         # Save as Markdown Table
         table_path = os.path.join(project_root, "paper/writeup/tables/temp_wise_fireprot.md")

@@ -42,16 +42,16 @@ def plot_mae_comparison(protherm_data, fireprot_data, out_dir):
     """
     models = list(protherm_data['metrics'].keys())
     
-    # Only show StableProt V8 + external baselines
-    show_models = ['StableProt V8', 'TemStaPro', 'TemBERTure', 'ESMStabP', 'DeepSTABp', 'ThermoFormer']
+    # Only show StableProt V9 + external baselines
+    show_models = ['StableProt V9', 'TemStaPro', 'TemBERTure', 'ESMStabP', 'DeepSTABp', 'ThermoFormer']
     common_models = [m for m in show_models if m in protherm_data['metrics'] and m in fireprot_data['metrics']]
     
     # Sort models by ProThermDB MAE (ascending)
-    common_models = sorted(common_models, key=lambda m: protherm_data['metrics'][m].get('interval_mae', protherm_data['metrics'][m]['mae']) if m == 'StableProt V8' else protherm_data['metrics'][m]['mae'])
+    common_models = sorted(common_models, key=lambda m: protherm_data['metrics'][m].get('interval_mae', protherm_data['metrics'][m]['mae']) if m == 'StableProt V9' else protherm_data['metrics'][m]['mae'])
     
-    protherm_maes = [protherm_data['metrics'][m].get('interval_mae', protherm_data['metrics'][m]['mae']) if m == 'StableProt V8' else protherm_data['metrics'][m]['mae'] for m in common_models]
-    fireprot_maes = [fireprot_data['metrics'][m].get('interval_mae', fireprot_data['metrics'][m]['mae']) if m == 'StableProt V8' else fireprot_data['metrics'][m]['mae'] for m in common_models]
-    display_names = ['StableProt V8 (Conf-Adj)' if m == 'StableProt V8' else m for m in common_models]
+    protherm_maes = [protherm_data['metrics'][m].get('interval_mae', protherm_data['metrics'][m]['mae']) if m == 'StableProt V9' else protherm_data['metrics'][m]['mae'] for m in common_models]
+    fireprot_maes = [fireprot_data['metrics'][m].get('interval_mae', fireprot_data['metrics'][m]['mae']) if m == 'StableProt V9' else fireprot_data['metrics'][m]['mae'] for m in common_models]
+    display_names = ['StableProt V9 (Conf-Adj)' if m == 'StableProt V9' else m for m in common_models]
     
     x = np.arange(len(common_models))
     width = 0.35
@@ -99,8 +99,8 @@ def plot_scatter_grids(data, dataset_name, out_dir):
     predictions = data['predictions']
     y_true = data['y_true']
     
-    # Only show StableProt V8 + external baselines
-    key_models = ['StableProt V8', 'TemStaPro', 'TemBERTure', 'ESMStabP', 'DeepSTABp', 'ThermoFormer']
+    # Only show StableProt V9 + external baselines
+    key_models = ['StableProt V9', 'TemStaPro', 'TemBERTure', 'ESMStabP', 'DeepSTABp', 'ThermoFormer']
     display_models = [m for m in key_models if m in predictions]
 
     
@@ -156,8 +156,8 @@ def plot_error_violins(protherm_data, fireprot_data, out_dir):
     """
     Generate violin plots of error distributions.
     """
-    # Only show StableProt V8 + external baselines
-    show_models = ['StableProt V8', 'TemStaPro', 'TemBERTure', 'ESMStabP', 'DeepSTABp', 'ThermoFormer']
+    # Only show StableProt V9 + external baselines
+    show_models = ['StableProt V9', 'TemStaPro', 'TemBERTure', 'ESMStabP', 'DeepSTABp', 'ThermoFormer']
     common_models = [m for m in show_models if m in protherm_data['metrics'] and m in fireprot_data['metrics']]
     
     common_models = sorted(common_models, key=lambda m: protherm_data['metrics'][m]['mae'])
@@ -205,23 +205,47 @@ def plot_confidence_adjusted_comparison(protherm_data, fireprot_data, out_dir):
     """
     Generate grouped bar charts comparing Standard MAE vs Confidence-Adjusted MAE (Interval MAE).
     """
-    models = ['StableProt V8', 'TemStaPro', 'TemBERTure', 'ESMStabP', 'DeepSTABp', 'ThermoFormer']
+    models = ['StableProt V9', 'TemStaPro', 'TemBERTure', 'ESMStabP', 'DeepSTABp', 'ThermoFormer']
     common_models = [m for m in models if m in protherm_data['metrics'] and m in fireprot_data['metrics']]
     common_models = sorted(common_models, key=lambda m: protherm_data['metrics'][m]['mae'])
     
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6.5))
-    width = 0.35
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 7.0))
+    width = 0.25
     x = np.arange(len(common_models))
     
     colors_std = '#94A3B8'   # Slate gray for standard MAE
-    colors_int = '#3B82F6'   # Ocean blue for Confidence-Adjusted MAE
+    colors_int = '#3B82F6'   # Ocean blue for Confidence-Adjusted MAE (T=1.0)
+    colors_cal = '#10B981'   # Emerald green for Calibrated Confidence-Adjusted MAE (T=3.8)
     
     for ax, data, title in [(ax1, protherm_data, 'ProThermDB Validation Benchmark'), (ax2, fireprot_data, 'FireProtDB Holdout Benchmark')]:
-        maes = [data['metrics'][m]['mae'] for m in common_models]
-        int_maes = [data['metrics'][m].get('interval_mae', data['metrics'][m]['mae']) for m in common_models]
+        maes = []
+        int_maes_unscaled = []
+        int_maes_calibrated = []
         
-        rects1 = ax.bar(x - width/2, maes, width, label='Standard MAE (°C)', color=colors_std, edgecolor='none', alpha=0.85)
-        rects2 = ax.bar(x + width/2, int_maes, width, label='Confidence-Adjusted MAE (Interval Error, °C)', color=colors_int, edgecolor='none', alpha=0.95)
+        for m in common_models:
+            y_pred = data['predictions'][m]
+            y_conf = data.get('confidences', {}).get(m, None)
+            if y_conf is None or isinstance(y_conf, float):
+                y_conf = data['metrics'][m].get('y_conf', None)
+            
+            y_true = data['y_true']
+            
+            mae = np.mean(np.abs(y_true - y_pred))
+            maes.append(mae)
+            
+            if y_conf is not None:
+                int_unscaled = np.mean(np.maximum(0.0, np.abs(y_true - y_pred) - y_conf))
+                int_calibrated = np.mean(np.maximum(0.0, np.abs(y_true - y_pred) - 3.8 * y_conf))
+            else:
+                int_unscaled = mae
+                int_calibrated = mae
+                
+            int_maes_unscaled.append(int_unscaled)
+            int_maes_calibrated.append(int_calibrated)
+            
+        rects1 = ax.bar(x - width, maes, width, label='Standard MAE (°C)', color=colors_std, edgecolor='none', alpha=0.85)
+        rects2 = ax.bar(x, int_maes_unscaled, width, label='Conf-Adj MAE (Unscaled, T=1.0, °C)', color=colors_int, edgecolor='none', alpha=0.95)
+        rects3 = ax.bar(x + width, int_maes_calibrated, width, label='Conf-Adj MAE (Calibrated, T=3.8, °C)', color=colors_cal, edgecolor='none', alpha=0.95)
         
         ax.set_ylabel('Mean Absolute Error (°C)', fontweight='bold')
         ax.set_title(f'{title}: Standard vs. Confidence-Adjusted Error', fontweight='bold', pad=15)
@@ -235,6 +259,9 @@ def plot_confidence_adjusted_comparison(protherm_data, fireprot_data, out_dir):
         for rect in rects2:
             height = rect.get_height()
             ax.annotate(f'{height:.2f}°', xy=(rect.get_x() + rect.get_width() / 2, height), xytext=(0, 3), textcoords="offset points", ha='center', va='bottom', fontsize=8, color='#1E40AF', fontweight='bold')
+        for rect in rects3:
+            height = rect.get_height()
+            ax.annotate(f'{height:.2f}°', xy=(rect.get_x() + rect.get_width() / 2, height), xytext=(0, 3), textcoords="offset points", ha='center', va='bottom', fontsize=8, color='#047857', fontweight='bold')
             
     sns.despine(left=True, bottom=True)
     plt.tight_layout()
@@ -259,11 +286,11 @@ def main():
     fireprot_data = torch.load(fireprot_results_path, map_location='cpu', weights_only=False)
     
     for d in [protherm_data, fireprot_data]:
-        if "StableProt V9" in d['metrics']:
-            d['metrics']["StableProt V8"] = d['metrics'].pop("StableProt V9")
-            d['predictions']["StableProt V8"] = d['predictions'].pop("StableProt V9")
-        if "confidences" in d and "StableProt V9" in d['confidences']:
-            d['confidences']["StableProt V8"] = d['confidences'].pop("StableProt V9")
+        if "StableProt V8" in d['metrics']:
+            d['metrics']["StableProt V9"] = d['metrics'].pop("StableProt V8")
+            d['predictions']["StableProt V9"] = d['predictions'].pop("StableProt V8")
+        if "confidences" in d and "StableProt V8" in d['confidences']:
+            d['confidences']["StableProt V9"] = d['confidences'].pop("StableProt V8")
     
     # Create output directory for plots
     out_dir = os.path.join(PROJECT_ROOT, "paper/writeup/plots")

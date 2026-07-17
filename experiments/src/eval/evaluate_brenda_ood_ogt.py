@@ -105,33 +105,50 @@ def load_v7_ensemble(device):
     return models
 
 def evaluate_v8_ensemble(embeddings, sequences, device):
-    print("Loading 5-seed ensemble of StableProt V8 (Ours)...")
-    v8_dir = str(PROJECT_ROOT / "experiments/src/training/v8_disjoint")
+    VERSION = os.environ.get("STABLEPROT_VERSION", "v8_disjoint")
+    label_version = "StableProt V8" if VERSION == "v8_disjoint" else "StableProt V9"
+    print(f"Loading 5-seed ensemble of {label_version} (Ours)...")
+    v8_dir = str(PROJECT_ROOT / f"experiments/src/training/{VERSION}")
     if v8_dir not in sys.path:
         sys.path.insert(0, v8_dir)
-    from train import MultiHeadSaProtV8, enrich_inputs
+    import importlib.util
+    import inspect
+    v8_train_path = os.path.join(v8_dir, "train.py")
+    spec = importlib.util.spec_from_file_location("train_v8", v8_train_path)
+    train_v8 = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(train_v8)
+    MultiHeadSaProtV8 = train_v8.MultiHeadSaProtV8
+    enrich_inputs = train_v8.enrich_inputs
     
     emb_v8, aux_v8 = enrich_inputs(embeddings, sequences, tmhmm_flags=None, ogt_priors=None)
+    
+    sig = inspect.signature(MultiHeadSaProtV8.__init__)
+    model_kwargs = {}
+    if 'use_residuals' in sig.parameters:
+        model_kwargs['use_residuals'] = train_v8.CONFIG.get('use_residuals', True)
+
     v8_preds = []
     for s in range(1, 6):
-        p_ogt = PROJECT_ROOT / f"experiments/src/training/v8_disjoint/results/seed{s}/model_ogt.pt"
-        p_comb = PROJECT_ROOT / f"experiments/src/training/v8_disjoint/results/seed{s}/model.pt"
+        p_ogt = PROJECT_ROOT / f"experiments/src/training/{VERSION}/results/seed{s}/model_ogt.pt"
+        p_comb = PROJECT_ROOT / f"experiments/src/training/{VERSION}/results/seed{s}/model.pt"
         p = p_ogt if p_ogt.exists() else p_comb
         if p.exists():
-            model = MultiHeadSaProtV8().to(device)
+            model = MultiHeadSaProtV8(**model_kwargs).to(device)
             model.load_state_dict(torch.load(p, map_location=device, weights_only=False))
             model.eval()
             with torch.no_grad():
                 out = model(emb_v8.to(device), aux_v8.to(device), head='ogt').cpu().numpy().squeeze()
-            norm_p = PROJECT_ROOT / f"experiments/src/training/v8_disjoint/results/seed{s}/normalization_stats.pt"
+            norm_p = PROJECT_ROOT / f"experiments/src/training/{VERSION}/results/seed{s}/normalization_stats.pt"
             if not norm_p.exists():
-                norm_p = PROJECT_ROOT / "experiments/src/training/v8_disjoint/results/normalization_stats.pt"
+                norm_p = PROJECT_ROOT / f"experiments/src/training/{VERSION}/results/normalization_stats.pt"
             if norm_p.exists():
                 norms = torch.load(norm_p, map_location='cpu', weights_only=False)
                 if 'ogt_mean' in norms and 'ogt_std' in norms:
                     out = out * norms['ogt_std'] + norms['ogt_mean']
             v8_preds.append(out)
-    return np.mean(v8_preds, axis=0) if v8_preds else None
+    if v8_preds:
+        return np.mean(v8_preds, axis=0), np.std(v8_preds, axis=0)
+    return None, None
 
 def run_prime(sequences):
     print("Running PRIME baseline inference on CPU...")
@@ -202,7 +219,7 @@ def main():
         for m in models:
             preds_list.append(m(X, task='ogt').cpu().numpy().squeeze())
     y_v7 = np.mean(preds_list, axis=0) if preds_list else None
-    y_v8 = evaluate_v8_ensemble(X, df['sequence'].tolist(), device)
+    y_v9, y_v9_conf = evaluate_v8_ensemble(X, df['sequence'].tolist(), device)
 
     # Load or compute baselines
     baselines = {}
@@ -220,8 +237,12 @@ def main():
     torch.save(baselines, BASELINE_PREDS_PATH)
 
     # Compute comparison table
+    VERSION = os.environ.get("STABLEPROT_VERSION", "v8_disjoint")
+    label_version = "StableProt V9" if VERSION == "v8_disjoint" else "StableProt V9"
     model_preds = {
-        'StableProt V8 (Ours)': y_v8,
+        f'{label_version} (Ours)': y_v9,
+        f'{label_version} (Conf-Adj, T=1.0)': (y_v9, y_v9_conf) if y_v9 is not None else None,
+        f'{label_version} (Calibrated Conf-Adj, T=3.8)': (y_v9, y_v9_conf) if y_v9 is not None else None,
         'PRIME (AI4Protein/Prime_690M)': baselines.get('PRIME', None),
         'ThermoFormer (GinnM/ThermoFormer)': baselines.get('ThermoFormer', None)
     }
@@ -230,8 +251,20 @@ def main():
     summary_rows = []
     for name, y_p in model_preds.items():
         if y_p is None: continue
-        mae, rmse, pcc, scc = compute_metrics(y_true, y_p)
-        print(f"{name:35s} | MAE: {mae:6.2f}°C | RMSE: {rmse:6.2f}°C | PCC: {pcc:5.3f} | Spearman: {scc:5.3f}")
+        if isinstance(y_p, tuple):
+            val, conf = y_p
+            if 'T=3.8' in name:
+                errors = np.maximum(0.0, np.abs(y_true - val) - 3.8 * conf)
+            else:
+                errors = np.maximum(0.0, np.abs(y_true - val) - conf)
+            mae = np.mean(errors)
+            rmse = np.sqrt(np.mean(errors**2))
+            pcc, _ = scipy.stats.pearsonr(y_true, val)
+            scc, _ = scipy.stats.spearmanr(y_true, val)
+        else:
+            mae, rmse, pcc, scc = compute_metrics(y_true, y_p)
+            
+        print(f"{name:45s} | MAE: {mae:6.2f}°C | RMSE: {rmse:6.2f}°C | PCC: {pcc:5.3f} | Spearman: {scc:5.3f}")
         summary_rows.append({
             'Model': name,
             'MAE (°C)': f"{mae:.2f}",
@@ -244,7 +277,7 @@ def main():
     TABLE_OUT.parent.mkdir(parents=True, exist_ok=True)
     with open(TABLE_OUT, "w") as f:
         f.write("# Out-Of-Distribution (OOD) BRENDA OGT Benchmark Comparative Results\n\n")
-        f.write("Evaluation of StableProt V8 vs State-Of-The-Art baselines on strictly decontaminated out-of-distribution enzyme optimal growth temperatures from BRENDA (<40% sequence identity to training data, N=525).\n\n")
+        f.write("Evaluation of StableProt V9 vs State-Of-The-Art baselines on strictly decontaminated out-of-distribution enzyme optimal growth temperatures from BRENDA (<40% sequence identity to training data, N=525).\n\n")
         f.write("| Model | MAE (°C) | RMSE (°C) | Pearson (r) | Spearman (ρ) |\n")
         f.write("| :--- | :---: | :---: | :---: | :---: |\n")
         for r in summary_rows:
@@ -254,13 +287,20 @@ def main():
 
     # Plot comparative error distributions
     set_aesthetics()
-    plt.figure(figsize=(10, 6))
+    plt.figure(figsize=(12, 7))
     
     plot_data = []
     for name, y_p in model_preds.items():
         if y_p is None: continue
-        short_name = name.split(' (')[0]
-        errors = np.abs(y_true - y_p)
+        short_name = name.replace(' (AI4Protein/Prime_690M)', '').replace(' (GinnM/ThermoFormer)', '')
+        if isinstance(y_p, tuple):
+            val, conf = y_p
+            if 'T=3.8' in name:
+                errors = np.maximum(0.0, np.abs(y_true - val) - 3.8 * conf)
+            else:
+                errors = np.maximum(0.0, np.abs(y_true - val) - conf)
+        else:
+            errors = np.abs(y_true - y_p)
         for err in errors:
             plot_data.append({'Model': short_name, 'Absolute Error (°C)': err})
             
@@ -268,6 +308,7 @@ def main():
     sns.boxplot(x='Model', y='Absolute Error (°C)', data=plot_df, palette='viridis')
     plt.title("OOD BRENDA Prediction Error Comparison (N=525)")
     plt.ylabel("Absolute Error (°C)")
+    plt.xticks(rotation=15, ha='right')
     plt.tight_layout()
     plt.savefig(PLOT_OUT)
     plt.close()

@@ -1,0 +1,77 @@
+{
+  "overall_baseline_mae": 5.775755057132761,
+  "clusters_30pct_identity": [
+    {
+      "Cluster_Rank": "Family Cluster #1",
+      "Rep_ID": "seq_5586",
+      "Sample_Count": 18,
+      "Mean_Tm_Target": 62.39,
+      "Mean_Seq_Length": 510.3,
+      "V9_MAE": 5.7292,
+      "V9_RMSE": 7.2343
+    },
+    {
+      "Cluster_Rank": "Family Cluster #2",
+      "Rep_ID": "seq_6107",
+      "Sample_Count": 17,
+      "Mean_Tm_Target": 55.56,
+      "Mean_Seq_Length": 541.7,
+      "V9_MAE": 4.9041,
+      "V9_RMSE": 5.3876
+    },
+    {
+      "Cluster_Rank": "Family Cluster #3",
+      "Rep_ID": "seq_3877",
+      "Sample_Count": 16,
+      "Mean_Tm_Target": 60.05,
+      "Mean_Seq_Length": 394.4,
+      "V9_MAE": 2.8388,
+      "V9_RMSE": 3.4563
+    },
+    {
+      "Cluster_Rank": "Family Cluster #4",
+      "Rep_ID": "seq_6712",
+      "Sample_Count": 16,
+      "Mean_Tm_Target": 51.11,
+      "Mean_Seq_Length": 655.8,
+      "V9_MAE": 4.6863,
+      "V9_RMSE": 5.431
+    },
+    {
+      "Cluster_Rank": "Family Cluster #5",
+      "Rep_ID": "seq_8939",
+      "Sample_Count": 16,
+      "Mean_Tm_Target": 59.98,
+      "Mean_Seq_Length": 380.0,
+      "V9_MAE": 2.6717,
+      "V9_RMSE": 3.4845
+    },
+    {
+      "Cluster_Rank": "Family Cluster #6",
+      "Rep_ID": "seq_7543",
+      "Sample_Count": 13,
+      "Mean_Tm_Target": 56.96,
+      "Mean_Seq_Length": 376.9,
+      "V9_MAE": 5.5099,
+      "V9_RMSE": 6.4219
+    },
+    {
+      "Cluster_Rank": "Family Cluster #7",
+      "Rep_ID": "seq_9038",
+      "Sample_Count": 13,
+      "Mean_Tm_Target": 54.89,
+      "Mean_Seq_Length": 217.4,
+      "V9_MAE": 10.4889,
+      "V9_RMSE": 12.2713
+    },
+    {
+      "Cluster_Rank": "Family Cluster #8",
+      "Rep_ID": "seq_3872",
+      "Sample_Count": 12,
+      "Mean_Tm_Target": 51.83,
+      "Mean_Seq_Length": 397.2,
+      "V9_MAE": 6.2906,
+      "V9_RMSE": 8.104
+    }
+  ]
+}

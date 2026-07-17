@@ -1,0 +1,30 @@
+[
+  {
+    "Species": "Escherichia coli",
+    "Sample_Count": 87,
+    "Mean_True_Tm": 54.9,
+    "StableProt_V9_MAE": 7.911,
+    "StableProt_V9_Spearman": 0.186
+  },
+  {
+    "Species": "Thermus thermophilus",
+    "Sample_Count": 355,
+    "Mean_True_Tm": 77.7,
+    "StableProt_V9_MAE": 10.359,
+    "StableProt_V9_Spearman": 0.136
+  },
+  {
+    "Species": "Saccharomyces cerevisiae",
+    "Sample_Count": 110,
+    "Mean_True_Tm": 53.0,
+    "StableProt_V9_MAE": 6.94,
+    "StableProt_V9_Spearman": 0.098
+  },
+  {
+    "Species": "Homo sapiens",
+    "Sample_Count": 222,
+    "Mean_True_Tm": 55.8,
+    "StableProt_V9_MAE": 6.554,
+    "StableProt_V9_Spearman": 0.026
+  }
+]

@@ -106,7 +106,7 @@ def load_v7_ensemble(device):
 
 def evaluate_v8_ensemble(embeddings, sequences, device):
     VERSION = os.environ.get("STABLEPROT_VERSION", "v8_disjoint")
-    label_version = "StableProt V8" if VERSION == "v8_disjoint" else "StableProt V9"
+    label_version = "StableProt V9"
     print(f"Loading 5-seed ensemble of {label_version} (Ours)...")
     v8_dir = str(PROJECT_ROOT / f"experiments/src/training/{VERSION}")
     if v8_dir not in sys.path:

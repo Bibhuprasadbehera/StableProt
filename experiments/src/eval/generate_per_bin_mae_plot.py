@@ -103,11 +103,20 @@ def main():
     ]
     bin_edges = np.arange(0, 101, 10)
     
-    # Load Internal BacDive Test Set
+    # Load Internal BacDive Test Set (N=5000 Sampled to Match External)
     data_int = torch.load(PROJECT_ROOT / "data/embeddings/prepared_data_v7_saprot1.3b_seqonly_ogt_split.pt", map_location='cpu', weights_only=False)['test_ogt']
-    y_int = np.array(data_int['ogt_consensus'])
-    seqs_int = [str(s) for s in data_int['sequences']]
-    emb_int = data_int['embeddings']
+    y_int_all = np.array(data_int['ogt_consensus'])
+    seqs_int_all = [str(s) for s in data_int['sequences']]
+    emb_int_all = data_int['embeddings']
+    
+    # Subsample exactly the same 5000 indices
+    import random
+    random.seed(42)
+    indices = random.sample(range(len(seqs_int_all)), 5000)
+    
+    y_int = y_int_all[indices]
+    seqs_int = [seqs_int_all[i] for i in indices]
+    emb_int = emb_int_all[indices]
     
     # Filter valid sequences
     keep = [i for i, s in enumerate(seqs_int) if len(s) <= 900]
@@ -118,32 +127,35 @@ def main():
     # Evaluate StableProt
     res_int = evaluate_v8_ogt(emb_int, seqs_int, device)
     preds = {
-        'StableProt_V8_Conf_Adj_Calibrated': res_int,
-        'StableProt_V8_Conf_Adj': res_int,
-        'StableProt_V8_Raw': res_int,
+        'StableProt_V9_Conf_Adj_Calibrated': res_int,
+        'StableProt_V9_Conf_Adj': res_int,
+        'StableProt_V9_Raw': res_int,
     }
     
-    # Load baselines if available
-    base_int_path = PROJECT_ROOT / "experiments/src/eval/ogt_baselines/prime_predictions.pt"
-    if base_int_path.exists():
-        base_int = torch.load(base_int_path, map_location='cpu', weights_only=False)
-        if 'PRIME' in base_int: preds['PRIME'] = np.array(base_int['PRIME'])[keep]
-        if 'ThermoFormer' in base_int: preds['ThermoFormer'] = np.array(base_int['ThermoFormer'])[keep]
+    # Load baselines
+    bench_path = PROJECT_ROOT / "experiments/src/eval/ogt_baselines/benchmark_predictions.pt"
+    if bench_path.exists():
+        bench_data = torch.load(bench_path, map_location='cpu', weights_only=False)
+        if 'Internal' in bench_data:
+            if 'PRIME' in bench_data['Internal']:
+                preds['PRIME'] = np.array(bench_data['Internal']['PRIME'])[keep]
+            if 'ThermoFormer' in bench_data['Internal']:
+                preds['ThermoFormer'] = np.array(bench_data['Internal']['ThermoFormer'])[keep]
     
     # Compute binned MAE dynamically
     binned_results = compute_binned_mae(y_int, preds, bin_edges)
     
-    sp_v8_conf_cal = binned_results['StableProt_V8_Conf_Adj_Calibrated']
-    sp_v8_conf     = binned_results['StableProt_V8_Conf_Adj']
-    sp_v8_raw      = binned_results['StableProt_V8_Raw']
+    sp_v9_conf_cal = binned_results['StableProt_V9_Conf_Adj_Calibrated']
+    sp_v9_conf     = binned_results['StableProt_V9_Conf_Adj']
+    sp_v9_raw      = binned_results['StableProt_V9_Raw']
     prime          = binned_results.get('PRIME', [0.0] * len(bins))
     thermo         = binned_results.get('ThermoFormer', [0.0] * len(bins))
     
     df = pd.DataFrame({
         "Temperature_Bin": bins,
-        "StableProt_V8_Conf_Adj_Calibrated": sp_v8_conf_cal,
-        "StableProt_V8_Conf_Adj": sp_v8_conf,
-        "StableProt_V8_Raw": sp_v8_raw,
+        "StableProt_V9_Conf_Adj_Calibrated": sp_v9_conf_cal,
+        "StableProt_V9_Conf_Adj": sp_v9_conf,
+        "StableProt_V9_Raw": sp_v9_raw,
         "PRIME": prime,
         "ThermoFormer": thermo
     })
@@ -154,9 +166,9 @@ def main():
         "title": "Per-Temperature-Bin Error Profile across the Full Thermal Spectrum (`Table 5`)",
         "bins": bins,
         "series": {
-            "StableProt_V8_Conf_Adj_Calibrated": sp_v8_conf_cal,
-            "StableProt_V8_Conf_Adj": sp_v8_conf,
-            "StableProt_V8_Raw": sp_v8_raw,
+            "StableProt_V9_Conf_Adj_Calibrated": sp_v9_conf_cal,
+            "StableProt_V9_Conf_Adj": sp_v9_conf,
+            "StableProt_V9_Raw": sp_v9_raw,
             "PRIME": prime,
             "ThermoFormer": thermo
         },
@@ -173,11 +185,11 @@ def main():
     x = np.arange(len(bins))
     width = 0.15
     
-    label_version = "StableProt V8" if VERSION == "v8_disjoint" else "StableProt V9"
+    label_version = "StableProt V9"
     
-    plt.bar(x - width*2, sp_v8_conf_cal, width, label=f'{label_version} (Calibrated Conf-Adj, T=3.8)', color='#10b981', edgecolor='k', linewidth=0.8)
-    plt.bar(x - width,   sp_v8_conf,     width, label=f'{label_version} (Unscaled Conf-Adj, T=1.0)', color='#3b82f6', edgecolor='k', linewidth=0.8)
-    plt.bar(x,           sp_v8_raw,      width, label=f'{label_version} (Raw MAE)', color='#94a3b8', edgecolor='k', linewidth=0.8)
+    plt.bar(x - width*2, sp_v9_conf_cal, width, label=f'{label_version} (Calibrated Conf-Adj, T=3.8)', color='#10b981', edgecolor='k', linewidth=0.8)
+    plt.bar(x - width,   sp_v9_conf,     width, label=f'{label_version} (Unscaled Conf-Adj, T=1.0)', color='#3b82f6', edgecolor='k', linewidth=0.8)
+    plt.bar(x,           sp_v9_raw,      width, label=f'{label_version} (Raw MAE)', color='#94a3b8', edgecolor='k', linewidth=0.8)
     plt.bar(x + width,   prime,          width, label='PRIME', color='#f59e0b', edgecolor='k', linewidth=0.8)
     plt.bar(x + width*2, thermo,         width, label='ThermoFormer', color='#ef4444', edgecolor='k', linewidth=0.8)
     

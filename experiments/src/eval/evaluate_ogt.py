@@ -174,11 +174,20 @@ def main():
         f.write("# Temperature-Wise OGT MAE Benchmark (External BRENDA OOD)\n\n" + df_to_markdown(df_brenda_binned))
         
     # ── 2. Internal BacDive Test Set ──
-    print("\nEvaluating Internal BacDive Test Set...")
+    print("\nEvaluating Internal BacDive Test Set (N=5000 Sampled to Match External)...")
     data_int = torch.load(PROJECT_ROOT / "data/embeddings/prepared_data_v7_saprot1.3b_seqonly_ogt_split.pt", map_location='cpu', weights_only=False)['test_ogt']
-    y_int = np.array(data_int['ogt_consensus'])
-    seqs_int = [str(s) for s in data_int['sequences']]
-    emb_int = data_int['embeddings']
+    y_int_all = np.array(data_int['ogt_consensus'])
+    seqs_int_all = [str(s) for s in data_int['sequences']]
+    emb_int_all = data_int['embeddings']
+    
+    # Subsample exactly the same 5000 indices
+    import random
+    random.seed(42)
+    indices = random.sample(range(len(seqs_int_all)), 5000)
+    
+    y_int = y_int_all[indices]
+    seqs_int = [seqs_int_all[i] for i in indices]
+    emb_int = emb_int_all[indices]
     
     # Filter valid sequences
     keep = [i for i, s in enumerate(seqs_int) if len(s) <= 900]
@@ -192,12 +201,15 @@ def main():
     preds_int['StableProt V9 (Conf-Adj, T=1.0)'] = res_int
     preds_int['StableProt V9 (Ours)'] = res_int[0]
     
-    # Load baselines if available
-    base_int_path = PROJECT_ROOT / "experiments/src/eval/ogt_baselines/prime_predictions.pt"
-    if base_int_path.exists():
-        base_int = torch.load(base_int_path, map_location='cpu', weights_only=False)
-        if 'PRIME' in base_int: preds_int['PRIME'] = np.array(base_int['PRIME'])[keep]
-        if 'ThermoFormer' in base_int: preds_int['ThermoFormer'] = np.array(base_int['ThermoFormer'])[keep]
+    # Load baselines
+    bench_path = PROJECT_ROOT / "experiments/src/eval/ogt_baselines/benchmark_predictions.pt"
+    if bench_path.exists():
+        bench_data = torch.load(bench_path, map_location='cpu', weights_only=False)
+        if 'Internal' in bench_data:
+            if 'PRIME' in bench_data['Internal']:
+                preds_int['PRIME'] = np.array(bench_data['Internal']['PRIME'])[keep]
+            if 'ThermoFormer' in bench_data['Internal']:
+                preds_int['ThermoFormer'] = np.array(bench_data['Internal']['ThermoFormer'])[keep]
         
     for k, v in preds_int.items():
         if isinstance(v, tuple):

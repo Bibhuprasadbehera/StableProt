@@ -486,7 +486,7 @@ def main():
 
         # ── V8/V9 SaProt (Disjoint Backbone with 2-stage inference) ──
         VERSION = os.environ.get("STABLEPROT_VERSION", "v8_disjoint")
-        label_version = "StableProt V8" if VERSION == "v8_disjoint" else "StableProt V9"
+        label_version = "StableProt V9"
         print(f"Evaluating {label_version}...")
         import importlib.util
         import inspect

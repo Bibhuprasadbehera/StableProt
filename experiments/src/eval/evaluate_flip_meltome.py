@@ -158,7 +158,7 @@ def main():
     print(f"  Root Mean Square Error (RMSE): {rmse:.4f}°C")
     
     # Save comparison table
-    label_version = "StableProt V8" if VERSION == "v8_disjoint" else "StableProt V9"
+    label_version = "StableProt V9"
     baselines = [
         {"Model": f"{label_version} (Conf-Weighted 5-Seed Ensemble)", "Spearman_Rho": round(spearman_rho, 4), "Pearson_r": round(pearson_r, 4), "MAE": round(mae, 4), "Notes": "CD-HIT decontaminated vs V7 train (40% identity)"},
         {"Model": "TemBERTure", "Spearman_Rho": 0.6120, "Pearson_r": 0.6340, "MAE": 8.1200, "Notes": "Published benchmark on Meltome"},

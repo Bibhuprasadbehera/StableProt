@@ -123,7 +123,7 @@
         </tr>
         <tr>
             <td><code>tm_ogt_noise_std</code></td>
-            <td><strong><code>6.0&deg;C</code></strong></td>
+            <td><strong><code>2.0&deg;C</code></strong></td>
             <td>Gaussian noise injected into ground-truth OGT prior during <i>T<sub>m</sub></i> training, preventing over-reliance on deterministic OGT inputs during two-stage inference.</td>
         </tr>
         <tr>
@@ -165,8 +165,8 @@
         <tr>
             <td rowspan="4"><strong>Regularization</strong></td>
             <td><code>mixup_alpha</code> (&alpha;)</td>
-            <td><strong><code>0.2</code></strong></td>
-            <td>Beta distribution parameter Beta(0.2, 0.2) for linear Mixup on continuous embeddings and targets, preventing overfitting on small empirical <i>T<sub>m</sub></i> datasets.</td>
+            <td><strong><code>0.0</code></strong></td>
+            <td>Linear Mixup parameter (0.0 = disabled in final V9 model to prevent continuous target smoothing from degrading sharp <i>T<sub>m</sub></i> boundary thresholds).</td>
         </tr>
         <tr>
             <td><code>augment_prob</code> / <code>std</code></td>

@@ -1,6 +1,6 @@
 # Temperature-Wise OGT MAE Benchmark (Internal BacDive Test)
 
-| Bin | Range | Count | StableProt V9 (Calibrated Conf-Adj, T=3.8) | StableProt V9 (Conf-Adj, T=1.0) | StableProt V9 (Ours) | PRIME | ThermoFormer |
+| Bin | Range | Count | StableProt (Calibrated Conf-Adj, T=3.8) | StableProt (Conf-Adj, T=1.0) | StableProt (Ours) | PRIME | ThermoFormer |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | 0-10 | (0, 10] | 1 | 10.82 | 13.90 | 15.01 | 22.93 | 22.57 |
 | 10-20 | (10, 20] | 32 | 5.72 | 10.07 | 12.05 | 11.03 | 10.53 |

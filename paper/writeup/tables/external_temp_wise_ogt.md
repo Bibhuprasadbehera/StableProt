@@ -1,6 +1,6 @@
 # Temperature-Wise OGT MAE Benchmark (External BRENDA OOD)
 
-| Bin | Range | Count | StableProt V9 (Calibrated Conf-Adj, T=3.8) | StableProt V9 (Conf-Adj, T=1.0) | StableProt V9 (Ours) | PRIME | ThermoFormer |
+| Bin | Range | Count | StableProt (Calibrated Conf-Adj, T=3.8) | StableProt (Conf-Adj, T=1.0) | StableProt (Ours) | PRIME | ThermoFormer |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | 0-10 | (0, 10] | 14 | 11.81 | 24.38 | 29.10 | 20.86 | 21.03 |
 | 10-20 | (10, 20] | 31 | 7.63 | 17.06 | 21.14 | 8.80 | 8.47 |

@@ -4,787 +4,410 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>StableProt V9 — Thermostability & Loop Design Suite</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@500;700;800&family=Fira+Code:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@600;700;800&family=Fira+Code:wght@400;600&display=swap" rel="stylesheet">
     <style>
-        :root {
-            --bg: #f8fafc;
-            --surface: #ffffff;
-            --surface-hover: #f1f5f9;
-            --border: #e2e8f0;
-            --border-active: #818cf8;
-            --text-main: #0f172a;
-            --text-muted: #64748b;
-            --primary: #4f46e5;
-            --primary-glow: rgba(79, 70, 229, 0.2);
-            --success: #059669;
-            --success-bg: #ecfdf5;
-            --success-border: #a7f3d0;
-            --error: #dc2626;
-            --error-bg: #fef2f2;
-            --error-border: #fca5a5;
-            --warning-bg: #fffbe0;
-            --warning-border: #fde68a;
-            --warning-text: #92400e;
-            
-            --helix-color: #7e22ce;
-            --helix-bg: #f3e8ff;
-            --sheet-color: #1d4ed8;
-            --sheet-bg: #dbeafe;
-            --loop-color: #b45309;
-            --loop-bg: #fef3c7;
-            
-            /* High-Contrast Hot Pink / Crimson for Mutated Residues */
-            --mutant-color: #ffffff;
-            --mutant-bg: #f43f5e;
-            --mutant-glow: rgba(244, 63, 94, 0.7);
-        }
-
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: var(--bg);
-            color: var(--text-main);
-            min-height: 100vh;
-            padding: 2rem 1rem;
-        }
-
-        .container {
-            max-width: 1050px;
-            margin: 0 auto;
-        }
-
-        header {
-            text-align: center;
-            margin-bottom: 2rem;
-        }
-
-        h1 {
-            font-family: 'Outfit', sans-serif;
-            font-size: 2.8rem;
-            font-weight: 800;
-            color: #0f172a;
-            letter-spacing: -0.5px;
-            margin-bottom: 0.3rem;
-        }
-
-        h1 span { color: var(--primary); }
-
-        p.subtitle {
-            color: var(--text-muted);
-            font-size: 1.05rem;
-        }
-
-        /* Nav Tabs */
-        .tab-nav {
-            display: flex;
-            justify-content: center;
-            gap: 0.75rem;
-            margin-bottom: 1.8rem;
-            flex-wrap: wrap;
-        }
-
-        .tab-btn {
-            background: #ffffff;
-            border: 1.5px solid var(--border);
-            color: var(--text-muted);
-            padding: 0.75rem 1.6rem;
-            border-radius: 12px;
-            font-family: 'Outfit', sans-serif;
-            font-weight: 700;
-            font-size: 0.98rem;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
-        }
-
-        .tab-btn:hover {
-            color: var(--text-main);
-            border-color: #cbd5e1;
-            background: var(--surface-hover);
-        }
-
-        .tab-btn.active {
-            color: #ffffff;
-            background: var(--primary);
-            border-color: var(--primary);
-            box-shadow: 0 4px 16px var(--primary-glow);
-        }
-
-        /* Glass Panel */
-        .glass-panel {
-            background: var(--surface);
-            border: 1.5px solid var(--border);
-            border-radius: 20px;
-            padding: 2.2rem;
-            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.04);
-            margin-bottom: 2rem;
-        }
-
-        .tab-content { display: none; }
-        .tab-content.active { display: block; animation: fadeIn 0.3s ease-out; }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(6px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        label {
-            display: block;
-            margin-bottom: 0.5rem;
-            color: var(--text-main);
-            font-size: 0.95rem;
-            font-weight: 600;
-        }
-
-        textarea {
-            width: 100%;
-            height: 120px;
-            background: #ffffff;
-            border: 1.5px solid var(--border);
-            border-radius: 12px;
-            color: var(--text-main);
-            font-family: 'Fira Code', monospace;
-            font-size: 0.95rem;
-            padding: 1rem;
-            resize: vertical;
-            transition: all 0.2s ease;
-            letter-spacing: 0.5px;
-        }
-
-        textarea:focus {
-            outline: none;
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px var(--primary-glow);
-        }
-
-        .btn-action {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.5rem;
-            padding: 0.85rem 1.6rem;
-            font-family: 'Outfit', sans-serif;
-            font-size: 1rem;
-            font-weight: 700;
-            color: #ffffff;
-            background: var(--primary);
-            border: none;
-            border-radius: 10px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            box-shadow: 0 4px 14px var(--primary-glow);
-        }
-
-        .btn-action:hover {
-            background: #4338ca;
-            transform: translateY(-1px);
-            box-shadow: 0 6px 18px var(--primary-glow);
-        }
-
-        .btn-action.btn-secondary {
-            background: #ffffff;
-            border: 1.5px solid var(--border);
-            color: var(--text-main);
-            box-shadow: 0 2px 6px rgba(0,0,0,0.03);
-        }
-
-        .btn-action.btn-secondary:hover {
-            background: #f1f5f9;
-            border-color: #cbd5e1;
-        }
-
-        .btn-action.btn-success {
-            background: var(--success);
-            box-shadow: 0 4px 14px rgba(16, 185, 129, 0.25);
-        }
-
-        .btn-action.btn-success:hover { background: #047857; }
-
-        .btn-action.btn-amber {
-            background: #d97706;
-            box-shadow: 0 4px 14px rgba(217, 119, 6, 0.25);
-        }
-
-        .btn-action.btn-amber:hover { background: #b45309; }
-
-        /* Warning Banner */
-        .disclaimer-banner {
-            background: var(--warning-bg);
-            border: 1.5px solid var(--warning-border);
-            color: var(--warning-text);
-            padding: 1rem 1.2rem;
-            border-radius: 12px;
-            font-size: 0.9rem;
-            line-height: 1.5;
-            margin-bottom: 1.5rem;
-            display: flex;
-            align-items: flex-start;
-            gap: 0.8rem;
-        }
-
-        .disclaimer-banner strong { font-weight: 700; }
-
-        /* Results Display Grid */
-        .result-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 1.5rem;
-            margin-top: 1.8rem;
-        }
-
-        .result-box {
-            padding: 1.8rem;
-            border-radius: 16px;
-            text-align: center;
-            background: var(--success-bg);
-            border: 1.5px solid var(--success-border);
-        }
-
-        .result-box.ogt-box {
-            background: #f0fdf4;
-            border-color: #bbf7d0;
-        }
-
-        .result-title {
-            font-size: 0.9rem;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            font-weight: 700;
-            margin-bottom: 0.4rem;
-        }
-
-        .result-val {
-            font-size: 3rem;
-            font-weight: 800;
-            font-family: 'Outfit', sans-serif;
-            color: var(--success);
-        }
-
-        .result-box.ogt-box .result-val { color: var(--primary); }
-
-        /* High-Contrast Secondary Structure & Mutation Visualizer */
-        .seq-visualizer {
-            background: #ffffff;
-            border: 1.5px solid var(--border);
-            border-radius: 14px;
-            padding: 1.2rem;
-            margin-top: 1rem;
-            font-family: 'Fira Code', monospace;
-            font-size: 0.98rem;
-            line-height: 2.2;
-            max-height: 250px;
-            overflow-y: auto;
-            word-break: break-all;
-        }
-
-        .aa-res {
-            display: inline-block;
-            width: 1.5rem;
-            height: 1.6rem;
-            line-height: 1.6rem;
-            text-align: center;
-            border-radius: 5px;
-            margin: 1.5px;
-            font-weight: 700;
-            cursor: pointer;
-            transition: all 0.15s ease;
-        }
-
-        .aa-res:hover { transform: scale(1.35); z-index: 20; }
-
-        .aa-H { background: var(--helix-bg); color: var(--helix-color); border: 1px solid #e9d5ff; }
-        .aa-E { background: var(--sheet-bg); color: var(--sheet-color); border: 1px solid #bfdbfe; }
-        .aa-L { background: var(--loop-bg); color: var(--loop-color); border: 1px solid #fde68a; }
-
-        /* ULTRA HIGH-CONTRAST MUTATION BADGE */
-        .aa-MUT {
-            background: var(--mutant-bg) !important;
-            color: var(--mutant-color) !important;
-            border: 2px solid #be123c !important;
-            box-shadow: 0 0 10px var(--mutant-glow) !important;
-            transform: scale(1.15);
-            font-weight: 800;
-        }
-
-        /* Mutation Status Bar */
-        .mut-status-bar {
-            margin-top: 1rem;
-            padding: 0.75rem 1rem;
-            border-radius: 10px;
-            font-size: 0.9rem;
-            font-weight: 700;
-            display: flex;
-            align-items: center;
-            gap: 0.6rem;
-        }
-
-        .mut-status-active {
-            background: #fff1f2;
-            border: 1.5px solid #fecdd3;
-            color: #e11d48;
-        }
-
-        .mut-status-none {
-            background: #f8fafc;
-            border: 1.5px solid #e2e8f0;
-            color: #64748b;
-        }
-
-        /* Loops Grid */
-        .loops-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-            gap: 1.2rem;
-            margin-top: 1rem;
-        }
-
-        .loop-card {
-            background: #ffffff;
-            border: 1.5px solid var(--border);
-            border-radius: 14px;
-            padding: 1.2rem;
-            transition: all 0.2s ease;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.02);
-        }
-
-        .loop-card:hover, .loop-card.selected {
-            border-color: var(--loop-color);
-            background: #fffbeb;
-            box-shadow: 0 4px 16px rgba(217, 119, 6, 0.15);
-        }
-
-        .loop-card-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 0.6rem;
-            font-weight: 700;
-            font-size: 0.95rem;
-        }
-
-        .loop-card input.loop-edit-input {
-            width: 100%;
-            font-family: 'Fira Code', monospace;
-            font-size: 0.95rem;
-            font-weight: 700;
-            color: var(--loop-color);
-            background: #ffffff;
-            border: 1.5px solid #fde68a;
-            border-radius: 8px;
-            padding: 0.5rem;
-            margin-top: 0.5rem;
-        }
-
-        .loop-card input.loop-edit-input:focus {
-            outline: none;
-            border-color: var(--loop-color);
-            box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.2);
-        }
-
-        /* History Table */
-        .history-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 1.2rem;
-            font-size: 0.9rem;
-            background: #ffffff;
-            border-radius: 12px;
-            overflow: hidden;
-            border: 1px solid var(--border);
-        }
-
-        .history-table th, .history-table td {
-            padding: 0.85rem 1rem;
-            text-align: left;
-            border-bottom: 1px solid var(--border);
-        }
-
-        .history-table th {
-            background: #f8fafc;
-            color: var(--text-muted);
-            font-weight: 700;
-            text-transform: uppercase;
-            font-size: 0.78rem;
-            letter-spacing: 0.5px;
-        }
-
-        .delta-pos { color: var(--success); font-weight: 800; font-size: 1.05rem; }
-        .delta-neg { color: var(--error); font-weight: 800; font-size: 1.05rem; }
-
-        .tag-badge {
-            display: inline-block;
-            padding: 0.2rem 0.6rem;
-            border-radius: 6px;
-            font-size: 0.75rem;
-            font-weight: 700;
-            background: #f1f5f9;
-            color: var(--text-muted);
-        }
-
-        .tag-badge.loop-tag { background: #fef3c7; color: #b45309; }
-
-        /* Feature Cards for Home Tab */
-        .feature-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 1.5rem;
-            margin-top: 2rem;
-        }
-
-        .feature-card {
-            background: #ffffff;
-            border: 1.5px solid var(--border);
-            border-radius: 16px;
-            padding: 1.8rem;
-            box-shadow: 0 4px 16px rgba(0,0,0,0.03);
-            transition: all 0.25s ease;
-        }
-
-        .feature-card:hover {
-            transform: translateY(-3px);
-            border-color: var(--primary);
-            box-shadow: 0 8px 24px rgba(79, 70, 229, 0.12);
-        }
-
-        .feature-icon {
-            font-size: 2.2rem;
-            margin-bottom: 1rem;
-        }
-
-        .feature-title {
-            font-family: 'Outfit', sans-serif;
-            font-size: 1.25rem;
-            font-weight: 700;
-            margin-bottom: 0.5rem;
-            color: #0f172a;
-        }
-
-        .feature-desc {
-            font-size: 0.95rem;
-            color: var(--text-muted);
-            line-height: 1.6;
-        }
-
-        /* About Tab Info Grid */
-        .info-card {
-            background: #ffffff;
-            border: 1.5px solid var(--border);
-            border-radius: 16px;
-            padding: 1.8rem;
-            margin-bottom: 1.5rem;
-        }
-
-        .info-card h3 {
-            font-family: 'Outfit', sans-serif;
-            font-size: 1.3rem;
-            font-weight: 700;
-            margin-bottom: 0.8rem;
-            color: #0f172a;
-        }
-
-        .info-card p {
-            font-size: 0.95rem;
-            color: var(--text-muted);
-            line-height: 1.7;
-            margin-bottom: 1rem;
-        }
+        :root { --bg:#f8fafc; --surface:#fff; --border:#e2e8f0; --text:#0f172a; --muted:#64748b; --primary:#4f46e5; --success:#059669; --error:#dc2626; --warning-bg:#fffbe0; --warning-border:#fde68a; --warning-text:#92400e; }
+        * { box-sizing:border-box; margin:0; padding:0; }
+        body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); padding:2rem 1rem; min-height:100vh; }
+        .container { max-width:960px; margin:0 auto; }
+        header { text-align:center; margin-bottom:2rem; }
+        h1 { font-family:'Outfit',sans-serif; font-size:2.5rem; font-weight:800; letter-spacing:-0.5px; }
+        h1 span { color:var(--primary); }
+        p.subtitle { color:var(--muted); font-size:1rem; margin-top:.3rem; }
+        .tab-nav { display:flex; justify-content:center; gap:.5rem; margin-bottom:1.8rem; }
+        .tab-btn { background:#fff; border:1px solid var(--border); color:var(--muted); padding:.6rem 1.4rem; border-radius:10px; font-family:'Outfit',sans-serif; font-weight:600; font-size:.95rem; cursor:pointer; transition:.15s; }
+        .tab-btn:hover { color:var(--text); background:#f1f5f9; }
+        .tab-btn.active { color:#fff; background:var(--primary); border-color:var(--primary); }
+        .glass-panel { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:2rem; box-shadow:0 4px 20px rgba(0,0,0,.03); margin-bottom:1.5rem; }
+        .tab-content { display:none; }
+        .tab-content.active { display:block; }
+        .input-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:.5rem; }
+        label { font-weight:600; font-size:.95rem; color:var(--text); margin:0; }
+        textarea { width:100%; height:120px; background:#fff; border:1px solid var(--border); border-radius:10px; font-family:'Fira Code',monospace; font-size:.9rem; padding:.85rem; resize:vertical; line-height:1.5; }
+        textarea:focus { outline:none; border-color:var(--primary); box-shadow:0 0 0 3px rgba(79,70,229,.1); }
+        .btn-group { display:flex; gap:.75rem; flex-wrap:wrap; margin-top:1rem; }
+        .btn-action { display:inline-flex; align-items:center; justify-content:center; padding:.65rem 1.4rem; font-family:'Outfit',sans-serif; font-weight:600; font-size:.95rem; color:#fff; background:var(--primary); border:none; border-radius:8px; cursor:pointer; transition:.15s; }
+        .btn-action:hover { background:#4338ca; }
+        .btn-secondary { background:#fff; border:1px solid var(--border); color:var(--text); }
+        .btn-secondary:hover { background:#f1f5f9; }
+        .btn-success { background:var(--success); } .btn-success:hover { background:#047857; }
+        .btn-amber { background:#d97706; } .btn-amber:hover { background:#b45309; }
+        .disclaimer-banner { background:var(--warning-bg); border:1px solid var(--warning-border); color:var(--warning-text); padding:1rem; border-radius:10px; font-size:.9rem; line-height:1.5; margin-bottom:1.5rem; }
+        .result-grid { display:grid; grid-template-columns:1fr 1fr; gap:1.2rem; margin-top:1.5rem; }
+        .result-box { padding:1.5rem; border-radius:12px; text-align:center; background:#ecfdf5; border:1px solid #a7f3d0; }
+        .result-box.ogt-box { background:#f0fdf4; border-color:#bbf7d0; }
+        .result-title { font-size:.85rem; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; font-weight:700; margin-bottom:.3rem; }
+        .result-val { font-size:2.5rem; font-weight:800; font-family:'Outfit',sans-serif; color:var(--success); }
+        .result-box.ogt-box .result-val { color:var(--primary); }
+        .gauge-card { margin-top:1.2rem; padding:1.2rem; background:#fff; border:1px solid var(--border); border-radius:12px; }
+        .gauge-track { position:relative; height:20px; background:linear-gradient(90deg, #3b82f6 0%, #3b82f6 38%, #059669 42%, #059669 58%, #d97706 62%, #d97706 78%, #dc2626 82%, #dc2626 100%); border-radius:10px; margin:1.2rem 0 .8rem; }
+        .gauge-ci { position:absolute; top:-5px; bottom:-5px; background:rgba(15,23,42,0.12); border:2px solid #0f172a; border-radius:6px; }
+        .gauge-marker { position:absolute; top:-7px; bottom:-7px; width:4px; background:#0f172a; border-radius:2px; }
+        .gauge-labels { position:relative; height:22px; font-size:.75rem; color:var(--muted); }
+        .gauge-labels span { position:absolute; transform:translateX(-50%); }
+        .stacked-bar-track { display:flex; height:14px; border-radius:7px; overflow:hidden; background:#e2e8f0; margin-top:.4rem; }
+        .stacked-bar-seg { height:100%; transition:width .3s ease; }
+        .seq-visualizer { background:#fff; border:1px solid var(--border); border-radius:10px; padding:1rem; margin-top:1rem; font-family:'Fira Code',monospace; font-size:.95rem; line-height:2.2; max-height:240px; overflow-y:auto; word-break:normal; }
+        .aa-res { display:inline-block; width:1.4rem; height:1.5rem; line-height:1.5rem; text-align:center; border-radius:4px; margin:1px; font-weight:600; cursor:pointer; }
+        .aa-H { background:#f3e8ff; color:#7e22ce; border:1px solid #e9d5ff; }
+        .aa-E { background:#dbeafe; color:#1d4ed8; border:1px solid #bfdbfe; }
+        .aa-L { background:#fef3c7; color:#b45309; border:1px solid #fde68a; }
+        .aa-MUT { background:#f43f5e!important; color:#fff!important; border:1px solid #be123c!important; font-weight:700; }
+        .mut-status-bar { margin-top:1rem; padding:.65rem .9rem; border-radius:8px; font-size:.88rem; font-weight:600; }
+        .mut-status-active { background:#fff1f2; border:1px solid #fecdd3; color:#e11d48; }
+        .mut-status-none { background:#f8fafc; border:1px solid #e2e8f0; color:#64748b; }
+        .loops-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:1rem; margin-top:1rem; }
+        .loop-card { background:#fff; border:1px solid var(--border); border-radius:10px; padding:1rem; transition:.15s; }
+        .loop-card:hover, .loop-card.selected { border-color:#b45309; background:#fffbeb; }
+        .loop-card-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:.4rem; font-weight:700; font-size:.9rem; }
+        .loop-card input.loop-edit-input { width:100%; font-family:'Fira Code',monospace; font-size:.9rem; font-weight:600; color:#b45309; background:#fff; border:1px solid #fde68a; border-radius:6px; padding:.4rem; margin-top:.4rem; }
+        .history-table { width:100%; border-collapse:collapse; margin-top:1rem; font-size:.88rem; background:#fff; border-radius:10px; overflow:hidden; border:1px solid var(--border); }
+        .history-table th, .history-table td { padding:.75rem .9rem; text-align:left; border-bottom:1px solid var(--border); }
+        .history-table th { background:#f8fafc; color:var(--muted); font-weight:700; text-transform:uppercase; font-size:.75rem; }
+        .delta-pos { color:var(--success); font-weight:700; } .delta-neg { color:var(--error); font-weight:700; }
+        .tag-badge { display:inline-block; padding:.15rem .5rem; border-radius:4px; font-size:.75rem; font-weight:600; background:#f1f5f9; color:var(--muted); }
+        .tag-badge.loop-tag { background:#fef3c7; color:#b45309; }
+        .feature-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:1.2rem; margin-top:1.5rem; }
+        .feature-card { background:#fff; border:1px solid var(--border); border-radius:12px; padding:1.5rem; }
+        .feature-title { font-family:'Outfit',sans-serif; font-size:1.1rem; font-weight:700; margin-bottom:.4rem; }
+        .feature-desc { font-size:.9rem; color:var(--muted); line-height:1.5; }
+        .info-card { background:#fff; border:1px solid var(--border); border-radius:12px; padding:1.5rem; margin-bottom:1.2rem; }
+        .info-card h3 { font-family:'Outfit',sans-serif; font-size:1.15rem; font-weight:700; margin-bottom:.6rem; }
+        .info-card p { font-size:.92rem; color:var(--muted); line-height:1.6; margin-bottom:.8rem; }
     </style>
 </head>
 <body>
-
 <div class="container">
     <header>
         <h1>Stable<span>Prot</span></h1>
         <p class="subtitle">V9 Structure-Aware Multi-Head Predictor & Interactive Loop Design Suite</p>
     </header>
 
-    <!-- Nav Tabs -->
     <div class="tab-nav">
-        <button class="tab-btn active" onclick="switchTab('home-tab', event)">🏠 Home</button>
-        <button class="tab-btn" onclick="switchTab('predict-tab', event)">📌 Predict</button>
-        <button class="tab-btn" onclick="switchTab('design-tab', event)">🧪 Design</button>
-        <button class="tab-btn" onclick="switchTab('about-tab', event)">ℹ️ About</button>
+        <button class="tab-btn active" onclick="switchTab('home-tab', event)">Home</button>
+        <button class="tab-btn" onclick="switchTab('predict-tab', event)">Predict</button>
+        <button class="tab-btn" onclick="switchTab('design-tab', event)">Design</button>
+        <button class="tab-btn" onclick="switchTab('about-tab', event)">About</button>
     </div>
 
-    <!-- TAB 1: 🏠 Home -->
+    <!-- TAB 1: Home -->
     <div id="home-tab" class="tab-content active">
-        <div class="glass-panel" style="text-align: center; padding: 3rem 2rem;">
-            <h2 style="font-family: 'Outfit', sans-serif; font-size: 2.2rem; font-weight: 800; margin-bottom: 1rem; color: #0f172a;">
-                Structure-Aware Protein Thermostability Engineering
-            </h2>
-            <p style="max-width: 750px; margin: 0 auto 2rem auto; color: var(--text-muted); font-size: 1.1rem; line-height: 1.7;">
-                StableProt V9 couples Foldseek 3Di structural alphabet representations (SaProt 650M) with disjoint, bottleneck-projected auxiliary feature pathways for accurate zero-shot melting temperature ($T_m$) prediction and targeted loop stabilization design.
-            </p>
-            <div style="display: flex; justify-content: center; gap: 1.2rem; flex-wrap: wrap;">
-                <button class="tab-btn active" onclick="switchTabById('predict-tab')" style="padding: 0.9rem 2rem; font-size: 1.05rem;">
-                    📌 Single Sequence Predictor
-                </button>
-                <button class="tab-btn" onclick="switchTabById('design-tab')" style="padding: 0.9rem 2rem; font-size: 1.05rem; background: var(--warning-bg); border-color: var(--warning-border); color: var(--loop-color);">
-                    🧪 Interactive Loop Design Studio
-                </button>
+        <div class="glass-panel" style="text-align:center; padding:2.5rem 2rem;">
+            <h2 style="font-family:'Outfit',sans-serif; font-size:2rem; font-weight:800; margin-bottom:.8rem;">Structure-Aware Protein Thermostability Engineering</h2>
+            <p style="max-width:720px; margin:0 auto 1.8rem; color:var(--muted); font-size:1rem; line-height:1.6;">StableProt V9 couples Foldseek 3Di structural representations (SaProt 650M) with auxiliary feature pathways for accurate zero-shot melting temperature (Tm) prediction and targeted loop stabilization.</p>
+            <div style="display:flex; justify-content:center; gap:1rem; flex-wrap:wrap;">
+                <button class="tab-btn active" onclick="switchTabById('predict-tab')">Single Sequence Predictor</button>
+                <button class="tab-btn" onclick="switchTabById('design-tab')" style="background:#fffbe0; border-color:#fde68a; color:var(--loop);">Interactive Loop Design Studio</button>
             </div>
         </div>
-
         <div class="feature-grid">
-            <div class="feature-card">
-                <div class="feature-icon">🛡️</div>
-                <div class="feature-title">Decontaminated Zero-Shot Accuracy</div>
-                <div class="feature-desc">
-                    Evaluated under strict &lt;30% sequence identity decontamination audits across ProThermDB and FireProtDB holdout suites to ensure real-world physics generalization.
-                </div>
-            </div>
-            <div class="feature-card">
-                <div class="feature-icon">🧪</div>
-                <div class="feature-title">Targeted Loop Stabilization</div>
-                <div class="feature-desc">
-                    Instant sequence-based loop detection (&lt;1ms) allowing targeted proline/hydrophobic mutagenesis restricted to flexible coil regions.
-                </div>
-            </div>
-            <div class="feature-card">
-                <div class="feature-icon">📊</div>
-                <div class="feature-title">Calibrated Risk Bounds</div>
-                <div class="feature-desc">
-                    Heteroscedastic Gaussian NLL variance heads coupled with 5-seed ensemble disagreement provide statistically calibrated 95% confidence intervals.
-                </div>
-            </div>
+            <div class="feature-card"><div class="feature-title">Decontaminated Accuracy</div><div class="feature-desc">Evaluated under strict &lt;30% sequence identity decontamination audits across ProThermDB and FireProtDB holdout suites.</div></div>
+            <div class="feature-card"><div class="feature-title">Targeted Loop Stabilization</div><div class="feature-desc">Instant sequence-based loop detection (&lt;1ms) allowing targeted proline/hydrophobic mutagenesis in coil regions.</div></div>
+            <div class="feature-card"><div class="feature-title">Calibrated Risk Bounds</div><div class="feature-desc">Heteroscedastic Gaussian NLL variance heads coupled with 5-seed ensemble disagreement provide 95% confidence intervals.</div></div>
         </div>
     </div>
 
-    <!-- TAB 2: 📌 Predict -->
+    <!-- TAB 2: Predict -->
     <div id="predict-tab" class="tab-content {% if active_tab == 'predict-tab' %}active{% endif %}">
         <div class="glass-panel">
             <form id="predict-form" onsubmit="runPredictForm(event)">
-                <label for="sequence">Amino Acid Sequence</label>
-                <textarea id="sequence" name="sequence" placeholder="Enter protein sequence (e.g., MTEYKLVVVGAGGVGKSALTIQLIQNHFVDEYDPTIEDSYRKQVVIDGETCLLDILDTAGQ...)">{{ sequence if sequence else '' }}</textarea>
-                <button type="submit" id="btn-predict-submit" class="btn-action" style="width: 100%; margin-top: 1.2rem;">Predict Tm & OGT</button>
+                <div class="input-header">
+                    <label for="sequence">Amino Acid Sequence</label>
+                    <div style="display:flex; gap:.5rem; align-items:center;">
+                        <span id="seq-count-badge" class="tag-badge">0 AA</span>
+                        <button type="button" class="btn-action btn-secondary" style="padding:.25rem .6rem; font-size:.78rem;" onclick="format5AABlocks('sequence')">Format (5-AA Spacing)</button>
+                        <button type="button" class="btn-action btn-secondary" style="padding:.25rem .6rem; font-size:.78rem;" onclick="sanitizeInput('sequence')">Clean FASTA</button>
+                    </div>
+                </div>
+                <textarea id="sequence" name="sequence" placeholder="Enter protein sequence (e.g. MTEYK LVVVG AGGVG KSA...)" oninput="updateSeqBadge('sequence')">{{ sequence if sequence else '' }}</textarea>
+                
+                <div class="btn-group">
+                    <button type="submit" id="btn-predict-submit" class="btn-action" style="flex:2;">Predict Tm & OGT</button>
+                    <button type="button" class="btn-action btn-secondary" style="flex:1;" onclick="loadPredictSample()">Load Sample Sequence</button>
+                </div>
             </form>
 
-            <div id="predict-results-container" style="{% if tm and ogt %}display: block;{% else %}display: none;{% endif %}">
+            <div id="predict-results-container" style="{% if tm and ogt %}display:block;{% else %}display:none;{% endif %}">
                 <div class="result-grid">
-                    <div class="result-box">
-                        <div class="result-title">Melting Temperature ($T_m$)</div>
-                        <div id="predict-val-tm" class="result-val">{{ tm if tm else '-' }}°C</div>
-                        <div id="predict-conf-tm" style="font-size: 0.9rem; color: var(--text-muted); margin-top: 0.3rem;">{% if tm_conf %}± {{ tm_conf }}°C (95% CI){% endif %}</div>
+                    <div class="result-box"><div class="result-title">Melting Temperature (Tm)</div><div id="predict-val-tm" class="result-val">{{ tm if tm else '-' }}°C</div><div id="predict-conf-tm" style="font-size:.85rem; color:var(--muted); margin-top:.2rem;">{% if tm_conf %}± {{ tm_conf }}°C (95% CI){% endif %}</div></div>
+                    <div class="result-box ogt-box"><div class="result-title">Optimal Growth (OGT)</div><div id="predict-val-ogt" class="result-val">{{ ogt if ogt else '-' }}°C</div><div id="predict-conf-ogt" style="font-size:.85rem; color:var(--muted); margin-top:.2rem;">{% if ogt_conf %}± {{ ogt_conf }}°C Disagreement{% endif %}</div></div>
+                </div>
+
+                <!-- Visual Thermometer Gauge & Range Bands -->
+                <div class="gauge-card">
+                    <div style="display:flex; justify-content:space-between; align-items:center; font-weight:600; font-size:.88rem;">
+                        <span>Visual Thermometer Scale & 95% Confidence Range</span>
+                        <span id="predict-tier-badge" class="tag-badge">-</span>
                     </div>
-                    <div class="result-box ogt-box">
-                        <div class="result-title">Optimal Growth ($OGT$)</div>
-                        <div id="predict-val-ogt" class="result-val">{{ ogt if ogt else '-' }}°C</div>
-                        <div id="predict-conf-ogt" style="font-size: 0.9rem; color: var(--text-muted); margin-top: 0.3rem;">{% if ogt_conf %}± {{ ogt_conf }}°C Disagreement{% endif %}</div>
+                    <div class="gauge-track">
+                        <div id="gauge-ci-bar" class="gauge-ci"></div>
+                        <div id="gauge-tm-marker" class="gauge-marker"></div>
+                    </div>
+                    <div class="gauge-labels">
+                        <span style="left:20%;">Psychrophilic (&lt;40°C)</span>
+                        <span style="left:50%;">Mesophilic (40–60°C)</span>
+                        <span style="left:70%;">Thermophilic (60–80°C)</span>
+                        <span style="left:90%;">Hyperthermophilic (&gt;80°C)</span>
+                    </div>
+
+                    <!-- AA Composition Stacked Horizontal Progress Bar -->
+                    <div style="margin-top:1.2rem;">
+                        <div style="font-size:.82rem; font-weight:600; color:var(--muted); margin-bottom:.3rem;">Amino Acid Composition Breakdown</div>
+                        <div class="stacked-bar-track">
+                            <div id="comp-seg-hydrophobic" class="stacked-bar-seg" style="background:#3b82f6; width:0%;" title="Hydrophobic"></div>
+                            <div id="comp-seg-polar" class="stacked-bar-seg" style="background:#10b981; width:0%;" title="Polar"></div>
+                            <div id="comp-seg-charged" class="stacked-bar-seg" style="background:#8b5cf6; width:0%;" title="Charged"></div>
+                            <div id="comp-seg-aromatic" class="stacked-bar-seg" style="background:#f59e0b; width:0%;" title="Aromatic"></div>
+                        </div>
+                        <div id="predict-comp-legend" style="margin-top:.4rem; display:flex; gap:1.2rem; font-size:.82rem; color:var(--muted); flex-wrap:wrap;"></div>
+                    </div>
+
+                    <div style="margin-top:1rem; text-align:right;">
+                        <button type="button" class="btn-action btn-secondary" style="padding:.35rem .9rem; font-size:.8rem;" onclick="exportPredictionFASTA()">Export FASTA Prediction</button>
                     </div>
                 </div>
             </div>
 
-            <div id="predict-error-box" style="{% if error %}display: block;{% else %}display: none;{% endif %} margin-top: 1.5rem; padding: 1rem; border-radius: 10px; background: var(--error-bg); border: 1px solid var(--error-border); color: var(--error); text-align: center;">
+            <div id="predict-error-box" style="{% if error %}display:block;{% else %}display:none;{% endif %} margin-top:1.2rem; padding:.85rem; border-radius:8px; background:#fef2f2; border:1px solid #fca5a5; color:var(--error); text-align:center;">
                 <span id="predict-error-text">{{ error if error else '' }}</span>
             </div>
         </div>
     </div>
 
-    <!-- TAB 3: 🧪 Design -->
+    <!-- TAB 3: Design -->
     <div id="design-tab" class="tab-content">
         <div class="glass-panel">
-
-            <!-- Disclaimer Warning Banner -->
             <div class="disclaimer-banner">
-                <div style="font-size: 1.4rem;">⚠️</div>
-                <div>
-                    <strong>Model Reliability Disclaimer</strong>:
-                    Predictive accuracy is highest for <strong>1 to 5 cumulative mutations</strong> ($\text{Int-MAE} \le 5.7^\circ\text{C}$). Due to multi-mutation epistatic error accumulation, predictions exceeding 5 mutations carry elevated uncertainty ($>26^\circ\text{C}$ MAE drift). Use iterative multi-round stacking with caution.
-                </div>
+                <strong>Model Reliability Disclaimer</strong>: Predictive accuracy is highest for 1 to 5 cumulative mutations (Int-MAE ≤ 5.7°C). Epistatic uncertainty accumulates significantly beyond 5 mutations.
             </div>
 
-            <label for="design-sequence">Active Baseline Protein Sequence</label>
-            <textarea id="design-sequence" placeholder="Paste protein sequence to identify loop regions..."></textarea>
-            
-            <div style="display: flex; gap: 1rem; margin-top: 1rem;">
-                <button type="button" class="btn-action" onclick="identifyLoops()">
-                    ⚡ Identify Loop Regions
-                </button>
-                <button type="button" class="btn-action btn-secondary" onclick="loadSampleSequence()">
-                    📄 Load Sample Sequence
-                </button>
+            <div class="input-header">
+                <label for="design-sequence">Active Baseline Protein Sequence</label>
+                <div style="display:flex; gap:.5rem; align-items:center;">
+                    <span id="design-seq-badge" class="tag-badge">0 AA</span>
+                    <button type="button" class="btn-action btn-secondary" style="padding:.25rem .6rem; font-size:.78rem;" onclick="format5AABlocks('design-sequence')">Format (5-AA Spacing)</button>
+                    <button type="button" class="btn-action btn-secondary" style="padding:.25rem .6rem; font-size:.78rem;" onclick="sanitizeInput('design-sequence')">Clean FASTA</button>
+                </div>
+            </div>
+            <textarea id="design-sequence" placeholder="Paste protein sequence to identify loop regions..." oninput="updateSeqBadge('design-sequence')"></textarea>
+
+            <div class="btn-group">
+                <button type="button" class="btn-action" style="flex:2;" onclick="identifyLoops()">Identify Loop Regions</button>
+                <button type="button" class="btn-action btn-secondary" style="flex:1;" onclick="loadSampleSequence()">Load Sample Sequence</button>
             </div>
 
-            <!-- Loop Analysis Output -->
-            <div id="loop-output" style="display: none; margin-top: 2rem;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                    <div style="font-weight: 700; font-size: 1.1rem; font-family: 'Outfit', sans-serif;">
-                        Secondary Structure Annotation & Sequence Viewer
-                    </div>
-                    <div style="display: flex; gap: 1rem; font-size: 0.82rem; font-weight: 600;">
-                        <span><span style="color: var(--helix-color);">●</span> Helix (H)</span>
-                        <span><span style="color: var(--sheet-color);">●</span> Sheet (E)</span>
-                        <span><span style="color: var(--loop-color);">●</span> Loop (L)</span>
-                        <span><span style="color: #f43f5e; font-weight: 800;">●</span> Mutated Residues</span>
+            <div id="loop-output" style="display:none; margin-top:1.8rem;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:.4rem;">
+                    <div style="font-weight:700; font-size:1rem; font-family:'Outfit',sans-serif;">Secondary Structure Annotation & Sequence Viewer</div>
+                    <div style="display:flex; gap:.8rem; font-size:.8rem; font-weight:600;">
+                        <span><span style="color:#7e22ce;">●</span> Helix (H)</span>
+                        <span><span style="color:#1d4ed8;">●</span> Sheet (E)</span>
+                        <span><span style="color:var(--loop);">●</span> Loop (L)</span>
+                        <span><span style="color:#f43f5e; font-weight:700;">●</span> Mutated</span>
                     </div>
                 </div>
-
                 <div id="seq-visualizer" class="seq-visualizer"></div>
-
-                <!-- Mutation Active Status Bar -->
                 <div id="mut-status-bar" class="mut-status-bar mut-status-none">
-                    <span>⚡ Mutation Status:</span> <span id="mut-status-text">No mutations detected (WT sequence)</span>
+                    <span>Mutation Status:</span> <span id="mut-status-text">No mutations detected (WT sequence active)</span>
                 </div>
 
-                <!-- Loop Cards & Direct Editing -->
-                <div style="margin-top: 1.8rem;">
+                <div style="margin-top:1.5rem;">
                     <label>Identified Loop Regions (Click card to select or edit loop text directly)</label>
                     <div id="loops-grid" class="loops-grid"></div>
                 </div>
 
-                <!-- Design Controls -->
-                <div style="margin-top: 2rem; padding: 1.8rem; background: #f8fafc; border: 1.5px solid var(--border); border-radius: 16px;">
-                    <div style="font-weight: 700; font-family: 'Outfit', sans-serif; font-size: 1.15rem; margin-bottom: 1.2rem;">
-                        🧪 Interactive Mutation Controls
-                    </div>
-
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem; margin-bottom: 1.2rem;">
+                <div style="margin-top:1.5rem; padding:1.5rem; background:#f8fafc; border:1px solid var(--border); border-radius:12px;">
+                    <div style="font-weight:700; font-family:'Outfit',sans-serif; font-size:1.05rem; margin-bottom:1rem;">Interactive Mutation Controls</div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1rem;">
                         <div>
-                            <label for="manual-mutation">Specific Mutation (e.g. G45P)</label>
-                            <input type="text" id="manual-mutation" placeholder="e.g. G45P" style="width: 100%; padding: 0.75rem; background: #ffffff; border: 1.5px solid var(--border); border-radius: 8px; font-family: 'Fira Code', monospace; font-weight: 600;">
+                            <label for="manual-mutation">Specific Mutation (e.g. G45P or G45P, A50V)</label>
+                            <input type="text" id="manual-mutation" placeholder="e.g. G45P" oninput="onManualMutationInput(this.value)" style="width:100%; padding:.65rem; background:#fff; border:1px solid var(--border); border-radius:6px; font-family:'Fira Code',monospace; font-weight:600;">
                         </div>
-                        <div style="display: flex; align-items: flex-end;">
-                            <button type="button" class="btn-action btn-amber" style="width: 100%;" onclick="generateRandomLoopMutation()">
-                                🎲 Random Loop Mutation (Scaled to Loop Size)
-                            </button>
+                        <div style="display:flex; align-items:flex-end;">
+                            <button type="button" class="btn-action btn-amber" style="width:100%;" onclick="generateRandomLoopMutation()">Random Loop Mutation</button>
                         </div>
                     </div>
-
-                    <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 1.2rem;">
-                        <button type="button" class="btn-action" style="flex: 2;" onclick="evaluateDesign()">
-                            🚀 Evaluate Design ($T_m$ & $\Delta T_m$)
-                        </button>
-                        <button type="button" class="btn-action btn-success" id="btn-update-baseline" style="flex: 2; display: none;" onclick="updateMainBaseline()">
-                            🔄 Set as Active Baseline Sequence
-                        </button>
-                        <button type="button" class="btn-action btn-secondary" onclick="undoLastTrial()">
-                            ↩️ Undo / Retry
-                        </button>
+                    <div class="btn-group" style="margin-top:1rem;">
+                        <button type="button" class="btn-action" style="flex:2;" onclick="evaluateDesign()">Evaluate Design (Tm & Delta Tm)</button>
+                        <button type="button" class="btn-action btn-success" id="btn-update-baseline" style="flex:2; display:none;" onclick="updateMainBaseline()">Set as Active Baseline Sequence</button>
+                        <button type="button" class="btn-action btn-secondary" style="flex:1;" onclick="undoLastTrial()">Undo / Retry</button>
                     </div>
                 </div>
 
-                <!-- Live Comparison Card -->
-                <div id="live-eval-card" style="display: none; margin-top: 1.8rem;">
+                <div id="live-eval-card" style="display:none; margin-top:1.5rem;">
                     <div class="result-grid">
-                        <div class="result-box" style="background: #ffffff; border-color: var(--border);">
-                            <div class="result-title">Wild-Type $T_m$</div>
-                            <div id="eval-wt-tm" class="result-val" style="color: var(--text-muted);">-</div>
+                        <div class="result-box" style="background:#fff; border-color:var(--border);">
+                            <div class="result-title">Wild-Type Tm</div>
+                            <div id="eval-wt-tm" class="result-val" style="color:var(--muted);">-</div>
                         </div>
                         <div class="result-box" id="mut-tm-box">
-                            <div class="result-title">Design Mutant $T_m$</div>
+                            <div class="result-title">Design Mutant Tm</div>
                             <div id="eval-mut-tm" class="result-val">-</div>
-                            <div id="eval-delta-badge" style="margin-top: 0.5rem; font-weight: 800; font-size: 1.2rem;"></div>
+                            <div id="eval-delta-badge" style="margin-top:.4rem; font-weight:700; font-size:1.1rem;"></div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Trial History Log -->
-                <div style="margin-top: 2rem;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                        <label style="margin: 0;">Design Trial History Log</label>
-                        <button type="button" class="btn-action btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 0.85rem;" onclick="downloadFasta()">
-                            📥 Download Design FASTA
-                        </button>
+                <div style="margin-top:1.8rem;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:.4rem;">
+                        <label style="margin:0;">Design Trial History Log</label>
+                        <button type="button" class="btn-action btn-secondary" style="padding:.3rem .7rem; font-size:.8rem;" onclick="downloadFasta()">Download Design FASTA</button>
                     </div>
                     <table class="history-table">
-                        <thead>
-                            <tr>
-                                <th>Trial #</th>
-                                <th>Mutations</th>
-                                <th>New $T_m$ (°C)</th>
-                                <th>$\Delta T_m$ (°C)</th>
-                                <th>Loop Targeted</th>
-                                <th>Action</th>
-                            </tr>
-                        </thead>
-                        <tbody id="history-body">
-                            <tr><td colspan="6" style="text-align: center; color: var(--text-muted);">No design trials performed yet.</td></tr>
-                        </tbody>
+                        <thead><tr><th>Trial #</th><th>Mutations</th><th>New Tm (°C)</th><th>Delta Tm (°C)</th><th>Loop Targeted</th><th>Action</th></tr></thead>
+                        <tbody id="history-body"><tr><td colspan="6" style="text-align:center; color:var(--muted);">No design trials performed yet.</td></tr></tbody>
                     </table>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- TAB 4: ℹ️ About & Contact -->
+    <!-- TAB 4: About -->
     <div id="about-tab" class="tab-content">
         <div class="glass-panel">
             <div class="info-card">
                 <h3>About StableProt V9</h3>
-                <p>
-                    StableProt is an open-source structure-aware neural framework designed for accurate prediction of protein melting temperatures ($T_m$) and organismal optimal growth temperatures ($OGT$). By combining Foldseek 3Di structural tokens with disjoint multi-head projection pathways, StableProt eliminates inter-task gradient competition and mesophilic probability collapse.
-                </p>
+                <p>StableProt is an open-source structure-aware neural framework designed for accurate prediction of protein melting temperatures (Tm) and organismal optimal growth temperatures (OGT).</p>
             </div>
 
             <div class="info-card">
                 <h3>Benchmark Performance Highlights</h3>
-                <p>
-                    • <strong>ProThermDB Empirical Benchmark</strong>: Standard MAE = 6.83°C, Pearson $r = 0.803$, Confidence-Adjusted MAE = 1.42°C ($T=3.8$).<br>
-                    • <strong>FireProtDB Zero-Shot Holdout</strong>: Int-MAE = 6.03°C ($T=3.8$), outperforming legacy baseline predictors on zero-shot extremophiles.<br>
-                    • <strong>Decontamination Audit</strong>: Enforces strict &lt;30% sequence identity separation to guarantee zero validation leakage.
-                </p>
+                <p>• <strong>ProThermDB Empirical Benchmark</strong>: Standard MAE = 6.83°C, Pearson r = 0.803.<br>• <strong>FireProtDB Zero-Shot Holdout</strong>: Int-MAE = 6.03°C (T=3.8).<br>• <strong>Decontamination Audit</strong>: Enforces strict &lt;30% sequence identity separation.</p>
             </div>
 
             <div class="info-card">
                 <h3>Contact Details & Project Information</h3>
-                <p>
-                    • <strong>Research Group</strong>: Biocomputing & Enzyme Engineering Group<br>
-                    • <strong>Email Contact</strong>: <code>contact@stableprot.org</code> / <code>bibhu@stableprot.org</code><br>
-                    • <strong>Source Code & Models</strong>: <a href="https://github.com/Bibhuprasadbehera/StableProt" target="_blank" style="color: var(--primary); font-weight: 600;">GitHub Repository</a><br>
-                    • <strong>License</strong>: Open-Source Academic License
-                </p>
+                <p>• <strong>Research Group</strong>: Biocomputing & Enzyme Engineering Group<br>• <strong>Email Contact</strong>: <code>contact@stableprot.org</code><br>• <strong>Source Code & Models</strong>: <a href="https://github.com/Bibhuprasadbehera/StableProt" target="_blank" style="color:var(--primary); font-weight:600;">GitHub Repository</a></p>
             </div>
         </div>
     </div>
-
 </div>
 
 <script>
-    let currentWTSequence = "";
-    let currentMutantSequence = "";
-    let currentLoopData = null;
-    let selectedLoopPositions = [];
-    let selectedLoopLength = null;
-    let trialHistory = [];
+    let currentWTSequence = "", currentMutantSequence = "", currentLoopData = null, selectedLoopPositions = [], selectedLoopLength = null, trialHistory = [];
+
+    function updateSeqBadge(inputId) {
+        const el = document.getElementById(inputId);
+        if (!el) return;
+        const clean = el.value.replace(/[^A-Za-z]/g, '');
+        const badgeId = inputId === 'sequence' ? 'seq-count-badge' : 'design-seq-badge';
+        const badge = document.getElementById(badgeId);
+        if (badge) {
+            const valid = clean.length >= 50 && clean.length <= 1024;
+            badge.innerText = `${clean.length} AA ${valid ? '✓' : '(50–1024 valid)'}`;
+            badge.style.background = valid ? '#ecfdf5' : '#fef2f2';
+            badge.style.color = valid ? '#059669' : '#dc2626';
+        }
+    }
+
+    function format5AABlocks(inputId) {
+        const el = document.getElementById(inputId);
+        if (!el) return;
+        const clean = el.value.replace(/[^A-Za-z]/g, '').toUpperCase();
+        if (!clean) return;
+        const blocks = [];
+        for (let i = 0; i < clean.length; i += 5) {
+            blocks.push(clean.substring(i, i + 5));
+        }
+        el.value = blocks.join(' ');
+        updateSeqBadge(inputId);
+    }
+
+    function sanitizeInput(inputId) {
+        const el = document.getElementById(inputId);
+        if (!el) return;
+        const lines = el.value.split('\n').filter(l => !l.startsWith('>') && !l.startsWith('#'));
+        const clean = lines.join('').replace(/[^A-Za-z]/g, '').toUpperCase();
+        el.value = clean;
+        updateSeqBadge(inputId);
+    }
+
+    function loadPredictSample() {
+        const sample = "RPDFCLEPPYTGPCKARIIRYFYNAKAGLCQTFVYGGCRAKRNNFKSAEDCMRTCGGA";
+        const el = document.getElementById('sequence');
+        el.value = sample;
+        format5AABlocks('sequence');
+    }
+
+    function updateGauge(tm, ciLow, ciHigh, tier, comp) {
+        const tmPct = Math.max(0, Math.min(100, tm));
+        const lowPct = Math.max(0, Math.min(100, ciLow));
+        const highPct = Math.max(0, Math.min(100, ciHigh));
+
+        const ciBar = document.getElementById('gauge-ci-bar');
+        if (ciBar) {
+            ciBar.style.left = lowPct + '%';
+            ciBar.style.width = Math.max(1, highPct - lowPct) + '%';
+        }
+        const marker = document.getElementById('gauge-tm-marker');
+        if (marker) marker.style.left = tmPct + '%';
+
+        const badge = document.getElementById('predict-tier-badge');
+        if (badge) {
+            let label = "Mesophilic (40–60°C)";
+            if (tm < 40) label = "Psychrophilic (<40°C)";
+            else if (tm >= 80) label = "Hyperthermophilic (>80°C)";
+            else if (tm >= 60) label = "Thermophilic (60–80°C)";
+            badge.innerText = tier || label;
+            badge.className = tm >= 60 ? 'tag-badge loop-tag' : 'tag-badge';
+        }
+
+        if (comp) {
+            const h = comp.hydrophobic || 0, p = comp.polar || 0, c = comp.charged || 0, a = comp.aromatic || 0;
+            document.getElementById('comp-seg-hydrophobic').style.width = h + '%';
+            document.getElementById('comp-seg-polar').style.width = p + '%';
+            document.getElementById('comp-seg-charged').style.width = c + '%';
+            document.getElementById('comp-seg-aromatic').style.width = a + '%';
+
+            document.getElementById('predict-comp-legend').innerHTML = `
+                <span><span style="color:#3b82f6;">●</span> Hydrophobic: <b>${h}%</b></span>
+                <span><span style="color:#10b981;">●</span> Polar: <b>${p}%</b></span>
+                <span><span style="color:#8b5cf6;">●</span> Charged: <b>${c}%</b></span>
+                <span><span style="color:#f59e0b;">●</span> Aromatic: <b>${a}%</b></span>
+            `;
+        }
+    }
+
+    function exportPredictionFASTA() {
+        const raw = document.getElementById('sequence').value;
+        const clean = raw.replace(/[^A-Za-z]/g, '').toUpperCase();
+        if (!clean) return;
+        const tm = document.getElementById('predict-val-tm').innerText;
+        const ogt = document.getElementById('predict-val-ogt').innerText;
+        const header = `>StableProt_Prediction | Tm=${tm} | OGT=${ogt} | Length=${clean.length}AA\n`;
+        const blob = new Blob([header + clean + '\n'], {type: 'text/plain'});
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'StableProt_Prediction.fasta'; a.click();
+    }
 
     function switchTab(tabId, evt) {
-        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
         document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-        
         if (evt && evt.target) evt.target.classList.add('active');
         document.getElementById(tabId).classList.add('active');
     }
 
     function switchTabById(tabId) {
-        const btnIndex = {'home-tab':0, 'predict-tab':1, 'design-tab':2, 'about-tab':3}[tabId] || 0;
+        const idx = {'home-tab':0, 'predict-tab':1, 'design-tab':2, 'about-tab':3}[tabId] || 0;
         const btns = document.querySelectorAll('.tab-btn');
-        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
         document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-        
-        if (btns[btnIndex]) btns[btnIndex].classList.add('active');
+        if (btns[idx]) btns[idx].classList.add('active');
         document.getElementById(tabId).classList.add('active');
     }
 
     function loadSampleSequence() {
-        const sample = "MKINKQVTLLSAVAGLALTSVAAQANPQPHIAKPGETWILQEKRSDEFNNDDSAKWNFQPENFGVWSWRDKNKNVPAGGVYVFRDKFAN";
-        document.getElementById('design-sequence').value = sample;
+        const el = document.getElementById('design-sequence');
+        el.value = "RPDFCLEPPYTGPCKARIIRYFYNAKAGLCQTFVYGGCRAKRNNFKSAEDCMRTCGGA";
+        format5AABlocks('design-sequence');
     }
 
     async function identifyLoops() {
-        const rawSeq = document.getElementById('design-sequence').value.trim();
-        if (!rawSeq) { alert("Please enter a sequence first."); return; }
-
-        currentWTSequence = rawSeq.replace(/[^A-Za-z]/g, '').toUpperCase();
+        const raw = document.getElementById('design-sequence').value.trim();
+        if (!raw) { alert("Please enter a sequence first."); return; }
+        currentWTSequence = raw.replace(/[^A-Za-z]/g, '').toUpperCase();
         currentMutantSequence = currentWTSequence;
 
-        const res = await fetch('/api/identify_loops', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({sequence: currentWTSequence})
-        });
-
+        const res = await fetch('/api/identify_loops', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({sequence: currentWTSequence}) });
         const data = await res.json();
         if (data.error) { alert(data.error); return; }
 
@@ -796,149 +419,154 @@
     }
 
     function renderSequenceVisualizer(wtSeq, ssStr, mutSeq) {
-        const container = document.getElementById('seq-visualizer');
+        if (!wtSeq) return;
         let html = "";
-        for (let i = 0; i < wtSeq.length; i++) {
-            const aa = mutSeq[i] || wtSeq[i];
-            const isMut = (mutSeq[i] !== wtSeq[i]);
-            const ss = isMut ? 'MUT' : (ssStr[i] || 'L');
-            const titleStr = isMut ? `Pos ${i+1}: ${wtSeq[i]} -> ${aa} (MUTATION)` : `Pos ${i+1}: ${aa} (${ss})`;
-            html += `<span class="aa-res aa-${ss}" title="${titleStr}">${aa}</span>`;
+        for (let i = 0; i < wtSeq.length; i += 5) {
+            let blockHtml = `<span style="display:inline-block; white-space:nowrap; margin-right:0.6rem; margin-bottom:0.4rem;">`;
+            for (let j = i; j < Math.min(i + 5, wtSeq.length); j++) {
+                const aa = mutSeq[j] || wtSeq[j];
+                const isMut = (mutSeq[j] !== wtSeq[j]);
+                const ss = isMut ? 'MUT' : (ssStr[j] || 'L');
+                const title = isMut ? `Pos ${j+1}: ${wtSeq[j]} -> ${aa} (Mutated)` : `Pos ${j+1}: ${aa} (${ss})`;
+                blockHtml += `<span class="aa-res aa-${ss}" title="${title}">${aa}</span>`;
+            }
+            blockHtml += `</span>`;
+            html += blockHtml;
         }
-        container.innerHTML = html;
+        document.getElementById('seq-visualizer').innerHTML = html;
     }
 
     function updateMutationStatusBar() {
-        const bar = document.getElementById('mut-status-bar');
-        const text = document.getElementById('mut-status-text');
-        
+        const bar = document.getElementById('mut-status-bar'), text = document.getElementById('mut-status-text');
+        let muts = [];
+        for (let i = 0; i < currentWTSequence.length; i++) {
+            if (currentMutantSequence[i] !== currentWTSequence[i]) muts.push(`${currentWTSequence[i]}${i+1}${currentMutantSequence[i]}`);
+        }
+        if (muts.length > 0) { bar.className = "mut-status-bar mut-status-active"; text.innerText = `${muts.length} Mutation(s) Active: ${muts.join(", ")}`; }
+        else { bar.className = "mut-status-bar mut-status-none"; text.innerText = "No mutations detected (WT sequence active)"; }
+    }
+
+    function syncMutationState() {
+        renderSequenceVisualizer(currentWTSequence, currentLoopData ? currentLoopData.ss_str : '', currentMutantSequence);
+        updateMutationStatusBar();
         let muts = [];
         for (let i = 0; i < currentWTSequence.length; i++) {
             if (currentMutantSequence[i] !== currentWTSequence[i]) {
                 muts.push(`${currentWTSequence[i]}${i+1}${currentMutantSequence[i]}`);
             }
         }
-
-        if (muts.length > 0) {
-            bar.className = "mut-status-bar mut-status-active";
-            text.innerText = `${muts.length} Mutation(s) Active: ${muts.join(", ")}`;
-        } else {
-            bar.className = "mut-status-bar mut-status-none";
-            text.innerText = "No mutations detected (WT sequence active)";
+        const mutInput = document.getElementById('manual-mutation');
+        if (mutInput && document.activeElement !== mutInput) {
+            mutInput.value = muts.join(', ');
         }
+    }
+
+    function onManualMutationInput(val) {
+        if (!currentWTSequence) return;
+        let baseArr = currentWTSequence.split('');
+        const tokens = val.trim().split(/[\s,]+/);
+        tokens.forEach(tok => {
+            const match = tok.match(/^([A-Z])(\d+)([A-Z])$/i);
+            if (match) {
+                const pos = parseInt(match[2]) - 1;
+                const mutAA = match[3].toUpperCase();
+                if (pos >= 0 && pos < baseArr.length) {
+                    baseArr[pos] = mutAA;
+                }
+            }
+        });
+        currentMutantSequence = baseArr.join('');
+        renderSequenceVisualizer(currentWTSequence, currentLoopData ? currentLoopData.ss_str : '', currentMutantSequence);
+        updateMutationStatusBar();
     }
 
     function renderLoopsGrid(loops) {
         const container = document.getElementById('loops-grid');
-        if (!loops || loops.length === 0) {
-            container.innerHTML = `<div style="color: var(--text-muted);">No loop regions (>=3 aa) detected.</div>`;
-            return;
-        }
-
-        let html = "";
-        loops.forEach(l => {
-            html += `
-                <div class="loop-card" id="loop-card-${l.id}" onclick="selectLoopCard(${l.id})">
-                    <div class="loop-card-header">
-                        <span>${l.label} (Pos ${l.start}–${l.end})</span>
-                        <span style="font-size: 0.8rem; color: var(--loop-color);">Flex: ${l.avg_flexibility}</span>
-                    </div>
-                    <div style="font-size: 0.8rem; color: var(--text-muted);">Length: ${l.length} aa</div>
-                    <input type="text" class="loop-edit-input" value="${l.sequence}" onchange="updateLoopSnippet(${l.id}, this.value)">
-                </div>
-            `;
-        });
-        container.innerHTML = html;
+        if (!loops || loops.length === 0) { container.innerHTML = `<div style="color:var(--muted);">No loop regions (>=3 aa) detected.</div>`; return; }
+        container.innerHTML = loops.map(l => `
+            <div class="loop-card" id="loop-card-${l.id}" onclick="selectLoopCard(${l.id})">
+                <div class="loop-card-header"><span>${l.label} (Pos ${l.start}–${l.end})</span><span style="font-size:.8rem; color:var(--loop);">Flex: ${l.avg_flexibility}</span></div>
+                <div style="font-size:.8rem; color:var(--muted);">Length: ${l.length} AA</div>
+                <input type="text" class="loop-edit-input" value="${l.sequence}" oninput="updateLoopSnippet(${l.id}, this.value)">
+            </div>
+        `).join('');
     }
 
     function selectLoopCard(loopId) {
         document.querySelectorAll('.loop-card').forEach(c => c.classList.remove('selected'));
         const card = document.getElementById(`loop-card-${loopId}`);
         if (card) card.classList.add('selected');
-
         const loopObj = currentLoopData.loops.find(l => l.id === loopId);
-        if (loopObj) {
-            selectedLoopPositions = loopObj.positions;
-            selectedLoopLength = loopObj.length;
-        }
+        if (loopObj) { selectedLoopPositions = loopObj.positions; selectedLoopLength = loopObj.length; }
     }
 
     function updateLoopSnippet(loopId, newSnippet) {
         const loopObj = currentLoopData.loops.find(l => l.id === loopId);
         if (!loopObj) return;
-
         const snippetClean = newSnippet.replace(/[^A-Za-z]/g, '').toUpperCase();
-        if (snippetClean.length !== loopObj.length) {
-            alert(`Snippet length must match loop length (${loopObj.length} aa).`);
-            return;
-        }
-
         const start0 = loopObj.start - 1;
-        currentMutantSequence = currentMutantSequence.substring(0, start0) + snippetClean + currentMutantSequence.substring(start0 + snippetClean.length);
-        renderSequenceVisualizer(currentWTSequence, currentLoopData.ss_str, currentMutantSequence);
-        updateMutationStatusBar();
+        let baseArr = currentMutantSequence.split('');
+        for (let i = 0; i < loopObj.length; i++) {
+            const globalIdx = start0 + i;
+            if (globalIdx < baseArr.length) {
+                if (i < snippetClean.length) {
+                    baseArr[globalIdx] = snippetClean[i];
+                } else {
+                    baseArr[globalIdx] = currentWTSequence[globalIdx];
+                }
+            }
+        }
+        currentMutantSequence = baseArr.join('');
+        syncMutationState();
     }
 
     async function generateRandomLoopMutation() {
         if (!currentWTSequence) { alert("Please identify loop regions first."); return; }
-
         const res = await fetch('/api/random_loop_mutation', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                sequence: currentMutantSequence,
-                loop_positions: selectedLoopPositions.length > 0 ? selectedLoopPositions : null,
-                loop_length: selectedLoopLength
-            })
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ sequence: currentMutantSequence, loop_positions: selectedLoopPositions.length > 0 ? selectedLoopPositions : null, loop_length: selectedLoopLength })
         });
-
         const data = await res.json();
         if (data.error) { alert(data.error); return; }
-
         currentMutantSequence = data.mutant_sequence;
-        document.getElementById('manual-mutation').value = data.mutation_label;
-        renderSequenceVisualizer(currentWTSequence, currentLoopData.ss_str, currentMutantSequence);
-        updateMutationStatusBar();
+        syncMutationState();
     }
 
     async function evaluateDesign() {
         const manualInput = document.getElementById('manual-mutation').value.trim();
-
         if (manualInput) {
-            // Check single point mutation format like G45P
-            const match = manualInput.match(/^([A-Z])(\d+)([A-Z])$/i);
-            if (match) {
-                const pos = parseInt(match[2]) - 1;
-                const mutAA = match[3].toUpperCase();
-                if (pos >= 0 && pos < currentMutantSequence.length) {
-                    currentMutantSequence = currentMutantSequence.substring(0, pos) + mutAA + currentMutantSequence.substring(pos + 1);
+            let baseArr = currentWTSequence.split('');
+            const tokens = manualInput.split(/[\s,]+/);
+            let validMuts = 0;
+            tokens.forEach(tok => {
+                const match = tok.match(/^([A-Z])(\d+)([A-Z])$/i);
+                if (match) {
+                    const pos = parseInt(match[2]) - 1;
+                    const mutAA = match[3].toUpperCase();
+                    if (pos >= 0 && pos < baseArr.length) {
+                        baseArr[pos] = mutAA;
+                        validMuts++;
+                    }
                 }
-            } else if (manualInput.length === currentWTSequence.length) {
-                currentMutantSequence = manualInput.toUpperCase();
+            });
+            if (validMuts > 0) {
+                currentMutantSequence = baseArr.join('');
+            } else if (manualInput.replace(/[^A-Za-z]/g, '').length === currentWTSequence.length) {
+                currentMutantSequence = manualInput.replace(/[^A-Za-z]/g, '').toUpperCase();
             }
         }
 
-        renderSequenceVisualizer(currentWTSequence, currentLoopData.ss_str, currentMutantSequence);
-        updateMutationStatusBar();
+        syncMutationState();
 
         const res = await fetch('/api/evaluate_design', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                wt_sequence: currentWTSequence,
-                mutant_sequence: currentMutantSequence
-            })
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ wt_sequence: currentWTSequence, mutant_sequence: currentMutantSequence })
         });
-
         const data = await res.json();
         if (data.error) { alert(data.error); return; }
-
         renderLiveEvalCard(data);
-
-        // Record trial history
         trialHistory.push(data);
         renderHistoryTable();
-
         document.getElementById('btn-update-baseline').style.display = 'inline-flex';
     }
 
@@ -946,47 +574,32 @@
         document.getElementById('live-eval-card').style.display = 'block';
         document.getElementById('eval-wt-tm').innerText = `${data.wt_tm}°C`;
         document.getElementById('eval-mut-tm').innerText = `${data.mut_tm}°C`;
-
         const badge = document.getElementById('eval-delta-badge');
-        if (data.delta_tm > 0) {
-            badge.className = "delta-pos";
-            badge.innerText = `+${data.delta_tm}°C STABILIZING GAIN`;
-        } else {
-            badge.className = "delta-neg";
-            badge.innerText = `${data.delta_tm}°C DESTABILIZING`;
-        }
+        badge.className = data.delta_tm > 0 ? "delta-pos" : "delta-neg";
+        badge.innerText = data.delta_tm > 0 ? `+${data.delta_tm}°C STABILIZING GAIN` : `${data.delta_tm}°C DESTABILIZING`;
     }
 
     function renderHistoryTable() {
         const tbody = document.getElementById('history-body');
-        if (trialHistory.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-muted);">No design trials performed yet.</td></tr>`;
-            return;
-        }
-
-        let html = "";
-        trialHistory.forEach((t, idx) => {
-            const mutStr = t.mutations.map(m => m.label).join(", ") || "WT";
-            const deltaCls = t.delta_tm > 0 ? "delta-pos" : "delta-neg";
-            const deltaSign = t.delta_tm > 0 ? `+${t.delta_tm}` : `${t.delta_tm}`;
-            html += `
-                <tr>
-                    <td>Trial ${idx + 1}</td>
-                    <td><code>${mutStr}</code></td>
-                    <td>${t.mut_tm}°C</td>
-                    <td class="${deltaCls}">${deltaSign}°C</td>
-                    <td><span class="tag-badge ${t.in_loop_region ? 'loop-tag' : ''}">${t.in_loop_region ? 'Loop' : 'Non-Loop'}</span></td>
-                    <td><button type="button" class="btn-action btn-secondary" style="padding: 0.3rem 0.6rem; font-size: 0.8rem;" onclick="revertToTrial(${idx})">Revert</button></td>
-                </tr>
-            `;
-        });
-        tbody.innerHTML = html;
+        if (trialHistory.length === 0) { tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--muted);">No design trials performed yet.</td></tr>`; return; }
+        tbody.innerHTML = trialHistory.map((t, idx) => `
+            <tr>
+                <td>Trial ${idx + 1}</td>
+                <td><code>${t.mutations.map(m => m.label).join(", ") || "WT"}</code></td>
+                <td>${t.mut_tm}°C</td>
+                <td class="${t.delta_tm > 0 ? 'delta-pos' : 'delta-neg'}">${t.delta_tm > 0 ? '+' : ''}${t.delta_tm}°C</td>
+                <td><span class="tag-badge ${t.in_loop_region ? 'loop-tag' : ''}">${t.in_loop_region ? 'Loop' : 'Non-Loop'}</span></td>
+                <td><button type="button" class="btn-action btn-secondary" style="padding:.3rem .6rem; font-size:.8rem;" onclick="revertToTrial(${idx})">Revert</button></td>
+            </tr>
+        `).join('');
     }
 
     function updateMainBaseline() {
         if (!currentMutantSequence) return;
         currentWTSequence = currentMutantSequence;
-        document.getElementById('design-sequence').value = currentWTSequence;
+        const el = document.getElementById('design-sequence');
+        el.value = currentWTSequence;
+        format5AABlocks('design-sequence');
         identifyLoops();
         alert("Active baseline sequence updated to current design!");
     }
@@ -1002,7 +615,7 @@
             currentMutantSequence = currentWTSequence;
             document.getElementById('live-eval-card').style.display = 'none';
         }
-        renderSequenceVisualizer(currentWTSequence, currentLoopData.ss_str, currentMutantSequence);
+        renderSequenceVisualizer(currentWTSequence, currentLoopData ? currentLoopData.ss_str : '', currentMutantSequence);
         updateMutationStatusBar();
         renderHistoryTable();
     }
@@ -1012,68 +625,66 @@
             const target = trialHistory[idx];
             currentMutantSequence = target.mutant_sequence;
             renderLiveEvalCard(target);
-            renderSequenceVisualizer(currentWTSequence, currentLoopData.ss_str, currentMutantSequence);
+            renderSequenceVisualizer(currentWTSequence, currentLoopData ? currentLoopData.ss_str : '', currentMutantSequence);
             updateMutationStatusBar();
         }
     }
 
     function downloadFasta() {
-        if (!currentMutantSequence) return;
-        const text = `>StableProt_Design_Variant\n${currentMutantSequence}\n`;
-        const blob = new Blob([text], {type: 'text/plain'});
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = 'StableProt_Design_Variant.fasta';
-        a.click();
+        if (!currentWTSequence || !currentMutantSequence) return;
+        const wtClean = currentWTSequence.replace(/[^A-Za-z]/g, '').toUpperCase();
+        const mutClean = currentMutantSequence.replace(/[^A-Za-z]/g, '').toUpperCase();
+
+        let muts = [];
+        for (let i = 0; i < wtClean.length; i++) {
+            if (mutClean[i] !== wtClean[i]) {
+                muts.push(`${wtClean[i]}${i+1}${mutClean[i]}`);
+            }
+        }
+        const mutStr = muts.join(', ') || 'WT_Unmodified';
+
+        let lastEvalStr = "";
+        if (trialHistory.length > 0) {
+            const last = trialHistory[trialHistory.length - 1];
+            lastEvalStr = ` | Tm=${last.mut_tm}°C | dTm=${last.delta_tm > 0 ? '+' : ''}${last.delta_tm}°C`;
+        }
+
+        const fastaContent = [
+            `>StableProt_Original_WT | Length=${wtClean.length}AA`,
+            wtClean,
+            `>StableProt_Design_Variant | Mutations=${mutStr}${lastEvalStr}`,
+            mutClean
+        ].join('\n') + '\n';
+
+        const blob = new Blob([fastaContent], {type: 'text/plain'});
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'StableProt_Design_Variant.fasta'; a.click();
     }
 
     async function runPredictForm(evt) {
         if (evt) evt.preventDefault();
         const rawSeq = document.getElementById('sequence').value.trim();
-        const errBox = document.getElementById('predict-error-box');
-        const resBox = document.getElementById('predict-results-container');
-        const btn = document.getElementById('btn-predict-submit');
-
-        if (!rawSeq) {
-            errBox.style.display = 'block';
-            document.getElementById('predict-error-text').innerText = "Please enter an amino acid sequence.";
-            resBox.style.display = 'none';
-            return;
-        }
-
-        btn.disabled = true;
-        btn.innerText = "Predicting Tm & OGT...";
-
+        const errBox = document.getElementById('predict-error-box'), resBox = document.getElementById('predict-results-container'), btn = document.getElementById('btn-predict-submit');
+        if (!rawSeq) { errBox.style.display = 'block'; document.getElementById('predict-error-text').innerText = "Please enter an amino acid sequence."; resBox.style.display = 'none'; return; }
+        btn.disabled = true; btn.innerText = "Predicting Tm & OGT...";
         try {
-            const res = await fetch('/api/predict', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({sequence: rawSeq})
-            });
-
+            const res = await fetch('/api/predict', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({sequence: rawSeq}) });
             const data = await res.json();
             if (data.error || data.status === 'ERROR_TOO_SHORT') {
-                errBox.style.display = 'block';
-                document.getElementById('predict-error-text').innerText = data.error || "Sequence too short (<50 aa)";
-                resBox.style.display = 'none';
+                errBox.style.display = 'block'; document.getElementById('predict-error-text').innerText = data.error || "Sequence too short (<50 AA)"; resBox.style.display = 'none';
             } else {
-                errBox.style.display = 'none';
-                resBox.style.display = 'block';
+                errBox.style.display = 'none'; resBox.style.display = 'block';
                 document.getElementById('predict-val-tm').innerText = `${data.tm_pred.toFixed(2)}°C`;
                 document.getElementById('predict-conf-tm').innerText = `± ${data.tm_conf.toFixed(2)}°C (95% CI)`;
                 document.getElementById('predict-val-ogt').innerText = `${data.ogt_pred.toFixed(2)}°C`;
                 document.getElementById('predict-conf-ogt').innerText = `± ${data.ogt_conf.toFixed(2)}°C Disagreement`;
+                updateGauge(data.tm_pred, data.ci_low, data.ci_high, data.thermal_tier, data.aa_composition);
             }
         } catch (e) {
-            errBox.style.display = 'block';
-            document.getElementById('predict-error-text').innerText = e.message;
-            resBox.style.display = 'none';
+            errBox.style.display = 'block'; document.getElementById('predict-error-text').innerText = e.message; resBox.style.display = 'none';
         } finally {
-            btn.disabled = false;
-            btn.innerText = "Predict Tm & OGT";
+            btn.disabled = false; btn.innerText = "Predict Tm & OGT";
         }
     }
 </script>
-
 </body>
 </html>

@@ -1,6 +1,6 @@
 # Temperature-Wise MAE Benchmark on FireProtDB Holdout
 
-| Bin | Range | Count | TemStaPro | StableProt V9 | TemBERTure | ESMStabP | DeepSTABp | ThermoFormer | StableProt V9 (Conf-Adj, T=1.0) | StableProt V9 (Calibrated Conf-Adj, T=3.8) |
+| Bin | Range | Count | TemStaPro | StableProt | TemBERTure | ESMStabP | DeepSTABp | ThermoFormer | StableProt (Conf-Adj, T=1.0) | StableProt (Calibrated Conf-Adj, T=3.8) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 20-30 | (20, 30] | 4 | 16.05 | 25.54 | 26.57 | 21.30 | 26.01 | 7.24 | 23.52 | 17.86 |
 | 30-40 | (30, 40] | 6 | 5.87 | 12.24 | 16.52 | 10.20 | 14.36 | 11.61 | 9.85 | 4.16 |

@@ -15,7 +15,11 @@ if v9_dir not in sys.path:
     sys.path.insert(0, v9_dir)
 
 from train import MultiHeadSaProtV8, enrich_inputs
-from inference.v7_predict import load_saprot_model, get_saprot_embedding
+
+try:
+    from inference.v7_predict import load_saprot_model, get_saprot_embedding
+except ModuleNotFoundError:
+    from v7_predict import load_saprot_model, get_saprot_embedding
 
 STANDARD_AAS = list("ACDEFGHIKLMNPQRSTVWY")
 

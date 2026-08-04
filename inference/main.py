@@ -6,12 +6,17 @@ from pydantic import BaseModel
 from typing import List, Optional
 import os
 import torch
-from .v9_predict import V9Predictor, predict_secondary_structure, sanitize_sequence
+
+try:
+    from .v9_predict import V9Predictor, predict_secondary_structure, sanitize_sequence
+except ImportError:
+    from v9_predict import V9Predictor, predict_secondary_structure, sanitize_sequence
 
 app = FastAPI(title="StableProt V9 Predictor & Loop Design Suite")
 
 # Setup templates
-templates = Jinja2Templates(directory="inference/templates")
+base_dir = os.path.dirname(os.path.abspath(__file__))
+templates = Jinja2Templates(directory=os.path.join(base_dir, "templates"))
 
 # Initialize model predictor (Singleton pattern)
 predictor = None
@@ -61,21 +66,6 @@ def calculate_aa_composition(seq: str) -> dict:
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
     return templates.TemplateResponse(request=request, name="index.html", context={"tm": None, "tm_conf": None, "ogt": None, "ogt_conf": None})
-
-@app.post("/predict", response_class=HTMLResponse)
-async def predict_gui(request: Request, sequence: str = Form(...)):
-    global predictor
-    if not predictor:
-        return templates.TemplateResponse(request=request, name="index.html", context={"error": "Model not loaded", "sequence": sequence})
-    
-    try:
-        seq = sanitize_sequence(sequence)
-        if not seq:
-            return templates.TemplateResponse(request=request, name="index.html", context={"error": "Empty sequence", "sequence": sequence})
-            
-        res = predictor.predict_single(seq)
-        if res.get("status") == "ERROR_TOO_SHORT":
-            return templates.TemplateResponse(request=request, name="index.html", context={"error": "Sequence too short (<50 aa)", "sequence": sequence})
 
 def get_tm_tier(tm: float) -> str:
     if tm < 40.0:

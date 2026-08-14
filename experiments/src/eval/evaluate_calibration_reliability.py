@@ -44,12 +44,44 @@ def compute_calibration_curve(y_true, y_pred, y_conf, z_vals=None):
     ece = np.mean(np.abs(emp_cov - exp_cov))
     return exp_cov, emp_cov, ece, z_vals
 
+def fit_sigma_scale(y_true, y_pred, y_conf, z_vals):
+    """Scale c minimising ECE. Grid search is enough; ECE is piecewise-constant in c."""
+    grid = np.arange(0.5, 6.001, 0.005)
+    errors = np.abs(y_true - y_pred)
+    exp_cov = expected_coverage(z_vals)
+    best_c, best_ece = 1.0, np.inf
+    for c in grid:
+        emp = np.array([np.mean(errors <= z * c * y_conf) for z in z_vals])
+        e = np.mean(np.abs(emp - exp_cov))
+        if e < best_ece:
+            best_c, best_ece = c, e
+    return best_c, best_ece
+
+
+def crossfit_sigma_scale(y_true, y_pred, y_conf, z_vals, seed=0):
+    """Two-fold cross-fitting: every point is scaled by a c fitted without it.
+
+    Avoids the circularity of fitting and reporting the scale on the same data,
+    while keeping the full sample in the reliability curve.
+    """
+    rng = np.random.default_rng(seed)
+    fold = rng.permutation(len(y_true)) % 2
+    conf_cal = np.empty_like(y_conf, dtype=float)
+    cs = []
+    for f in (0, 1):
+        fit, app = fold != f, fold == f
+        c, _ = fit_sigma_scale(y_true[fit], y_pred[fit], y_conf[fit], z_vals)
+        conf_cal[app] = y_conf[app] * c
+        cs.append(c)
+    return conf_cal, cs
+
+
 def main():
     print("=====================================================================================")
     print("  STABLEPROT V9 UNCERTAINTY CALIBRATION & RELIABILITY BENCHMARK")
     print("=====================================================================================")
     
-    VERSION = os.environ.get("STABLEPROT_VERSION", "v8_disjoint")
+    VERSION = os.environ.get("STABLEPROT_VERSION", "v9_disjoint")
     protherm_path = os.path.join(PROJECT_ROOT, "new_data/protherm_evaluation_results.pt")
     if not os.path.exists(protherm_path):
         print(f"Error: ProTherm evaluation results missing: {protherm_path}")
@@ -106,6 +138,16 @@ def main():
     print(f"Empirical Coverage @ 1.0 sigma (Expected 68.3%): {emp_cov[np.where(np.isclose(z_vals, 1.0))[0][0]]*100:.1f}%")
     print(f"Empirical Coverage @ 2.0 sigma (Expected 95.4%): {emp_cov[np.where(np.isclose(z_vals, 2.0))[0][0]]*100:.1f}%")
     
+    # ── 1b. Fit the variance scale out-of-fold ──
+    y_conf_cal, fold_cs = crossfit_sigma_scale(y_true, y_pred, y_conf, z_vals)
+    exp_cov_cal, emp_cov_cal, ece_cal, _ = compute_calibration_curve(y_true, y_pred, y_conf_cal, z_vals)
+    i1 = np.where(np.isclose(z_vals, 1.0))[0][0]
+    i2 = np.where(np.isclose(z_vals, 2.0))[0][0]
+    print(f"\nFitted sigma scale (2-fold cross-fit): c = {fold_cs[0]:.3f} / {fold_cs[1]:.3f}")
+    print(f"Calibrated ECE: {ece_cal:.4f}")
+    print(f"Calibrated Coverage @ 1.0 sigma (Expected 68.3%): {emp_cov_cal[i1]*100:.1f}%")
+    print(f"Calibrated Coverage @ 2.0 sigma (Expected 95.4%): {emp_cov_cal[i2]*100:.1f}%")
+
     # ── 2. Temperature Stratification ──
     strata = {
         'Mesophilic (20-40°C)': (y_true >= 20.0) & (y_true <= 40.0),
@@ -116,9 +158,10 @@ def main():
     strata_results = {}
     for name, mask in strata.items():
         if np.sum(mask) > 5:
-            e_exp, e_emp, e_ece, _ = compute_calibration_curve(y_true[mask], y_pred[mask], y_conf[mask], z_vals)
+            e_exp, e_emp, e_ece, _ = compute_calibration_curve(y_true[mask], y_pred[mask], y_conf_cal[mask], z_vals)
+            r_exp, r_emp, r_ece, _ = compute_calibration_curve(y_true[mask], y_pred[mask], y_conf[mask], z_vals)
             strata_results[name] = {'exp': e_exp, 'emp': e_emp, 'ece': e_ece, 'count': np.sum(mask)}
-            print(f"  {name:<26} | N={np.sum(mask):<4} | ECE: {e_ece:.4f} | 1σ Cov: {e_emp[np.where(np.isclose(z_vals, 1.0))[0][0]]*100:.1f}%")
+            print(f"  {name:<26} | N={np.sum(mask):<4} | ECE raw: {r_ece:.4f} -> cal: {e_ece:.4f} | 1σ Cov cal: {e_emp[i1]*100:.1f}%")
 
     bins_10c = {
         '<30°C': y_true < 30.0,
@@ -132,13 +175,17 @@ def main():
     bins_results = {}
     for name, mask in bins_10c.items():
         if np.sum(mask) > 3:
-            e_exp, e_emp, e_ece, _ = compute_calibration_curve(y_true[mask], y_pred[mask], y_conf[mask], z_vals)
+            e_exp, e_emp, e_ece, _ = compute_calibration_curve(y_true[mask], y_pred[mask], y_conf_cal[mask], z_vals)
             bins_results[name] = {'exp': e_exp, 'emp': e_emp, 'ece': e_ece, 'count': np.sum(mask)}
-            print(f"  10°C Bin {name:<10} | N={np.sum(mask):<4} | ECE: {e_ece:.4f} | 1σ Cov: {e_emp[np.where(np.isclose(z_vals, 1.0))[0][0]]*100:.1f}%")
+            print(f"  10°C Bin {name:<10} | N={np.sum(mask):<4} | ECE cal: {e_ece:.4f} | 1σ Cov cal: {e_emp[i1]*100:.1f}%")
 
     # Save summary CSV
     rows = []
-    for name, d in {**{'Overall': {'exp': exp_cov, 'emp': emp_cov, 'ece': ece, 'count': len(y_true)}}, **strata_results, **bins_results}.items():
+    overall_rows = {
+        'Overall (raw sigma)': {'exp': exp_cov, 'emp': emp_cov, 'ece': ece, 'count': len(y_true)},
+        'Overall (scaled sigma)': {'exp': exp_cov_cal, 'emp': emp_cov_cal, 'ece': ece_cal, 'count': len(y_true)},
+    }
+    for name, d in {**overall_rows, **strata_results, **bins_results}.items():
         idx_1s = np.where(np.isclose(z_vals, 1.0))[0][0]
         idx_2s = np.where(np.isclose(z_vals, 2.0))[0][0]
         rows.append({
@@ -160,11 +207,9 @@ def main():
     plt.figure(figsize=(7, 7))
     plt.plot([0, 100], [0, 100], 'k--', alpha=0.6, label='Ideal Calibration ($y=x$)')
     
-    # Compute calibrated calibration curve
-    exp_cov_cal, emp_cov_cal, ece_cal, _ = compute_calibration_curve(y_true, y_pred, y_conf * 2.8, z_vals)
-    
-    plt.plot(exp_cov * 100, emp_cov * 100, 'o-', color='#3b82f6', linewidth=2.5, markersize=7, label=f'StableProt V9 (Unscaled, ECE = {ece:.3f})')
-    plt.plot(exp_cov_cal * 100, emp_cov_cal * 100, 's-', color='#10b981', linewidth=2.5, markersize=7, label=f'StableProt V9 (Calibrated T=2.8, ECE = {ece_cal:.3f})')
+    c_mean = float(np.mean(fold_cs))
+    plt.plot(exp_cov * 100, emp_cov * 100, 'o-', color='#3b82f6', linewidth=2.5, markersize=7, label=f'Raw $\\sigma$ — overconfident (ECE = {ece:.3f})')
+    plt.plot(exp_cov_cal * 100, emp_cov_cal * 100, 's-', color='#10b981', linewidth=2.5, markersize=7, label=f'Scaled $\\sigma$, $c$ = {c_mean:.2f} (ECE = {ece_cal:.3f})')
     plt.xlabel("Predicted Confidence Level / Expected Coverage (%)")
     plt.ylabel("Observed Empirical Coverage (%)")
     plt.title("Reliability Diagram: $T_m$ Uncertainty Calibration ($\pm z \cdot \sigma$)")
@@ -217,7 +262,14 @@ def main():
     import json
     json_overall = os.path.join(OUT_DIR, "calibration_reliability_diagram.json")
     with open(json_overall, "w") as f:
-        json.dump({"expected_coverage_pct": (exp_cov * 100).tolist(), "empirical_coverage_pct": (emp_cov * 100).tolist(), "ece": float(ece)}, f, indent=2)
+        json.dump({
+            "expected_coverage_pct": (exp_cov * 100).tolist(),
+            "empirical_coverage_pct_raw": (emp_cov * 100).tolist(),
+            "empirical_coverage_pct_scaled": (emp_cov_cal * 100).tolist(),
+            "ece_raw": float(ece),
+            "ece_scaled": float(ece_cal),
+            "sigma_scale_folds": [float(c) for c in fold_cs],
+        }, f, indent=2)
     print(f"Saved JSON: {json_overall}")
 
     json_strat = os.path.join(OUT_DIR, "calibration_stratified_temp.json")

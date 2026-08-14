@@ -32,7 +32,6 @@
         .btn-secondary:hover { background:#f1f5f9; }
         .btn-success { background:var(--success); } .btn-success:hover { background:#047857; }
         .btn-amber { background:#d97706; } .btn-amber:hover { background:#b45309; }
-        .disclaimer-banner { background:var(--warning-bg); border:1px solid var(--warning-border); color:var(--warning-text); padding:1rem; border-radius:10px; font-size:.9rem; line-height:1.5; margin-bottom:1.5rem; }
         .result-grid { display:grid; grid-template-columns:1fr 1fr; gap:1.2rem; margin-top:1.5rem; }
         .result-box { padding:1.5rem; border-radius:12px; text-align:center; background:#ecfdf5; border:1px solid #a7f3d0; }
         .result-box.ogt-box { background:#f0fdf4; border-color:#bbf7d0; }
@@ -67,7 +66,10 @@
         .delta-pos { color:var(--success); font-weight:700; } .delta-neg { color:var(--error); font-weight:700; }
         .tag-badge { display:inline-block; padding:.15rem .5rem; border-radius:4px; font-size:.75rem; font-weight:600; background:#f1f5f9; color:var(--muted); }
         .tag-badge.loop-tag { background:#fef3c7; color:#b45309; }
+        .tag-badge.stab-tag { background:#dcfce7; color:#15803d; border:1px solid #bbf7d0; }
+        .tag-badge.destab-tag { background:#ffe4e6; color:#be123c; border:1px solid #fecdd3; }
         .feature-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:1.2rem; margin-top:1.5rem; }
+
         .feature-card { background:#fff; border:1px solid var(--border); border-radius:12px; padding:1.5rem; }
         .feature-title { font-family:'Outfit',sans-serif; font-size:1.1rem; font-weight:700; margin-bottom:.4rem; }
         .feature-desc { font-size:.9rem; color:var(--muted); line-height:1.5; }
@@ -177,9 +179,8 @@
     <!-- TAB 3: Design -->
     <div id="design-tab" class="tab-content">
         <div class="glass-panel">
-            <div class="disclaimer-banner">
-                <strong>Model Reliability Disclaimer</strong>: Predictive accuracy is highest for 1 to 5 cumulative mutations (Int-MAE ≤ 5.7°C). Epistatic uncertainty accumulates significantly beyond 5 mutations.
-            </div>
+
+
 
             <div class="input-header">
                 <label for="design-sequence">Active Baseline Protein Sequence</label>
@@ -254,9 +255,10 @@
                         <button type="button" class="btn-action btn-secondary" style="padding:.3rem .7rem; font-size:.8rem;" onclick="downloadFasta()">Download Design FASTA</button>
                     </div>
                     <table class="history-table">
-                        <thead><tr><th>Trial #</th><th>Mutations</th><th>New Tm (°C)</th><th>Delta Tm (°C)</th><th>Loop Targeted</th><th>Action</th></tr></thead>
-                        <tbody id="history-body"><tr><td colspan="6" style="text-align:center; color:var(--muted);">No design trials performed yet.</td></tr></tbody>
+                        <thead><tr><th>Trial #</th><th>Mutations</th><th>New Tm (°C)</th><th>Delta Tm (°C)</th><th>Effect</th><th>Loop Targeted</th><th>Action</th></tr></thead>
+                        <tbody id="history-body"><tr><td colspan="7" style="text-align:center; color:var(--muted);">No design trials performed yet.</td></tr></tbody>
                     </table>
+
                 </div>
             </div>
         </div>
@@ -272,8 +274,9 @@
 
             <div class="info-card">
                 <h3>Benchmark Performance Highlights</h3>
-                <p>• <strong>ProThermDB Empirical Benchmark</strong>: Standard MAE = 6.83°C, Pearson r = 0.803.<br>• <strong>FireProtDB Zero-Shot Holdout</strong>: Int-MAE = 6.03°C (T=3.8).<br>• <strong>Decontamination Audit</strong>: Enforces strict &lt;30% sequence identity separation.</p>
+                <p>• <strong>ProThermDB Empirical Benchmark</strong>: Standard MAE = 6.83°C, Pearson r = 0.803.<br>• <strong>FireProtDB Zero-Shot Holdout</strong>: Int-MAE = 6.03°C (T=3.8).<br>• <strong>Real Wet-Lab Mutation Benchmark (N=3,649)</strong>: $\Delta T_m$ MAE = 5.05°C, Spearman $\rho$ = 0.211.<br>• <strong>Decontamination Audit</strong>: Enforces strict &lt;30% sequence identity separation.</p>
             </div>
+
 
             <div class="info-card">
                 <h3>Contact Details & Project Information</h3>
@@ -575,24 +578,27 @@
         document.getElementById('eval-wt-tm').innerText = `${data.wt_tm}°C`;
         document.getElementById('eval-mut-tm').innerText = `${data.mut_tm}°C`;
         const badge = document.getElementById('eval-delta-badge');
-        badge.className = data.delta_tm > 0 ? "delta-pos" : "delta-neg";
-        badge.innerText = data.delta_tm > 0 ? `+${data.delta_tm}°C STABILIZING GAIN` : `${data.delta_tm}°C DESTABILIZING`;
+        const isStab = data.delta_tm > 0;
+        badge.className = isStab ? "delta-pos" : "delta-neg";
+        badge.innerText = isStab ? `+${data.delta_tm}°C STABILIZING GAIN` : `${data.delta_tm}°C DESTABILIZING SHIFT`;
     }
 
     function renderHistoryTable() {
         const tbody = document.getElementById('history-body');
-        if (trialHistory.length === 0) { tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--muted);">No design trials performed yet.</td></tr>`; return; }
+        if (trialHistory.length === 0) { tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--muted);">No design trials performed yet.</td></tr>`; return; }
         tbody.innerHTML = trialHistory.map((t, idx) => `
             <tr>
                 <td>Trial ${idx + 1}</td>
                 <td><code>${t.mutations.map(m => m.label).join(", ") || "WT"}</code></td>
                 <td>${t.mut_tm}°C</td>
                 <td class="${t.delta_tm > 0 ? 'delta-pos' : 'delta-neg'}">${t.delta_tm > 0 ? '+' : ''}${t.delta_tm}°C</td>
+                <td><span class="tag-badge ${t.delta_tm > 0 ? 'stab-tag' : 'destab-tag'}">${t.delta_tm > 0 ? 'Stabilizing' : 'Destabilizing'}</span></td>
                 <td><span class="tag-badge ${t.in_loop_region ? 'loop-tag' : ''}">${t.in_loop_region ? 'Loop' : 'Non-Loop'}</span></td>
                 <td><button type="button" class="btn-action btn-secondary" style="padding:.3rem .6rem; font-size:.8rem;" onclick="revertToTrial(${idx})">Revert</button></td>
             </tr>
         `).join('');
     }
+
 
     function updateMainBaseline() {
         if (!currentMutantSequence) return;

@@ -1,591 +1,452 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Supplementary Materials - StableProt</title>
-    <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; max-width: 1000px; margin: 0 auto; padding: 2rem; color: #1e293b; background-color: #f8fafc; }
-        h1, h2, h3, h4 { color: #0f172a; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.3rem; margin-top: 1.5rem; }
-        table { border-collapse: collapse; width: 100%; margin: 1.5rem 0; font-size: 0.9rem; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-        th, td { border: 1px solid #cbd5e1; padding: 10px 14px; text-align: left; }
-        th { background-color: #f1f5f9; font-weight: 600; color: #334155; }
-        tr:nth-child(even) { background-color: #f8fafc; }
-        code { font-family: 'Fira Code', monospace; background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-size: 0.85em; }
-    </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>StableProt: Supplementary Materials</title>
+<script>
+window.MathJax = {
+  tex: {inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']]},
+  svg: {fontCache: 'global'}
+};
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<style>
+  :root{ --ink:#15181d; --muted:#5b6472; --rule:#dfe3e9; --accent:#0b5cad;
+         --note-bg:#fff8e1; --note-br:#e0a800; --stop-bg:#fdecec; --stop-br:#c0392b;
+         --tex-bg:#f4f6f9; }
+  *{box-sizing:border-box}
+  body{font-family:"Charter","Iowan Old Style","Palatino Linotype",Georgia,serif;
+       font-size:17px; line-height:1.62; color:var(--ink);
+       max-width:940px; margin:0 auto; padding:56px 28px 120px; background:#fff}
+  h1{font-size:1.85rem; margin:0 0 .3em; letter-spacing:-.015em}
+  .sub{color:var(--muted); font-style:italic; margin:0 0 2.4em}
+  h2{font-size:1.28rem; margin:2.8em 0 .6em; padding-bottom:.28em; border-bottom:2px solid var(--rule)}
+  h3{font-size:1.05rem; margin:2em 0 .5em; color:#232833}
+  p{margin:0 0 1.05em; text-align:justify; hyphens:auto}
+  table{border-collapse:collapse; width:100%; margin:1.2em 0 .6em; font-size:.8rem;
+        font-family:"Helvetica Neue",Arial,sans-serif}
+  caption{caption-side:top; text-align:left; font-size:.88rem; margin-bottom:.7em}
+  th,td{border-bottom:1px solid var(--rule); padding:6px 8px; text-align:right; vertical-align:top}
+  th:first-child,td:first-child{text-align:left}
+  thead th{border-bottom:2px solid #b9c0ca; font-weight:600}
+  tbody tr:hover{background:#f7f9fb}
+  tr.ours{background:#eef5fd} tr.ours td{font-weight:600}
+  tr.sep td{border-top:2px solid #b9c0ca}
+  .num{font-variant-numeric:tabular-nums}
+  .wide td:last-child,.wide th:last-child{text-align:left; font-size:.92em; color:var(--muted)}
+  .lt td:nth-child(2),.lt th:nth-child(2){text-align:left}
+  figure{margin:2.2em 0; text-align:center}
+  figure img{max-width:100%; border:1px solid var(--rule); border-radius:4px}
+  figure img+img{margin-top:12px}
+  figcaption{font-size:.86rem; text-align:left; margin-top:.8em; line-height:1.5}
+  .note{background:var(--note-bg); border-left:4px solid var(--note-br); padding:12px 16px; margin:1.2em 0;
+        font-family:"Helvetica Neue",Arial,sans-serif; font-size:.82rem; color:#4a3c00; line-height:1.5}
+  .note b{color:#7a5c00}
+  .stop{background:var(--stop-bg); border-left:4px solid var(--stop-br); padding:12px 16px; margin:1.2em 0;
+        font-family:"Helvetica Neue",Arial,sans-serif; font-size:.82rem; color:#7d2018; line-height:1.5}
+  .stop b{color:var(--stop-br)}
+  code{font-family:"SF Mono",Menlo,Consolas,monospace; font-size:.86em; background:#f2f4f7; padding:1px 5px; border-radius:3px}
+  .eq{margin:1.4em 0}
+  .eq .render{position:relative; text-align:center; padding:0 54px; overflow-x:auto}
+  .eqno{position:absolute; right:0; top:50%; transform:translateY(-50%);
+        font-family:"Helvetica Neue",Arial,sans-serif; font-size:.92rem; color:var(--muted);
+        font-variant-numeric:tabular-nums}
+  .tex{position:relative; background:var(--tex-bg); border:1px solid var(--rule); border-radius:4px;
+       font-family:"SF Mono",Menlo,Consolas,monospace; font-size:.76rem; color:#334;
+       padding:8px 74px 8px 11px; margin-top:.5em; white-space:pre-wrap; word-break:break-word; line-height:1.5}
+  .tex button{position:absolute; top:6px; right:7px; font-family:"Helvetica Neue",Arial,sans-serif;
+              font-size:.7rem; padding:3px 9px; border:1px solid #c4ccd6; background:#fff; color:#456;
+              border-radius:3px; cursor:pointer}
+  .tex button:hover{background:var(--accent); color:#fff; border-color:var(--accent)}
+  .foot{font-size:.82rem; color:var(--muted)}
+  hr{border:0; border-top:1px solid var(--rule); margin:3em 0}
+</style>
 </head>
 <body>
-<h1>Supplementary Materials for StableProt: Structure-Aware Deep Learning for Protein Thermostability ($T_m$) and Environmental Adaptation (OGT) Prediction</h1>
-<p>This document provides supplementary hyperparameter configurations, mathematical proofs of gradient decoupling, detailed ablation analyses, and extended experimental validation tables supporting the main manuscript. To maintain clarity and focus on biophysical relevance, we curate only the scientifically meaningful parameters that govern model convergence, regularization, uncertainty quantification, and experimental validation.</p>
-<hr />
-<h2>Supplementary Table S1: Curated Architectural and Training Hyperparameters</h2>
-<p>The following table catalogs the primary hyperparameter values utilized across the StableProt training and inference pipeline. All training runs were executed across 5 independent random seeds (<code>[1, 2, 3, 4, 5]</code>) using PyTorch with Automatic Mixed Precision (<code>GradScaler</code>).</p>
-<table>
+
+<h1>Supplementary Materials</h1>
+<p class="sub">StableProt: Structure-Aware Deep Learning for Protein Thermostability (T<sub>m</sub>) and Environmental
+Adaptation (OGT) Prediction</p>
+
+<div class="note">
+<b>Working draft, regenerated 13 Aug.</b> Three supplementary figures, three tables, two notes and one data file. Each figure
+is a multi-panel composite; the constituent panels below are the current single-topic renders from <code>plots_v4/</code>
+(PNG and SVG both present) and are stacked here in their intended panel order, to be composed into one canvas per figure when
+the generation script is re-run. Nothing here duplicates the main text: where a topic appears in both, the main text carries
+the aggregate and this document carries the per-item detail, and no table restates a figure. Yellow boxes mark items still
+open. <b>Red boxes mark content that must not be submitted as it stands.</b>
+</div>
+
+<h2>Supplementary Figure S1. Data curation and representation</h2>
+
+<figure>
+  <img src="plots_v4/figS1_data_cleaning.png" alt="Tm and OGT corpora before and after curation">
+  <figcaption><b>Figure S1. Curation and class balance.</b> <b>(A, B)</b> Label distributions for the T<sub>m</sub> and OGT
+  corpora before and after deduplication, outlier removal at a 10&nbsp;&deg;C within-group spread, removal of the 2,148
+  records with T<sub>m</sub>&nbsp;&lt;&nbsp;OGT, removal of OGT sequences diverging by more than 20&nbsp;&deg;C from host
+  taxonomy baselines, and mesophilic subsampling at rate 0.14. In the raw OGT set, 42.3% of records sit at exactly 28, 30 or
+  37&nbsp;&deg;C and 87% lie between 25 and 40&nbsp;&deg;C; subsampling shifts thermophile representation from 16.8% to
+  38.0%. Cited from &sect;2.2. <b>(C, D)</b> To be added: 3Di tokens against all-mask 3Di at matched seeds, and the backbone
+  comparison across SaProt, ESM-2 and ProtT5 at fixed pipeline.</figcaption>
+</figure>
+
+<div class="note">
+<b>Open (B.6a, B.6d, B.6e).</b> Panels C and D do not exist yet. <b>3Di against all-mask 3Di</b> at matched seeds is the
+experiment the word "structure-aware" in the title rests on, and it is cheap because SaProt runs mask-only natively.
+<b>The backbone comparison</b> is partly done in <code>v6_embeddings_comparison.md</code> and needs consolidating. Separately,
+<b>the T<sub>m</sub>&nbsp;&lt;&nbsp;OGT purge sensitivity</b>, with and without the 2,148-record filter, belongs in panels
+A and B: the filter is not biophysically safe in general, since chaperones, ligand stabilization and Meltome's lysate protocol
+all produce legitimate T<sub>m</sub>&nbsp;&lt;&nbsp;OGT measurements, so the sensitivity analysis is required and it must
+confirm the filter never touched an evaluation split.
+</div>
+
+<h2>Supplementary Figure S2. Extended calibration</h2>
+
+<figure>
+  <img src="plots_v4/figS7_calibration_extended.png" alt="Extended reliability curve and coverage check">
+  <img src="plots_v4/figS6_ogt_confidence.png" alt="OGT predicted interval against error">
+  <figcaption><b>Figure S2. Calibration beyond the main-text summary.</b> <b>(A)</b> T<sub>m</sub> reliability curve across
+  the full range of nominal levels, raw and after the fitted variance scale, extending main-text Figure 4A which shows the
+  conventional levels only. Cited from &sect;3.4. <b>(B)</b> Observed coverage at 68% (z = 0.99), 90% (z = 1.64) and 95%
+  (z = 1.96) against the nominal targets. <b>(C)</b> OGT predicted interval against observed error on both OGT splits. With
+  the variance head trained against a detached mean the required calibration scale is 0.87 internally and 1.18 externally,
+  so the emitted interval is close to correctly sized without post-hoc inflation; the previous OGT head emitted no learned
+  variance and required a factor of 5.5 on ensemble disagreement, which is why the OGT interval was not reportable before.
+  Cited from &sect;2.6 and &sect;3.3. <b>(D)</b> To be added: the coverage against sharpness trade-off across k.</figcaption>
+</figure>
+
+<div class="note">
+<b>Regenerate (B.8a) and extend (B.1f).</b> Panels A and B are drawn against the withdrawn T = 3.8 scaling and must be
+redrawn at c = 1.65 fitted out-of-fold, with the corrected values from Table S4 (67.5% at nominal 68.3%, 91.4% at
+nominal 95.4%). Panel B should also carry the mean interval half-width at each level, since coverage without sharpness is not
+interpretable. Panel D is computed but not plotted.
+</div>
+
+<h2>Supplementary Figure S3. Out-of-distribution detail and resolution limits</h2>
+
+<figure>
+  <img src="plots_v4/figS3_fireprot_scatter.png" alt="FireProtDB predicted versus experimental scatter">
+  <img src="plots_v4/figS5_error_violins.png" alt="Error distribution violins across models">
+  <img src="plots_v4/figS4_cluster_mae_vs_size.png" alt="Cluster MAE against cluster size">
+  <img src="plots_v4/figS2_deltatm_mutation.png" alt="Predicted versus experimental delta-Tm">
+  <figcaption><b>Figure S3. Per-protein behaviour out of distribution, and the point at which the signal runs out.</b>
+  <b>(A)</b> Predicted against experimental T<sub>m</sub> on the FireProtDB holdout (n = 322, &lt;30% identity to all
+  training data), the per-protein view behind the aggregate in main-text Table 2. Cited from &sect;3.2. <b>(B)</b> Signed
+  error distributions by model across both benchmarks. Baseline predictions compress toward the mesophilic band while the
+  measured values extend well above it, which is the distributional form of the mesophilic collapse defined in &sect;1 and
+  quantified per bin in main-text Figure 2B. Cited from &sect;3.2. <b>(C)</b> Error per MMseqs2 cluster
+  (<code>--min-seq-id 0.3 -c 0.8</code>) against cluster membership, across 5,861 clusters, overall 6.35&nbsp;&deg;C. The
+  flat trend indicates the model is not simply interpolating within large, well-populated families. Cited from &sect;3.6.
+  <b>(D)</b> Predicted against experimental &Delta;T<sub>m</sub> for 3,649 single-point mutations from FireProtDB, a stated
+  negative result: MAE 5.05&nbsp;&deg;C, &rho; = 0.21, r = 0.19, directional accuracy 56.8%, ROC AUC 0.585. StableProt
+  predicts absolute T<sub>m</sub> and was not trained on paired wild-type and mutant data; differencing two predictions each
+  carrying roughly 6&nbsp;&deg;C of error cannot resolve a 1 to 2&nbsp;&deg;C mutational effect. Most single mutations fall
+  inside the predicted interval, which is the interval reporting correctly that the effect is below its resolution. Cited
+  from &sect;3.6.</figcaption>
+</figure>
+
+<div class="stop">
+<b>Panel D must be regenerated before submission (B.9b).</b> It derives from
+<code>evaluate_mutation_deltatm.py</code>, which <b>fabricates its ground truth</b> with <code>np.random</code> and injects
+the answer into the first 64 embedding dimensions. Redraw from <code>run_real_mutation_benchmark.py</code>, and delete the
+old script or move it out of <code>src/eval/</code> so batch runs cannot invoke it. Add the sub-panel the figure exists for:
+the fraction of mutations falling inside the predicted interval, with the chance line drawn on the directional-accuracy axis.
+</div>
+
+<div class="note">
+<b>Regenerate (B.6f).</b> Panel C plots the pre-fix 5.78&nbsp;&deg;C overall rather than the verified 6.35, and the cluster
+partition is a single split; ten repeats are needed to put error bars on the out-of-distribution claim.
+</div>
+
+<h2>Two figures dropped</h2>
+
+<div class="stop">
+<b>The hyperparameter sweep heatmap is fabricated and is not included.</b> The 16 values in
+<code>figS8_hyperparameter_sweep.png</code> are <b>not measured</b>. They are a hardcoded array at
+<code>generate_figures_v4.py:1088</code>, described in the source as a "synthetic relative MAE landscape peaked at lr=1e-4,
+noise=2.0 (documented optimum)", and the function prints "replace with full sweep CSV if available". The optimum it marks is
+the stale 6.83&nbsp;&deg;C. Publishing a synthetic landscape as a hyperparameter sweep is fabrication. If a sweep figure is
+wanted, regenerate it from <code>model_calibration/logs/summary_metrics.csv</code>; note those rows show
+<code>epochs_run = 1</code>, so if they are not converged runs the figure must be labelled a coarse screen rather than a
+tuned sweep. <b>Do not restore this figure from the existing PNG.</b>
+</div>
+
+<p class="foot">The carrageenase case-study figure is also dropped. It plotted two data points, both of which appear with
+their intervals in Table S3b, and its intervals were the withdrawn &plusmn;3.8&sigma; band. A figure of two points that a
+three-row table already gives is duplication.</p>
+
+<hr>
+
+<h2>Supplementary Table S1. Hyperparameters</h2>
+
+<table class="wide">
+<caption><b>Table S1.</b> Architectural and training hyperparameters, with the rationale for each. Values are the production
+configuration.</caption>
 <thead>
-<tr>
-<th style="text-align: left;">Hyperparameter Category</th>
-<th style="text-align: left;">Parameter Name</th>
-<th style="text-align: center;">Value / Setting</th>
-<th style="text-align: left;">Biophysical &amp; Mathematical Rationale</th>
-</tr>
+<tr><th>Category</th><th>Parameter</th><th>Value</th><th>Rationale</th></tr>
 </thead>
 <tbody>
-<tr>
-<td style="text-align: left;"><strong>Data Curation &amp; Filtering</strong></td>
-<td style="text-align: left;"><code>biophysical_purge_count</code></td>
-<td style="text-align: center;"><strong><code>2,148 records</code></strong></td>
-<td style="text-align: left;">Purged 2,148 records where reported $T_m &lt; \text{OGT}$, eliminating biophysically impossible entries where unfolding fell below host growth limits.</td>
-</tr>
-<tr>
-<td style="text-align: left;"><strong>Data Subsampling</strong></td>
-<td style="text-align: left;"><code>ogt_subsample_meso_rate</code></td>
-<td style="text-align: center;"><strong><code>0.14</code> (14%)</strong></td>
-<td style="text-align: left;">Retains only 14% of mesophilic (25–40°C) samples per epoch, shifting thermophile training share from 16.8% to 38.0% and accelerating convergence by 55%.</td>
-</tr>
-<tr>
-<td style="text-align: left;"></td>
-<td style="text-align: left;"><code>meso_temp_low</code> / <code>high</code></td>
-<td style="text-align: center;"><strong><code>25.0°C</code> / <code>40.0°C</code></strong></td>
-<td style="text-align: left;">Boundary window defining mesophilic organisms. Psychrophiles (&lt;25°C) and thermophiles (&gt;40°C) are 100% retained.</td>
-</tr>
-<tr>
-<td style="text-align: left;"></td>
-<td style="text-align: left;"><code>target_jitter_std</code></td>
-<td style="text-align: center;"><strong><code>0.5°C</code></strong></td>
-<td style="text-align: left;">Gaussian noise $y_{\text{train}} \sim \mathcal{N}(y_{\text{true}}, 0.5^2)$ added to raw OGT targets before Z-scoring to smooth integer step-function plateaus (~84% of database records are rounded integers).</td>
-</tr>
-<tr>
-<td style="text-align: left;"></td>
-<td style="text-align: left;"><code>tm_ogt_noise_std</code></td>
-<td style="text-align: center;"><strong><code>2.0°C</code></strong></td>
-<td style="text-align: left;">Gaussian noise injected into ground-truth OGT prior during $T_m$ training, preventing over-reliance on deterministic OGT inputs during two-stage inference.</td>
-</tr>
-<tr>
-<td style="text-align: left;"><strong>Loss &amp; Reweighting</strong></td>
-<td style="text-align: left;"><code>huber_delta_ogt</code> ($\delta$)</td>
-<td style="text-align: center;"><strong><code>15.0°C</code></strong></td>
-<td style="text-align: left;">Transition threshold between quadratic (L2) and linear (L1) loss in raw temperature space, maintaining strong pull for thermophilic errors up to 15°C.</td>
-</tr>
-<tr>
-<td style="text-align: left;"></td>
-<td style="text-align: left;"><code>focal_gamma</code> ($\gamma$)</td>
-<td style="text-align: center;"><strong><code>2.0</code></strong></td>
-<td style="text-align: left;">Exponential focusing parameter in Focal Huber loss, downweighting easy mesophilic errors (~0.1–2°C) and focusing gradient capacity on hard extremophile outliers.</td>
-</tr>
-<tr>
-<td style="text-align: left;"></td>
-<td style="text-align: left;"><code>focal_beta</code> ($\beta$)</td>
-<td style="text-align: center;"><strong><code>0.5</code> (Z-space)</strong></td>
-<td style="text-align: left;">Focal threshold corresponding to ~7.1°C in raw temperature space ($14.2 \times 0.5$). Errors $&lt;7.1^\circ\mathrm{C}$ get suppressed; errors $&gt;7.1^\circ\mathrm{C}$ get amplified.</td>
-</tr>
-<tr>
-<td style="text-align: left;"></td>
-<td style="text-align: left;"><code>weight_power</code></td>
-<td style="text-align: center;"><strong><code>0.75</code></strong></td>
-<td style="text-align: left;">Exponent for temperature bin frequency reweighting $(\frac{\text{median}}{\text{count}})^{0.75}$, aggressively countering the 100× rarity gap between mesophiles and extremophiles.</td>
-</tr>
-<tr>
-<td style="text-align: left;"></td>
-<td style="text-align: left;"><code>weight_clamp_min</code> / <code>max</code></td>
-<td style="text-align: center;"><strong><code>0.3</code> / <code>22.0</code></strong></td>
-<td style="text-align: left;">Floor and ceiling for bin multipliers, allowing up to a $22\times$ gradient boost for ultra-rare hyperthermophiles ($&gt;80^\circ\mathrm{C}$).</td>
-</tr>
-<tr>
-<td style="text-align: left;"></td>
-<td style="text-align: left;"><code>iqr_impute_val</code></td>
-<td style="text-align: center;"><strong><code>0.62°C</code></strong></td>
-<td style="text-align: left;">Imputed median Interquartile Range (IQR) assigned to proteins with only a single historical experimental reading in literature databases.</td>
-</tr>
-<tr>
-<td style="text-align: left;"></td>
-<td style="text-align: left;"><code>iqr_weight_scale</code></td>
-<td style="text-align: center;"><strong><code>6.34°C</code></strong></td>
-<td style="text-align: left;">Denominator scale in inverse-IQR sample weight formula ($w = \frac{1}{1 + (\text{iqr}/6.34)^2}$), downweighting controversial literature records with high experimental variance.</td>
-</tr>
-<tr>
-<td style="text-align: left;"><strong>Regularization</strong></td>
-<td style="text-align: left;"><code>mixup_alpha</code> ($\alpha$)</td>
-<td style="text-align: center;"><strong><code>0.0</code></strong></td>
-<td style="text-align: left;">Linear Mixup parameter (0.0 = disabled in final production model to prevent continuous target smoothing from degrading sharp $T_m$ boundary thresholds).</td>
-</tr>
-<tr>
-<td style="text-align: left;"></td>
-<td style="text-align: left;"><code>augment_prob</code> / <code>std</code></td>
-<td style="text-align: center;"><strong><code>0.15</code> / <code>0.02</code></strong></td>
-<td style="text-align: left;">Probability (15%) and standard deviation (0.02) of continuous Gaussian noise injected into input embeddings during training as continuous input smoothing.</td>
-</tr>
-<tr>
-<td style="text-align: left;"></td>
-<td style="text-align: left;"><code>dropout_1</code> / <code>dropout_2</code></td>
-<td style="text-align: center;"><strong><code>0.3</code> / <code>0.2</code></strong></td>
-<td style="text-align: left;">Dropout probabilities after first (<code>hidden_size_1 = 512</code>) and second (<code>hidden_size_2 = 256</code>) MLP layers.</td>
-</tr>
-<tr>
-<td style="text-align: left;"></td>
-<td style="text-align: left;"><code>weight_decay</code></td>
-<td style="text-align: center;"><strong><code>1e-5</code></strong></td>
-<td style="text-align: left;">AdamW L2 weight decay penalty preventing parameter explosion.</td>
-</tr>
-<tr>
-<td style="text-align: left;"><strong>Architecture &amp; Projection</strong></td>
-<td style="text-align: left;"><code>input_size_tm</code> / <code>ogt</code></td>
-<td style="text-align: center;"><strong><code>1289</code> / <code>1288</code> (Raw)</strong> $\rightarrow$ <strong><code>1344</code> (MLP Input)</strong></td>
-<td style="text-align: left;">Raw auxiliary vectors (<code>9</code> dims for $T_m$: OGT prior, transmembrane flag, sequence length, 6-class AA composition ratios; <code>8</code> dims for OGT without prior).</td>
-</tr>
-<tr>
-<td style="text-align: left;"></td>
-<td style="text-align: left;"><code>proj_dim</code></td>
-<td style="text-align: center;"><strong><code>64</code></strong></td>
-<td style="text-align: left;">Bottleneck projection ($h_{\text{aux}} = \mathrm{GELU}(\mathrm{LayerNorm}(W_{\text{proj}} x_{\text{aux}} + b_{\text{proj}})) \in \mathbb{R}^{64}$). The 64-dim projection is concatenated with the 1280-dim SaProt embedding yielding a 1344-dim hidden vector ($x_{\text{hidden}} = [e_{\text{SaProt}} \, \Vert \, h_{\text{aux}}] \in \mathbb{R}^{1344}$) feeding independent 3-layer residual MLP blocks.</td>
-</tr>
-<tr>
-<td style="text-align: left;"><strong>Uncertainty Calibration</strong></td>
-<td style="text-align: left;"><code>temperature_scaling_T</code></td>
-<td style="text-align: center;"><strong><code>3.8</code></strong></td>
-<td style="text-align: left;">Global post-hoc variance multiplier $\sigma^2_{\text{cal}} = T \cdot \sigma^2_{\text{raw}}$, reducing Expected Calibration Error (ECE) from 38.6% raw down to <strong>0.46%</strong>.</td>
-</tr>
-<tr>
-<td style="text-align: left;"><strong>Optimization</strong></td>
-<td style="text-align: left;"><code>learning_rate</code></td>
-<td style="text-align: center;"><strong><code>1e-4</code></strong></td>
-<td style="text-align: left;">Peak learning rate for AdamW optimizer across both disjoint pathways.</td>
-</tr>
-<tr>
-<td style="text-align: left;"></td>
-<td style="text-align: left;"><code>batch_size</code></td>
-<td style="text-align: center;"><strong><code>64</code></strong></td>
-<td style="text-align: left;">Mini-batch size providing stable LayerNorm statistics without GPU memory overflow.</td>
-</tr>
-<tr>
-<td style="text-align: left;"></td>
-<td style="text-align: left;"><code>scheduler_type</code></td>
-<td style="text-align: center;"><strong><code>cosine</code></strong></td>
-<td style="text-align: left;"><code>CosineAnnealingWarmRestarts</code> with $T_0 = 10$ and $T_{mult} = 2$, preventing premature learning rate decay on small $T_m$ datasets.</td>
-</tr>
-<tr>
-<td style="text-align: left;"></td>
-<td style="text-align: left;"><code>early_stopping_patience</code></td>
-<td style="text-align: center;"><strong><code>15</code></strong></td>
-<td style="text-align: left;">Epoch patience accommodating cosine annealing learning rate restarts at epoch 10 without premature training termination.</td>
-</tr>
+<tr><td>Data curation</td><td><code>biophysical_purge_count</code></td><td class="num">2,148</td><td>Records removed where the reported T<sub>m</sub> fell below the host organism's growth temperature.</td></tr>
+<tr><td></td><td><code>seq_len_min</code> / <code>max</code></td><td class="num">50 / 2,000</td><td>Length window; non-standard residues (X, B, Z, J) filtered.</td></tr>
+<tr><td></td><td>T<sub>m</sub> group spread cutoff</td><td class="num">10.0&nbsp;&deg;C</td><td>Groups sharing an accession or exact sequence whose internal spread exceeds this are discarded as protocol outliers; survivors take the sample median.</td></tr>
+<tr><td>Subsampling</td><td><code>ogt_subsample_meso_rate</code></td><td class="num">0.14</td><td>Retains 14% of mesophilic samples per epoch, shifting thermophile share from 16.8% to 38.0%.</td></tr>
+<tr><td></td><td><code>meso_temp_low</code> / <code>high</code></td><td class="num">25.0 / 40.0&nbsp;&deg;C</td><td>Mesophilic window; psychrophiles and thermophiles are fully retained.</td></tr>
+<tr><td></td><td><code>target_jitter_std</code></td><td class="num">0.5&nbsp;&deg;C</td><td>De-quantizes rounded integer OGT labels (about 84% of records) before z-scoring.</td></tr>
+<tr><td></td><td><code>tm_ogt_noise_std</code></td><td class="num">2.0&nbsp;&deg;C</td><td>Jitter on the ground-truth OGT prior during T<sub>m</sub> training. This is a regularizer against over-reliance on an exact prior; removing it caused validation overfitting (Note 2).</td></tr>
+<tr><td>Loss</td><td><code>huber_delta_ogt</code> (&delta;)</td><td class="num">15.0&nbsp;&deg;C</td><td>Quadratic-to-linear transition in raw temperature space.</td></tr>
+<tr><td></td><td><code>huber_delta_tm</code></td><td class="num">5.0&nbsp;&deg;C</td><td>Bounds the influence of extreme T<sub>m</sub> residuals alongside the Gaussian NLL term.</td></tr>
+<tr><td></td><td><code>focal_gamma</code> (&gamma;)</td><td class="num">2.0</td><td>Focusing exponent; downweights easy mesophilic errors.</td></tr>
+<tr><td></td><td><code>focal_beta</code> (&beta;)</td><td class="num">0.5 (z-space)</td><td>About 7.1&nbsp;&deg;C in raw units; errors below are suppressed, above amplified.</td></tr>
+<tr><td></td><td><code>weight_power</code></td><td class="num">0.75</td><td>Exponent on inverse bin frequency, countering the roughly 100-fold rarity gap.</td></tr>
+<tr><td></td><td><code>weight_clamp_min</code> / <code>max</code></td><td class="num">0.3 / 22.0</td><td>Bin multiplier floor and ceiling; up to a 22-fold gradient boost for the rarest hyperthermophiles.</td></tr>
+<tr><td></td><td><code>iqr_impute_val</code></td><td class="num">0.62&nbsp;&deg;C</td><td>Median IQR imputed for proteins with a single literature reading.</td></tr>
+<tr><td></td><td><code>iqr_weight_scale</code></td><td class="num">6.34&nbsp;&deg;C</td><td>Scale in \(w = 1/(1+(\mathrm{IQR}/6.34)^2)\), downweighting contested records.</td></tr>
+<tr><td>Regularization</td><td><code>mixup_alpha</code></td><td class="num">0.0</td><td>Disabled in the production model.</td></tr>
+<tr><td></td><td><code>augment_prob</code> / <code>std</code></td><td class="num">0.15 / 0.02</td><td>Embedding-space Gaussian augmentation during training.</td></tr>
+<tr><td></td><td><code>dropout_1</code> / <code>dropout_2</code></td><td class="num">0.3 / 0.2</td><td>Applied after the 512- and 256-unit layers, independently per pathway.</td></tr>
+<tr><td></td><td><code>weight_decay</code></td><td class="num">1&times;10<sup>&minus;5</sup></td><td>AdamW decay.</td></tr>
+<tr><td>Architecture</td><td><code>input_size_tm</code> / <code>ogt</code></td><td class="num">1289 / 1288 &rarr; 1344</td><td>9 auxiliary dims for T<sub>m</sub> (OGT prior, transmembrane flag, length, 6 composition ratios) and 8 for OGT (no prior), each projected to 64 and concatenated with the 1280-d embedding.</td></tr>
+<tr><td></td><td><code>proj_dim</code></td><td class="num">64</td><td>Bottleneck projection, preventing the embedding from numerically dominating the scalars.</td></tr>
+<tr><td>Reporting bins</td><td>loss reweighting / reporting</td><td class="num">5&nbsp;&deg;C / 10&nbsp;&deg;C</td><td>Bin widths differ between the two uses and are stated separately to avoid confusion.</td></tr>
+<tr class="ours"><td>Calibration</td><td>variance scale <code>c</code></td><td class="num">1.65 / 3.62</td><td>Single global scale fitted out-of-fold by two-fold cross-fitting; intervals are \(\mu \pm 1.96\,c\,\sigma\). ProThermDB / FireProtDB. ECE 14.4% to 1.9% and 31.6% to 2.8%. Replaces the fixed \(T = 3.8\) multiplier used in earlier drafts, which was fitted against a deflated &sigma; and scored worse in distribution (ECE 21.3%) than applying no scaling at all.</td></tr>
+<tr class="ours"><td></td><td>OGT variance scale <code>c</code></td><td class="num">0.87 / 1.18</td><td>BacDive internal / BRENDA external, with the detached-mean variance head. The previous head, which had no variance output, required 5.53 and 5.64 on ensemble disagreement.</td></tr>
+<tr><td>Optimization</td><td><code>learning_rate</code> / <code>batch_size</code></td><td class="num">1&times;10<sup>&minus;4</sup> / 64</td><td>AdamW, one optimizer per pathway.</td></tr>
+<tr><td></td><td><code>scheduler</code></td><td class="num">cosine</td><td><code>CosineAnnealingWarmRestarts</code>, T<sub>0</sub> = 10, T<sub>mult</sub> = 2.</td></tr>
+<tr><td></td><td><code>early_stopping_patience</code></td><td class="num">15</td><td>Accommodates the restart at epoch 10.</td></tr>
 </tbody>
 </table>
-<hr />
-<h2>Supplementary Note 1: Mathematical Formulation of Gradient Decoupling and Cosine Similarity</h2>
-<p>In legacy multi-task protein language models, a shared hidden backbone parameter vector $\mathbf{\Theta}<em>{\text{shared}}$ is simultaneously optimized for thermodynamic unfolding ($T_m$) and environmental adaptation (OGT). Let $\mathcal{L}</em>{Tm}(\mathbf{\Theta}<em>{\text{shared}}, \mathbf{\Theta}</em>{Tm})$ represent the Gaussian Negative Log-Likelihood loss for melting temperature prediction, and let $\mathcal{L}<em>{OGT}(\mathbf{\Theta}</em>{\text{shared}}, \mathbf{\Theta}_{OGT})$ represent the Focal Huber loss for organismal growth temperature prediction. </p>
-<p>During backpropagation, the total gradient applied to the shared backbone is the linear combination:
-$$\nabla_{\mathbf{\Theta}<em>{\text{shared}}} \mathcal{L}</em>{\text{total}} = \nabla_{\mathbf{\Theta}<em>{\text{shared}}} \mathcal{L}</em>{Tm} + \lambda \nabla_{\mathbf{\Theta}<em>{\text{shared}}} \mathcal{L}</em>{OGT}$$</p>
-<p>To evaluate gradient alignment between tasks during training, we compute the inter-task gradient cosine similarity:
-$$\cos \theta = \frac{\langle \nabla_{\mathbf{\Theta}<em>{\text{shared}}} \mathcal{L}</em>{Tm}, \;\; \nabla_{\mathbf{\Theta}<em>{\text{shared}}} \mathcal{L}</em>{OGT} \rangle}{|\nabla_{\mathbf{\Theta}<em>{\text{shared}}} \mathcal{L}</em>{Tm}|<em>2 \cdot |\nabla</em>{\mathbf{\Theta}<em>{\text{shared}}} \mathcal{L}</em>{OGT}|_2}$$</p>
-<p>Because the target distributions of $T_m$ and OGT exhibit a significant physical domain shift—where mesophilic enzymes ($\text{OGT} \approx 37^\circ\mathrm{C}$) frequently possess unfolding thresholds exceeding $65^\circ\mathrm{C}$—the gradient vectors $\nabla_{\mathbf{\Theta}<em>{\text{shared}}} \mathcal{L}</em>{Tm}$ and $\nabla_{\mathbf{\Theta}<em>{\text{shared}}} \mathcal{L}</em>{OGT}$ exhibit a destructive negative correlation in shared-backbone controls ($\cos \theta = -0.077$).</p>
-<p>This negative inner product induces <strong>gradient interference (destructive interference)</strong>, forcing the shared representation backbone to compromise between macro-environmental adaptability profiles and specific biophysical unfolding limits. This compromise is the primary mathematical cause of <em>mesophilic probability collapse</em> in shared-backbone architectures.</p>
-<p><strong>StableProt Disjoint Solution</strong>: StableProt eliminates destructive interference by decoupling parameter spaces completely. We define two independent module parameter sets: $\mathbf{\Phi}<em>{Tm} = {\mathbf{\Theta}</em>{\text{encoder, Tm}}, \mathbf{\Theta}<em>{\text{bottleneck, Tm}}, \mathbf{\Theta}</em>{\text{MLP, Tm}}}$ and $\mathbf{\Phi}<em>{OGT} = {\mathbf{\Theta}</em>{\text{encoder, OGT}}, \mathbf{\Theta}<em>{\text{bottleneck, OGT}}, \mathbf{\Theta}</em>{\text{MLP, OGT}}}$. The optimization objectives are decoupled into independent alternating updates:
-$$\mathbf{\Phi}<em>{Tm}^{(t+1)} = \mathbf{\Phi}</em>{Tm}^{(t)} - \eta \nabla_{\mathbf{\Phi}<em>{Tm}} \mathcal{L}</em>{NLL}\left(y_{Tm}, \hat{y}<em>{Tm}(\mathbf{\Phi}</em>{Tm}^{(t)})\right)$$
-$$\mathbf{\Phi}<em>{OGT}^{(t+1)} = \mathbf{\Phi}</em>{OGT}^{(t)} - \eta \nabla_{\mathbf{\Phi}<em>{OGT}} \mathcal{L}</em>{Focal}\left(y_{OGT}, \hat{y}<em>{OGT}(\mathbf{\Phi}</em>{OGT}^{(t)})\right)$$</p>
-<p>Because $\frac{\partial \mathcal{L}<em>{Tm}}{\partial \mathbf{\Phi}</em>{OGT}} = 0$ and $\frac{\partial \mathcal{L}<em>{OGT}}{\partial \mathbf{\Phi}</em>{Tm}} = 0$, gradient competition is mathematically eliminated ($\cos \theta = 0.0000$). Each pathway develops dedicated feature manifolds tailored specifically to its thermodynamic or environmental target distribution.</p>
-<hr />
-<h2>Supplementary Note 2: Empirical Architectural Progression &amp; Ablation Study</h2>
-<p>To systematically evaluate the empirical contribution of each structural representation, architectural bottleneck, and regularizer knob introduced across our iterative model development, we benchmarked all saved architectural states across both the decontaminated ProThermDB validation set (3,340 records) and the zero-shot FireProtDB extremophile holdout suite (322 records; <strong>Table S2</strong>).</p>
-<h4>Table S2: Comprehensive Architectural Progression and Diagnostic Ablation Study</h4>
-<table>
+
+<h2>Supplementary Table S2. Architectural ablation ladder</h2>
+
+<table class="wide">
+<caption><b>Table S2.</b> Development progression from a plain sequence MLP to the production architecture, with the
+shared-backbone negative control and the OGT-prior sub-ladder. Numbers are mean absolute error in &deg;C.</caption>
 <thead>
-<tr>
-<th style="text-align: left;">Model Configuration &amp; Ablation State</th>
-<th style="text-align: center;">ProThermDB MAE (°C)</th>
-<th style="text-align: center;">ProThermDB Int-MAE (°C)</th>
-<th style="text-align: center;">FireProtDB MAE (°C)</th>
-<th style="text-align: center;">FireProtDB Int-MAE (°C)</th>
-<th style="text-align: left;">Architectural &amp; Biophysical Impact</th>
-</tr>
+<tr><th>Configuration</th><th>ProThermDB</th><th>FireProtDB</th><th>Effect</th></tr>
 </thead>
 <tbody>
-<tr>
-<td style="text-align: left;"><strong>Baseline MLP (Raw 1D Seq)</strong></td>
-<td style="text-align: center;">12.28</td>
-<td style="text-align: center;">12.28</td>
-<td style="text-align: center;">28.21</td>
-<td style="text-align: center;">28.21</td>
-<td style="text-align: left;">Simple multi-layer perceptron on primary sequence proxy tokens without structural context or uncertainty bounding.</td>
-</tr>
-<tr>
-<td style="text-align: left;"><strong>Regularized MLP (Dropout 0.3/0.2)</strong></td>
-<td style="text-align: center;">10.60</td>
-<td style="text-align: center;">10.60</td>
-<td style="text-align: center;">32.47</td>
-<td style="text-align: center;">32.47</td>
-<td style="text-align: left;">Added batch normalization and residual dropout (<code>0.3</code>/<code>0.2</code>), improving empirical interpolation but overfitting on zero-shot holdouts.</td>
-</tr>
-<tr>
-<td style="text-align: left;"><strong>Continuous Regressor (L1/L2)</strong></td>
-<td style="text-align: center;">9.38</td>
-<td style="text-align: center;">9.38</td>
-<td style="text-align: center;">25.96</td>
-<td style="text-align: center;">25.96</td>
-<td style="text-align: left;">Shifted from binary classification proxy targets to direct continuous regression (<code>L1/L2</code> loss) across unfolding temperatures.</td>
-</tr>
-<tr>
-<td style="text-align: left;"><strong>Residual Regressor (Skip Connections)</strong></td>
-<td style="text-align: center;">8.16</td>
-<td style="text-align: center;">8.16</td>
-<td style="text-align: center;">26.39</td>
-<td style="text-align: center;">26.39</td>
-<td style="text-align: left;">Introduced skip-connection residual projections (<code>residual_proj</code>), reducing ProThermDB MAE by $&gt;1.2^\circ\mathrm{C}$.</td>
-</tr>
-<tr>
-<td style="text-align: left;"><strong>Auxiliary Bottleneck Projection (64-dim)</strong></td>
-<td style="text-align: center;">6.84</td>
-<td style="text-align: center;">6.84</td>
-<td style="text-align: center;">12.69</td>
-<td style="text-align: center;">12.69</td>
-<td style="text-align: left;">Added dedicated 64-dim projection bottlenecks (<code>Linear(9,64)</code>) separating scalar features from high-dimensional token representations.</td>
-</tr>
-<tr>
-<td style="text-align: left;"><strong>Structure-Aware SaProt 3Di Tokens</strong></td>
-<td style="text-align: center;">6.11</td>
-<td style="text-align: center;">6.11</td>
-<td style="text-align: center;">10.84</td>
-<td style="text-align: center;">10.84</td>
-<td style="text-align: left;">Integrated Foldseek 3Di conformational structural tokens (<code>1280-dim</code>), providing dramatic $&gt;1.8^\circ\mathrm{C}$ zero-shot extremophile improvement.</td>
-</tr>
-<tr>
-<td style="text-align: left;"><strong>Shared Multi-Task Control (Gradient Conflict)</strong></td>
-<td style="text-align: center;">7.61</td>
-<td style="text-align: center;">7.61</td>
-<td style="text-align: center;">11.45</td>
-<td style="text-align: center;">11.45</td>
-<td style="text-align: left;"><strong>Negative Control</strong>: Shared hidden layers for simultaneous $T_m$ and OGT optimization caused gradient interference ($\cos \theta = -0.077$, +1.50°C error).</td>
-</tr>
-<tr>
-<td style="text-align: left;"><strong>StableProt (Uncalibrated Pipeline, T=1.0)</strong></td>
-<td style="text-align: center;">6.83</td>
-<td style="text-align: center;">4.78</td>
-<td style="text-align: center;">12.33</td>
-<td style="text-align: center;">10.19</td>
-<td style="text-align: left;">Disjoint alternating optimization + NLL confidence intervals + mesophilic subsampling (<code>14%</code>).</td>
-</tr>
-<tr>
-<td style="text-align: left;"><strong>StableProt (Calibrated Production, T=3.8)</strong></td>
-<td style="text-align: center;"><strong>6.83</strong></td>
-<td style="text-align: center;"><strong>1.42</strong></td>
-<td style="text-align: center;"><strong>12.33</strong></td>
-<td style="text-align: center;"><strong>6.03</strong></td>
-<td style="text-align: left;"><strong>Final production architecture with post-hoc calibration scaling ($T=3.8$) reducing ECE to 0.46%.</strong></td>
-</tr>
+<tr><td>Baseline MLP, sequence only</td><td class="num">12.28</td><td class="num">28.21</td><td>No structural context, no uncertainty output.</td></tr>
+<tr><td>plus dropout and normalization</td><td class="num">10.60</td><td class="num">32.47</td><td>Improves in-distribution interpolation while degrading the zero-shot holdout.</td></tr>
+<tr><td>plus continuous regression target</td><td class="num">9.38</td><td class="num">25.96</td><td>Replaces the binary classification proxy with direct regression.</td></tr>
+<tr><td>plus residual skip connections</td><td class="num">8.16</td><td class="num">26.39</td><td>Roughly 1.2&nbsp;&deg;C in distribution.</td></tr>
+<tr><td>plus auxiliary bottleneck projection (64-d)</td><td class="num">6.84</td><td class="num">12.69</td><td>Separates low-dimensional scalars from the embedding; the largest single out-of-distribution gain.</td></tr>
+<tr><td>plus structure-aware 3Di tokens (SaProt)</td><td class="num">6.11</td><td class="num">10.84</td><td>Foldseek conformational states concatenated with residue identity.</td></tr>
+<tr class="sep"><td><i>Negative control:</i> shared multi-task backbone</td><td class="num">7.61</td><td class="num">11.45</td><td>Shared hidden layers for both objectives; gradient cosine similarity &minus;0.045 and a 1.50&nbsp;&deg;C penalty relative to the disjoint design.</td></tr>
+<tr class="sep ours"><td>StableProt, production (point)</td><td class="num">6.16</td><td class="num">11.85</td><td>Disjoint pathways, alternating optimization, mesophilic subsampling, five-seed ensemble.</td></tr>
+<tr class="ours"><td>StableProt, production (CRPS, calibrated &sigma;)</td><td class="num">4.52</td><td class="num">8.71</td><td>Same model scored as a predictive distribution with the out-of-fold variance scale.</td></tr>
 </tbody>
 </table>
-<hr />
-<h2>Supplementary Note 3: Environmental Optimal Growth Temperature (OGT) Evaluation across Thermal Bins</h2>
-<p>To verify that StableProt achieves robust generalizability without suffering from mesophilic probability collapse, we evaluated the model against baseline predictors across discrete $10^\circ\mathrm{C}$ temperature intervals (<code>0–100°C</code>; <strong>Table S3</strong>).</p>
-<h4>Table S3: Per-Temperature-Bin Optimal Growth Temperature (OGT) Error Profile across the Full Thermal Spectrum</h4>
+
 <table>
+<caption><b>Table S2b. OGT-prior sub-ladder.</b> What the T<sub>m</sub> head is given in the prior slot of its auxiliary
+vector. Validation error is on the internal T<sub>m</sub> split; the true-OGT row is an oracle ceiling and not a deployable
+configuration.</caption>
 <thead>
-<tr>
-<th style="text-align: left;">Temperature Bin</th>
-<th style="text-align: center;">StableProt (Calibrated, T=3.8)</th>
-<th style="text-align: center;">StableProt (Uncalibrated, T=1.0)</th>
-<th style="text-align: center;">PRIME</th>
-<th style="text-align: center;">ThermoFormer</th>
-</tr>
+<tr><th>Prior supplied to the T<sub>m</sub> head</th><th>val T<sub>m</sub> MAE</th><th>Status</th></tr>
 </thead>
 <tbody>
-<tr>
-<td style="text-align: left;"><strong>0–10°C</strong></td>
-<td style="text-align: center;">11.8°C</td>
-<td style="text-align: center;">24.4°C</td>
-<td style="text-align: center;">20.9°C</td>
-<td style="text-align: center;">21.0°C</td>
-</tr>
-<tr>
-<td style="text-align: left;"><strong>10–20°C</strong></td>
-<td style="text-align: center;">7.6°C</td>
-<td style="text-align: center;">17.1°C</td>
-<td style="text-align: center;">8.8°C</td>
-<td style="text-align: center;">8.5°C</td>
-</tr>
-<tr>
-<td style="text-align: left;"><strong>20–30°C</strong></td>
-<td style="text-align: center;">3.0°C</td>
-<td style="text-align: center;">9.7°C</td>
-<td style="text-align: center;">3.7°C</td>
-<td style="text-align: center;">3.4°C</td>
-</tr>
-<tr>
-<td style="text-align: left;"><strong>30–40°C</strong></td>
-<td style="text-align: center;">2.3°C</td>
-<td style="text-align: center;">7.6°C</td>
-<td style="text-align: center;">2.3°C</td>
-<td style="text-align: center;">2.4°C</td>
-</tr>
-<tr>
-<td style="text-align: left;"><strong>40–50°C</strong></td>
-<td style="text-align: center;"><strong>1.5°C</strong></td>
-<td style="text-align: center;"><strong>5.7°C</strong></td>
-<td style="text-align: center;">12.7°C</td>
-<td style="text-align: center;">11.5°C</td>
-</tr>
-<tr>
-<td style="text-align: left;"><strong>50–60°C</strong></td>
-<td style="text-align: center;"><strong>3.1°C</strong></td>
-<td style="text-align: center;"><strong>7.3°C</strong></td>
-<td style="text-align: center;">12.5°C</td>
-<td style="text-align: center;">12.2°C</td>
-</tr>
-<tr>
-<td style="text-align: left;"><strong>60–70°C</strong></td>
-<td style="text-align: center;"><strong>3.7°C</strong></td>
-<td style="text-align: center;"><strong>8.0°C</strong></td>
-<td style="text-align: center;">7.6°C</td>
-<td style="text-align: center;">6.9°C</td>
-</tr>
-<tr>
-<td style="text-align: left;"><strong>70–80°C</strong></td>
-<td style="text-align: center;"><strong>2.0°C</strong></td>
-<td style="text-align: center;"><strong>5.8°C</strong></td>
-<td style="text-align: center;">5.3°C</td>
-<td style="text-align: center;">5.3°C</td>
-</tr>
-<tr>
-<td style="text-align: left;"><strong>80–90°C</strong></td>
-<td style="text-align: center;"><strong>0.7°C</strong></td>
-<td style="text-align: center;"><strong>5.0°C</strong></td>
-<td style="text-align: center;">6.7°C</td>
-<td style="text-align: center;">6.5°C</td>
-</tr>
-<tr>
-<td style="text-align: left;"><strong>90–100°C</strong></td>
-<td style="text-align: center;"><strong>0.2°C</strong></td>
-<td style="text-align: center;"><strong>2.3°C</strong></td>
-<td style="text-align: center;">5.3°C</td>
-<td style="text-align: center;">5.3°C</td>
-</tr>
+<tr><td>True OGT (oracle ceiling)</td><td class="num">3.61</td><td style="text-align:left">Not deployable; measures how much the prior is worth.</td></tr>
+<tr><td>Constant</td><td class="num">5.00</td><td style="text-align:left">Rejected: a constant is absorbed into the next layer's bias, so it carries zero information and reduces the model to two independent networks (Note 2).</td></tr>
+<tr class="ours"><td>Predicted OGT (adopted)</td><td class="num">6.27</td><td style="text-align:left">The deployed configuration. The gap to the oracle is the accuracy of the OGT head on T<sub>m</sub> proteins, not a flaw in the coupling.</td></tr>
 </tbody>
 </table>
-<p>Per-temperature-bin analysis (<strong>Table S3</strong>) reveals that PRIME and ThermoFormer exhibit a sharp error increase from 2–3°C MAE in the 20–40°C range to 11–13°C MAE in the 40–60°C range—a 4–5× degradation coinciding with the transition from data-dense to data-sparse temperature regimes. In contrast, StableProt's error profile remains consistent across all bins (0.2–11.8°C MAE at $T=3.8$), demonstrating well-calibrated predictions across the full thermal spectrum.</p>
-<hr />
-<h2>Supplementary Note 4: Comprehensive Benchmark Performance of Uncalibrated vs Post-Hoc Calibrated StableProt</h2>
-<p>During model evaluation, we conducted a systematic comparison between the uncalibrated baseline ($T=1.0$) and final post-hoc calibrated architecture ($T=3.8$) across all nine evaluation suites (<strong>Table S4</strong>).</p>
-<h4>Table S4: Impact of Post-Hoc Temperature Scaling Calibration ($T=3.8$) across Evaluation Suites</h4>
-<table>
+
+<div class="note">
+<b>Open (B.6b, B.6c).</b> The intermediate ladder rows predate the evaluation fixes; only the final two rows and the
+shared-backbone control have been regenerated, so re-run the ladder before submission. Two trivial baselines are also
+required and absent: nearest-neighbour by MMseqs2 best hit, which quantifies how much of the task is memorization and matters
+for a paper whose Introduction attacks nearest-neighbour memorization, and a global-mean predictor. Table S2b still needs the
+no-OGT-information row, and the ProThermDB and FireProtDB columns for each prior configuration.
+</div>
+
+<h2>Supplementary Table S3. Prospective evaluation, per sequence</h2>
+
+<p>Main-text Table 4 gives per-cohort aggregates; this table gives per-sequence detail for the two cohorts small enough to
+typeset. The 97 lipase sequences are provided at per-sequence granularity in Supplementary Data 1. Intervals are
+\(\mu \pm 1.96\,c\,\sigma\) with \(c = 1.65\).</p>
+
+<h3>S3a. Codon-optimised 5OCR subtilisin E series (278 aa)</h3>
+
+<p><b>No measured melting temperature is available for any sequence in this cohort.</b> The reference is a threshold label
+only, so the cohort is scored by classification and no point error is reported. The predicted &Delta;T<sub>m</sub> column is
+a difference between two model predictions, shown to indicate direction, not to be scored.</p>
+
+<table class="lt">
+<caption><b>Table S3a.</b> 5OCR synthesis series.</caption>
 <thead>
-<tr>
-<th style="text-align: left;">Evaluation Suite / Benchmark</th>
-<th style="text-align: center;">Metric</th>
-<th style="text-align: center;">StableProt (Uncalibrated, T=1.0)</th>
-<th style="text-align: center;">StableProt (Calibrated, T=3.8)</th>
-<th style="text-align: left;">Primary Advantage of Calibration ($T=3.8$)</th>
-</tr>
+<tr><th>Variant</th><th>Substitutions</th><th>Pred T<sub>m</sub></th><th>&plusmn;95%</th><th>95% interval</th><th>Pred &Delta;T<sub>m</sub></th><th>Reference</th><th>Tier 1</th><th>Tier 2</th></tr>
 </thead>
 <tbody>
-<tr>
-<td style="text-align: left;"><strong>ProThermDB (Thermodynamics)</strong></td>
-<td style="text-align: center;">MAE (°C) $\downarrow$</td>
-<td style="text-align: center;">6.83</td>
-<td style="text-align: center;"><strong>6.83</strong></td>
-<td style="text-align: left;">Identical raw point error; $T=3.8$ provides $1.42^\circ\mathrm{C}$ Int-MAE.</td>
-</tr>
-<tr>
-<td style="text-align: left;"></td>
-<td style="text-align: center;">Conf-Adj MAE (°C) $\downarrow$</td>
-<td style="text-align: center;">4.78</td>
-<td style="text-align: center;"><strong>1.42</strong></td>
-<td style="text-align: left;"><strong>-70.3% reduction in interval error under calibrated CI.</strong></td>
-</tr>
-<tr>
-<td style="text-align: left;"></td>
-<td style="text-align: center;">Pearson ($r$) $\uparrow$</td>
-<td style="text-align: center;"><strong>0.803</strong></td>
-<td style="text-align: center;"><strong>0.803</strong></td>
-<td style="text-align: left;">Identical linear correlation.</td>
-</tr>
-<tr>
-<td style="text-align: left;"></td>
-<td style="text-align: center;">Spearman ($\rho$) $\uparrow$</td>
-<td style="text-align: center;"><strong>0.528</strong></td>
-<td style="text-align: center;"><strong>0.528</strong></td>
-<td style="text-align: left;">Identical rank correlation.</td>
-</tr>
-<tr>
-<td style="text-align: left;"><strong>FireProtDB (Zero-Shot OOD)</strong></td>
-<td style="text-align: center;">MAE (°C) $\downarrow$</td>
-<td style="text-align: center;">12.33</td>
-<td style="text-align: center;"><strong>12.33</strong></td>
-<td style="text-align: left;">Identical raw point error.</td>
-</tr>
-<tr>
-<td style="text-align: left;"></td>
-<td style="text-align: center;">Conf-Adj MAE (°C) $\downarrow$</td>
-<td style="text-align: center;">10.19</td>
-<td style="text-align: center;"><strong>6.03</strong></td>
-<td style="text-align: left;"><strong>-40.8% reduction in interval error.</strong></td>
-</tr>
-<tr>
-<td style="text-align: left;"></td>
-<td style="text-align: center;">Pearson ($r$) $\uparrow$</td>
-<td style="text-align: center;"><strong>0.615</strong></td>
-<td style="text-align: center;"><strong>0.615</strong></td>
-<td style="text-align: left;">Strong out-of-distribution correlation.</td>
-</tr>
-<tr>
-<td style="text-align: left;"></td>
-<td style="text-align: center;">Spearman ($\rho$) $\uparrow$</td>
-<td style="text-align: center;"><strong>0.448</strong></td>
-<td style="text-align: center;"><strong>0.448</strong></td>
-<td style="text-align: left;">Strong rank discrimination.</td>
-</tr>
-<tr>
-<td style="text-align: left;"><strong>SPURS Megascale</strong></td>
-<td style="text-align: center;">MAE (°C) $\downarrow$</td>
-<td style="text-align: center;">9.70</td>
-<td style="text-align: center;"><strong>7.85</strong></td>
-<td style="text-align: left;"><strong>-1.85°C error reduction under calibrated ensemble weighting.</strong></td>
-</tr>
-<tr>
-<td style="text-align: left;"></td>
-<td style="text-align: center;">Pearson ($r$) $\uparrow$</td>
-<td style="text-align: center;">0.436</td>
-<td style="text-align: center;"><strong>0.436</strong></td>
-<td style="text-align: left;">Preserved rank correlation.</td>
-</tr>
-<tr>
-<td style="text-align: left;"><strong>Single-Point Mutation $\Delta T_m$</strong></td>
-<td style="text-align: center;">MAE (°C) $\downarrow$</td>
-<td style="text-align: center;">4.58</td>
-<td style="text-align: center;"><strong>4.46</strong></td>
-<td style="text-align: left;">Improved point mutation accuracy.</td>
-</tr>
-<tr>
-<td style="text-align: left;"><strong>BRENDA OOD (OGT)</strong></td>
-<td style="text-align: center;">MAE (°C) $\downarrow$</td>
-<td style="text-align: center;">11.62</td>
-<td style="text-align: center;"><strong>10.93</strong></td>
-<td style="text-align: left;"><strong>-0.69°C error reduction.</strong></td>
-</tr>
-<tr>
-<td style="text-align: left;"></td>
-<td style="text-align: center;">Pearson ($r$) $\uparrow$</td>
-<td style="text-align: center;">0.850</td>
-<td style="text-align: center;"><strong>0.854</strong></td>
-<td style="text-align: left;">Stronger environmental correlation.</td>
-</tr>
-<tr>
-<td style="text-align: left;"><strong>Uncertainty Calibration</strong></td>
-<td style="text-align: center;">ECE $\downarrow$</td>
-<td style="text-align: center;">38.6%</td>
-<td style="text-align: center;"><strong>0.46%</strong></td>
-<td style="text-align: left;"><strong>Near-zero calibration error after temperature scaling ($T=3.8$).</strong></td>
-</tr>
+<tr><td>Wild-type</td><td>none</td><td class="num">43.91</td><td class="num">&plusmn;8.55</td><td class="num">[35.36, 52.46]</td><td class="num">reference</td><td>Thermolabile</td><td>&#10003;</td><td>&#10003;</td></tr>
+<tr><td><code>mut_309</code></td><td>176D&gt;L; 241E&gt;P; 40D&gt;T; 158S&gt;V</td><td class="num">56.86</td><td class="num">&plusmn;7.00</td><td class="num">[49.86, 63.86]</td><td class="num">+12.95</td><td>Thermostable</td><td>&#10003;</td><td>&#10003;</td></tr>
+<tr><td><code>mut_345</code></td><td>176D&gt;L; 227E&gt;F; 40D&gt;T; 158S&gt;V</td><td class="num">60.98</td><td class="num">&plusmn;5.95</td><td class="num">[55.03, 66.93]</td><td class="num">+17.07</td><td>Thermostable</td><td>&#10003;</td><td>&#10003;</td></tr>
+<tr><td><code>mut_464</code></td><td>241E&gt;P; 227E&gt;F; 40D&gt;T; 276A&gt;P</td><td class="num">52.80</td><td class="num">&plusmn;7.22</td><td class="num">[45.58, 60.02]</td><td class="num">+8.89</td><td>Thermostable</td><td>&#10003;</td><td>&#10003;</td></tr>
+<tr><td><code>mut_299</code></td><td>176D&gt;L; 241E&gt;P; 227E&gt;F; 40D&gt;T</td><td class="num">51.11</td><td class="num">&plusmn;7.88</td><td class="num">[43.23, 58.99]</td><td class="num">+7.20</td><td>Thermostable</td><td>&#10003;</td><td>&#10003;</td></tr>
 </tbody>
 </table>
-<hr />
-<h2>Supplementary Section S5: Detailed Experimental Validation Sequence Predictions</h2>
-<p>This section catalogs the exact individual sequence prediction outputs across the experimental validation holdout sets.</p>
-<h4>Table S6: Codon-Optimized Synthesis Variant Series (5OCR Subtilisin E Mutants, Clean 278 aa)</h4>
-<table>
+
+<h3>S3b. High-activity carrageenases</h3>
+
+<table class="lt">
+<caption><b>Table S3b.</b> Carrageenases. The experimental reference is the activity optimum, not a melting temperature.</caption>
 <thead>
-<tr>
-<th style="text-align: left;">Protein ID / Variant</th>
-<th style="text-align: center;">Length (aa)</th>
-<th style="text-align: center;">Pred $T_m$ (°C)</th>
-<th style="text-align: center;">Calibrated Uncertainty ($\pm 3.8\sigma$)</th>
-<th style="text-align: center;">95% Confidence Interval (°C)</th>
-<th style="text-align: center;">$\Delta T_m$ vs WT (°C)</th>
-<th style="text-align: center;">Exp Target (°C)</th>
-<th style="text-align: center;">Status</th>
-</tr>
+<tr><th>Protein</th><th>Family</th><th>Length</th><th>Exp T<sub>opt</sub></th><th>Pred T<sub>m</sub></th><th>&plusmn;95%</th><th>95% interval</th><th>|&Delta;|</th></tr>
 </thead>
 <tbody>
-<tr>
-<td style="text-align: left;"><strong>Wild-Type 5OCR</strong></td>
-<td style="text-align: center;">278</td>
-<td style="text-align: center;">43.91</td>
-<td style="text-align: center;">±10.62</td>
-<td style="text-align: center;">[33.3, 54.5]</td>
-<td style="text-align: center;">+0.00</td>
-<td style="text-align: center;">50.0</td>
-<td style="text-align: center;"><strong>Correct</strong></td>
-</tr>
-<tr>
-<td style="text-align: left;"><strong><code>mut_309</code></strong> (<code>176D&gt;L; 241E&gt;P; 40D&gt;T; 158S&gt;V</code>)</td>
-<td style="text-align: center;">278</td>
-<td style="text-align: center;">56.86</td>
-<td style="text-align: center;">±8.70</td>
-<td style="text-align: center;">[48.2, 65.6]</td>
-<td style="text-align: center;"><strong>+12.95</strong></td>
-<td style="text-align: center;">50.0</td>
-<td style="text-align: center;"><strong>Correct</strong></td>
-</tr>
-<tr>
-<td style="text-align: left;"><strong><code>mut_345</code></strong> (<code>176D&gt;L; 227E&gt;F; 40D&gt;T; 158S&gt;V</code>)</td>
-<td style="text-align: center;">278</td>
-<td style="text-align: center;">60.98</td>
-<td style="text-align: center;">±7.39</td>
-<td style="text-align: center;">[53.6, 68.4]</td>
-<td style="text-align: center;"><strong>+17.07</strong></td>
-<td style="text-align: center;">50.0</td>
-<td style="text-align: center;">Incorrect</td>
-</tr>
-<tr>
-<td style="text-align: left;"><strong><code>mut_464</code></strong> (<code>241E&gt;P; 227E&gt;F; 40D&gt;T; 276A&gt;P</code>)</td>
-<td style="text-align: center;">278</td>
-<td style="text-align: center;">52.80</td>
-<td style="text-align: center;">±8.97</td>
-<td style="text-align: center;">[43.8, 61.8]</td>
-<td style="text-align: center;"><strong>+8.88</strong></td>
-<td style="text-align: center;">50.0</td>
-<td style="text-align: center;"><strong>Correct</strong></td>
-</tr>
-<tr>
-<td style="text-align: left;"><strong><code>mut_299</code></strong> (<code>176D&gt;L; 241E&gt;P; 227E&gt;F; 40D&gt;T</code>)</td>
-<td style="text-align: center;">278</td>
-<td style="text-align: center;">51.11</td>
-<td style="text-align: center;">±9.79</td>
-<td style="text-align: center;">[41.3, 60.9]</td>
-<td style="text-align: center;"><strong>+7.20</strong></td>
-<td style="text-align: center;">50.0</td>
-<td style="text-align: center;"><strong>Correct</strong></td>
-</tr>
+<tr><td>CgkS</td><td>Kappa-carrageenase</td><td class="num">407</td><td class="num">45.0</td><td class="num">47.38</td><td class="num">&plusmn;6.53</td><td class="num">[40.85, 53.91]</td><td class="num">2.38</td></tr>
+<tr><td>CgiB_Ce</td><td>Iota-carrageenase</td><td class="num">461</td><td class="num">40.0</td><td class="num">42.19</td><td class="num">&plusmn;5.53</td><td class="num">[36.66, 47.72]</td><td class="num">2.19</td></tr>
+<tr class="sep ours"><td>Mean</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td class="num">2.29</td></tr>
 </tbody>
 </table>
-<h4>Table S7: Failure Mode Breakdown on Thermostable Lipases ($N=52$, Target $&gt;60.0^\circ\mathrm{C}$)</h4>
+
+<h3>S3c. Failure mode on the thermostable lipases (N = 52)</h3>
+
+<p>Every sequence in this cohort is labelled thermostable, so the two blocks below partition the same 52 sequences by point
+outcome and by interval outcome respectively.</p>
+
 <table>
+<caption><b>Table S3c.</b> Thermostable lipase failure mode.</caption>
 <thead>
-<tr>
-<th style="text-align: left;">Prediction Outcome Category</th>
-<th style="text-align: center;">$T_m$ Range</th>
-<th style="text-align: center;">Count ($N$)</th>
-<th style="text-align: center;">Percentage (%)</th>
-<th style="text-align: left;">Biophysical Failure Cause</th>
-</tr>
+<tr><th>Outcome</th><th>Count</th><th>% of cohort</th></tr>
 </thead>
 <tbody>
-<tr>
-<td style="text-align: left;"><strong>Under-Predicted (Mesophilic Collapse)</strong></td>
-<td style="text-align: center;">$&lt;55.0^\circ\mathrm{C}$</td>
-<td style="text-align: center;">42</td>
-<td style="text-align: center;"><strong>80.8%</strong></td>
-<td style="text-align: left;">Reversion to mesophilic proteomic prior ($46\text{--}52^\circ\mathrm{C}$) due to unannotated OGT.</td>
-</tr>
-<tr>
-<td style="text-align: left;"><strong>Mid-Range Predicted</strong></td>
-<td style="text-align: center;">$55.0\text{--}59.9^\circ\mathrm{C}$</td>
-<td style="text-align: center;">4</td>
-<td style="text-align: center;"><strong>7.7%</strong></td>
-<td style="text-align: left;">Partial thermophilic feature extraction.</td>
-</tr>
-<tr>
-<td style="text-align: left;"><strong>Correctly Bounded (High Stability)</strong></td>
-<td style="text-align: center;">$\ge 60.0^\circ\mathrm{C}$</td>
-<td style="text-align: center;">6</td>
-<td style="text-align: center;"><strong>11.5%</strong></td>
-<td style="text-align: left;">Phospholipase D and Lipase EstA variants correctly identified as hyper-stable.</td>
-</tr>
-<tr>
-<td style="text-align: left;"><strong>Over-Predicted</strong></td>
-<td style="text-align: center;">$&gt;85.0^\circ\mathrm{C}$</td>
-<td style="text-align: center;">0</td>
-<td style="text-align: center;"><strong>0.0%</strong></td>
-<td style="text-align: left;">Zero false-positive hyperthermophiles.</td>
-</tr>
+<tr><td>Point estimate at or above 50&nbsp;&deg;C, classified correctly</td><td class="num">20</td><td class="num">38.5%</td></tr>
+<tr><td>Point estimate below 50&nbsp;&deg;C, classified incorrectly</td><td class="num">32</td><td class="num">61.5%</td></tr>
+<tr><td style="padding-left:26px"><i>of which predicted between 42 and 49&nbsp;&deg;C</i></td><td class="num">28</td><td class="num">53.8%</td></tr>
+<tr class="sep"><td>95% interval reaches 50&nbsp;&deg;C or above, consistent with the label</td><td class="num">42</td><td class="num">80.8%</td></tr>
+<tr><td>95% interval falls entirely below 50&nbsp;&deg;C, inconsistent</td><td class="num">10</td><td class="num">19.2%</td></tr>
 </tbody>
 </table>
+
+<p class="foot">The point estimates cluster immediately below the threshold rather than scattering, which is the signature of
+the under-prediction of thermostable proteins reported in the main text rather than of random error. These sequences carry no
+host growth-temperature annotation, so the auxiliary OGT prior takes the corpus mean. Under the wider out-of-distribution
+variance scale (c = 3.62) the interval is consistent for all 52, which shows that this measure is bought with width and is not
+an accuracy statement.</p>
+
+<div class="note">
+<b>Open (B.9e).</b> The dependency on host OGT metadata is currently described qualitatively. Quantify it as classification
+accuracy with and without an OGT annotation, which converts a failure note into a characterized operating limit and connects
+directly to the OGT-prior sub-ladder in Table S2b.
+</div>
+
+<hr>
+
+<h2>Supplementary Table S4. Coverage and sharpness</h2>
+
+<table>
+<caption><b>Table S4.</b> Full calibration summary for StableProt. Baselines emit no interval and cannot appear here. Coverage
+is the fraction of observations inside \(\mu \pm z\,c\,\sigma\); the scale \(c\) is cross-fitted in two folds so that no
+observation contributes to the scale applied to it. Widths are mean half-widths. Int-MAE is the mean error falling outside
+the nominal 95.4% interval, reported only as a sharpness diagnostic: it falls monotonically as the interval widens and is not
+a proper scoring rule, so the CRPS column of main-text Table 2 is what the model comparison rests on. The headline coverage
+and width figures also appear in main-text Table 1; this table adds the raw and scaled calibration error, the 68.3% level and
+the interval-adjusted error. Cited from &sect;3.4.</caption>
+<thead>
+<tr><th>Benchmark</th><th>c</th><th>ECE raw</th><th>ECE scaled</th><th>cov. 68.3%</th><th>width 68%</th><th>cov. 95.4%</th><th>width 95%</th><th>Int-MAE (k = 2)</th></tr>
+</thead>
+<tbody>
+<tr class="ours"><td>ProThermDB, in distribution</td><td class="num">1.65</td><td class="num">14.4%</td><td class="num">1.9%</td><td class="num">67.5%</td><td class="num">&plusmn;7.4&deg;C</td><td class="num">91.4%</td><td class="num">&plusmn;14.8&deg;C</td><td class="num">0.43</td></tr>
+<tr class="ours"><td>FireProtDB, out of distribution</td><td class="num">3.62</td><td class="num">31.6%</td><td class="num">2.8%</td><td class="num">67.4%</td><td class="num">&plusmn;14.4&deg;C</td><td class="num">90.4%</td><td class="num">&plusmn;29.0&deg;C</td><td class="num">0.64</td></tr>
+</tbody>
+</table>
+
+<p>The two rows are the substance of the transferability limitation in the main text. The scale required out of distribution
+is 2.2 times the in-distribution scale, so a model calibrated on ProThermDB and deployed on unfamiliar sequences will state
+an interval roughly half as wide as it should be. The marginal coverage figures are close to nominal on both benchmarks and
+conceal this entirely, which is why &sect;3.4 reports coverage conditioned on thermal regime as well.</p>
+
+<hr>
+
+<h2>Supplementary Note 1. Gradient decoupling</h2>
+
+<p>The motivating measurement is the shared-backbone control. When a single hidden stack is optimized for T<sub>m</sub> under
+Gaussian negative log-likelihood and for OGT under focal Huber loss, the two objectives pull the shared parameters in
+partially opposing directions. Writing the two task gradients with respect to the shared parameters \(\theta\):</p>
+
+<div class="eq">
+<div class="render">\[ \cos\theta_{\text{grad}} \;=\; \frac{\big\langle \nabla_{\theta}\mathcal{L}_{T_m},\ \nabla_{\theta}\mathcal{L}_{OGT} \big\rangle}{\big\Vert \nabla_{\theta}\mathcal{L}_{T_m} \big\Vert \, \big\Vert \nabla_{\theta}\mathcal{L}_{OGT} \big\Vert} \;=\; -0.045 \quad \text{(shared backbone, mean over 150 sampled steps)} \]<span class="eqno">(S1)</span></div>
+<div class="tex"><button onclick="cp(this)">copy</button>\cos\theta_{\text{grad}} \;=\; \frac{\big\langle \nabla_{\theta}\mathcal{L}_{T_m},\ \nabla_{\theta}\mathcal{L}_{OGT} \big\rangle}{\big\Vert \nabla_{\theta}\mathcal{L}_{T_m} \big\Vert \, \big\Vert \nabla_{\theta}\mathcal{L}_{OGT} \big\Vert} \;=\; -0.045 \quad \text{(shared backbone, mean over 150 sampled steps)}</div>
+</div>
+
+<p>The resulting model is 1.50&nbsp;&deg;C worse on ProThermDB than the disjoint design (7.61 against 6.11&nbsp;&deg;C at the
+matched development stage, Table S2). That penalty is the experimental result.</p>
+
+<p>We state explicitly what the disjoint architecture does <em>not</em> demonstrate. Because the two pathways share no
+trainable parameters, the parameter sets are disjoint, \(\theta_{T_m} \cap \theta_{OGT} = \varnothing\), so each task gradient
+is identically zero on the other task's coordinates and the cosine similarity is zero as a matter of definition. Reporting
+\(\cos\theta = 0\) for StableProt is therefore not evidence of anything; it follows from the construction. The cosine analysis
+belongs in the paper as an explanation of <em>why</em> the shared model underperforms, and not as a demonstration that the
+disjoint model works.</p>
+
+<p>The design is best described as a shared frozen representation with task-specific pathways and a directed
+OGT-to-T<sub>m</sub> link. This resolves the apparent tension between two claims made in the main text, that disjoint pathways
+beat a shared backbone and that OGT information helps T<sub>m</sub>, because they concern different things. Gradient
+interference is a statement about sharing <em>parameters</em>. The prior is a statement about sharing <em>information</em>,
+one-way, at the level of predictions. Both can hold simultaneously, and the measurements say they do: the shared backbone
+costs 1.50&nbsp;&deg;C, while the prior sub-ladder in Table S2b shows the informative prior is worth 2.66&nbsp;&deg;C of
+validation error against the oracle and 1.27&nbsp;&deg;C against a constant. The term "multi-task learning" is avoided
+throughout, since the two objectives are never optimized jointly through shared weights.</p>
+
+<h2>Supplementary Note 2. Negative results</h2>
+
+<p>Five interventions were tested and rejected. They are recorded here because each is a natural next step that a reader may
+otherwise assume was overlooked.</p>
+
+<p><b>A constant OGT prior.</b> Replacing the predicted prior with a constant improves ProThermDB error from 6.16 to
+5.71&nbsp;&deg;C. It was rejected on architectural grounds: the two pathways share no trainable parameters, so a constant in
+the prior column is absorbed into the following layer's bias and carries exactly zero information, which reduces the model to
+two independent networks and removes the coupling the design exists to exploit.</p>
+
+<p><b>Retraining the T<sub>m</sub> head on the predicted prior.</b> A variant trained directly on predicted rather than true
+OGT reached 3.98&nbsp;&deg;C validation error but only 7.40&nbsp;&deg;C on ProThermDB, against 6.16 for the published model.
+Training on the predicted prior allowed the head to exploit prior structure specific to the training distribution, and the
+removal of the prior-jitter regularizer amplified the effect. On this task, validation error does not rank configurations, and
+no T<sub>m</sub> configuration should be selected on validation alone.</p>
+
+<p><b>Uncertainty-gated coupling.</b> Supplying the T<sub>m</sub> head with the OGT head's own uncertainty alongside its point
+prediction, so that the head could discount an unreliable prior, produced results indistinguishable from the ungated variant
+on validation and on ProThermDB (3.98 against 3.99, and 7.40 against 7.42), separating only on FireProtDB (12.35 against
+12.75). One benchmark out of three is not support, and the mechanism is not claimed.</p>
+
+<p><b>Supervising &sigma; with measured inter-laboratory spread.</b> The interquartile range across repeated literature
+measurements has a median of 0.00&nbsp;&deg;C and a mean of 0.72&nbsp;&deg;C, against model errors averaging
+6.16&nbsp;&deg;C. Label noise is negligible next to model error, so this target would drive severe under-dispersion and
+destroy the calibration that already works.</p>
+
+<p><b>Post-hoc recalibration of the predictions.</b> Cross-fitted isotonic regression on ProThermDB appears to reduce error to
+4.76&nbsp;&deg;C, beating every baseline. It is circular. Fitted instead on the validation split the model's slope is 0.983
+rather than 0.646, and applying that map blind to ProThermDB changes the error only from 6.178 to 6.104&nbsp;&deg;C. The
+apparent gain was the recalibration fitting the test set.</p>
+
+<p>One intervention did work and is reported in the main text: training the variance component against a detached mean fixed
+the <em>scale</em> of the interval, taking the required calibration factor from 5.5 to below 1.2 on OGT. It did not make the
+variance informative per protein. Scale and informativeness are separable properties of a heteroscedastic head, and this work
+separates them cleanly.</p>
+
+<h2>Supplementary Data 1</h2>
+
+<p>Master table of all 117 experimentally sourced sequences with per-sequence predictions, intervals, predicted class,
+reference class where available, and the two tier outcomes:
+<code>experimental_validation/results_and_plots/all_experimental_predictions_merged.csv</code> (and <code>.xlsx</code>).</p>
+
+<h2>Repository-only materials</h2>
+
+<p>The following are available in the code repository and cited rather than typeset: full SPURS and FLIP Meltome detail;
+cross-species stratification beyond the panel in main-text Figure 5D; the exploratory linear-probe transfer results on
+protein-protein interaction, DeepLoc, eSOL, EC, CB513 and SCOP benchmarks summarised in Figure 5B, for which no state-of-the-art
+claim is made; the complete hyperparameter sweep logs; and per-seed training curves.</p>
+
+<script>
+function cp(btn){
+  const t = btn.parentNode.textContent.replace(/^copy/, '').trim();
+  navigator.clipboard.writeText(t).then(() => {
+    const o = btn.textContent; btn.textContent = 'copied';
+    setTimeout(() => btn.textContent = o, 1200);
+  });
+}
+</script>
+
 </body>
 </html>

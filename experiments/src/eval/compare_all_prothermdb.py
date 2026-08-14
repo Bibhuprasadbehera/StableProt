@@ -141,6 +141,30 @@ def compute_expected_temperatures(prob_matrix, thresholds):
         y_pred += prob_matrix[:, i] * step
     return y_pred
 
+_Z = np.array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0, 2.5, 3.0])
+
+
+def _ece(y_true, y_pred, sigma):
+    import scipy.special
+    expected = scipy.special.erf(_Z / np.sqrt(2.0))
+    errors = np.abs(y_true - y_pred)
+    return np.mean(np.abs(np.array([np.mean(errors <= z * sigma) for z in _Z]) - expected))
+
+
+def crossfit_sigma_scale(y_true, y_pred, sigma, seed=0):
+    """Two-fold cross-fit so no observation contributes to the scale applied to it."""
+    grid = np.arange(0.5, 6.001, 0.005)
+    fold = np.random.default_rng(seed).permutation(len(y_true)) % 2
+    scaled = np.empty_like(sigma, dtype=float)
+    cs = []
+    for f in (0, 1):
+        fit, app = fold != f, fold == f
+        c = min(grid, key=lambda k: _ece(y_true[fit], y_pred[fit], k * sigma[fit]))
+        scaled[app] = sigma[app] * c
+        cs.append(c)
+    return scaled, float(np.mean(cs))
+
+
 def compute_metrics(y_true, y_pred):
     mae = np.mean(np.abs(y_true - y_pred))
     rmse = np.sqrt(np.mean((y_true - y_pred)**2))
@@ -251,16 +275,19 @@ def main():
         y_p = np.array(preds[k])
         y_conf = np.array(data['confidences'][k])
         
-        results['StableProt V9 (Conf-Adj, T=1.0)'] = {'y_true': y_true_prott5, 'y_pred': y_p, 'type': 'Confidence-Adjusted'}
+        results['StableProt V9 (Int-MAE, k=1)'] = {'y_true': y_true_prott5, 'y_pred': y_p, 'type': 'Confidence-Adjusted'}
         m_unscaled = compute_metrics(y_true_prott5, y_p)
         m_unscaled['mae'] = np.mean(np.maximum(0.0, np.abs(y_true_prott5 - y_p) - y_conf))
-        metrics_summary['StableProt V9 (Conf-Adj, T=1.0)'] = m_unscaled
+        metrics_summary['StableProt V9 (Int-MAE, k=1)'] = m_unscaled
 
-        # 2. StableProt V9 (Calibrated Conf-Adj, T=3.8)
-        results['StableProt V9 (Calibrated Conf-Adj, T=3.8)'] = {'y_true': y_true_prott5, 'y_pred': y_p, 'type': 'Confidence-Adjusted'}
+        # 2. Same, with the sigma scale fitted out-of-fold rather than the old hardcoded 3.8
+        conf_cal, c_fit = crossfit_sigma_scale(y_true_prott5, y_p, y_conf)
+        print(f"Fitted sigma scale (out-of-fold): c = {c_fit:.3f}  (old hardcoded value: 3.8)")
+        key_cal = f'StableProt V9 (Int-MAE, calibrated c={c_fit:.2f})'
+        results[key_cal] = {'y_true': y_true_prott5, 'y_pred': y_p, 'type': 'Confidence-Adjusted'}
         m_cal = compute_metrics(y_true_prott5, y_p)
-        m_cal['mae'] = np.mean(np.maximum(0.0, np.abs(y_true_prott5 - y_p) - 3.8 * y_conf))
-        metrics_summary['StableProt V9 (Calibrated Conf-Adj, T=3.8)'] = m_cal
+        m_cal['mae'] = np.mean(np.maximum(0.0, np.abs(y_true_prott5 - y_p) - conf_cal))
+        metrics_summary[key_cal] = m_cal
 
     # 3. StableProt V9
     if 'StableProt V9' in preds or 'StableProt V8' in preds:

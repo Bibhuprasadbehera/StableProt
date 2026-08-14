@@ -25,7 +25,7 @@ from pathlib import Path
 import scipy.special
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
-VERSION = os.environ.get("STABLEPROT_VERSION", "v8_disjoint")
+VERSION = os.environ.get("STABLEPROT_VERSION", "v9_disjoint")
 sys.path.append(str(PROJECT_ROOT / "experiments" / "src" / "training" / VERSION))
 from config import CONFIG
 from train import (

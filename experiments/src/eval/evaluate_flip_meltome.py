@@ -21,7 +21,7 @@ from tqdm import tqdm
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 EXPERIMENTS_DIR = os.path.dirname(os.path.dirname(SCRIPT_DIR))
 PROJECT_ROOT = os.path.dirname(EXPERIMENTS_DIR)
-VERSION = os.environ.get("STABLEPROT_VERSION", "v8_disjoint")
+VERSION = os.environ.get("STABLEPROT_VERSION", "v9_disjoint")
 sys.path.append(os.path.join(EXPERIMENTS_DIR, f"src/training/{VERSION}"))
 from train import MultiHeadSaProtV8, enrich_inputs
 
@@ -85,7 +85,7 @@ def main():
     print("Preparing 2-stage auxiliary inputs...")
     emb_t, aux_t = enrich_inputs(embs, df['sequence'].tolist(), tmhmm_flags=None, ogt_priors=None)
     
-    VERSION = os.environ.get("STABLEPROT_VERSION", "v8_disjoint")
+    VERSION = os.environ.get("STABLEPROT_VERSION", "v9_disjoint")
     stats_path = os.path.join(EXPERIMENTS_DIR, f"src/training/{VERSION}/results/normalization_stats.pt")
     if os.path.exists(stats_path):
         norms = torch.load(stats_path, map_location='cpu', weights_only=False)

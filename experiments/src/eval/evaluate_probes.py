@@ -27,9 +27,15 @@ if v9_dir not in sys.path:
 from train import MultiHeadSaProtV8, enrich_inputs
 from inference.v7_predict import load_saprot_model
 
-# Constants for normalization
-ogt_mean, ogt_std = 37.51, 14.22
-tm_mean, tm_std = 52.88, 16.50
+# Normalization stats are model-version specific: v8 used Tm=N(52.88, 16.50), v9 uses
+# N(51.74, 11.49). Hardcoding them silently mis-scales every prediction, so read the checkpoint.
+_VERSION = os.environ.get("STABLEPROT_VERSION", "v9_disjoint")
+_norm_path = os.path.join(project_root, f"experiments/src/training/{_VERSION}/results/normalization_stats.pt")
+if not os.path.exists(_norm_path):
+    raise FileNotFoundError(f"normalization_stats.pt not found at {_norm_path}")
+_norms = torch.load(_norm_path, map_location='cpu', weights_only=False)
+ogt_mean, ogt_std = _norms['ogt_mean'], _norms['ogt_std']
+tm_mean, tm_std = _norms['tm_mean'], _norms['tm_std']
 
 def mask_sequence_for_saprot(seq: str) -> str:
     return "".join(f"{aa}#" for aa in seq)

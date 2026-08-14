@@ -434,7 +434,7 @@ def main():
         results['StableProt V7'] = {'y_pred': np.mean(v7_saprot_preds, axis=0), 'type': 'Dedicated Tm Head'}
 
     # ── V8/V9 SaProt (Disjoint Backbone with 2-stage inference) ──
-    VERSION = os.environ.get("STABLEPROT_VERSION", "v8_disjoint")
+    VERSION = os.environ.get("STABLEPROT_VERSION", "v9_disjoint")
     label_version = "StableProt V9"
     print(f"Evaluating {label_version}...")
     import importlib.util
@@ -509,7 +509,11 @@ def main():
         vars_stack = np.stack(v8_vars, axis=0)
         weights = 1.0 / (vars_stack + 1e-6)
         ens_mu = np.sum(mus_stack * weights, axis=0) / np.sum(weights, axis=0)
-        ens_sigma = np.sqrt(1.0 / np.sum(weights, axis=0) + np.var(mus_stack, axis=0))
+        # Predictive variance for a new measurement = mean aleatoric variance + spread of
+        # the seed means. Using 1/sum(weights) here instead gives the standard error of the
+        # ensemble mean, which shrinks with seed count and is not a predictive interval.
+        ens_sigma = np.sqrt(np.mean(vars_stack, axis=0)
+                            + np.mean((mus_stack - ens_mu) ** 2, axis=0))
         results[label_version] = {
             "y_pred": ens_mu,
             "y_conf": ens_sigma,
@@ -527,7 +531,10 @@ def main():
         if 'deepstabp' in baselines['fireprot']:
             results['DeepSTABp'] = {'y_pred': np.array(baselines['fireprot']['deepstabp'])[kept_indices], 'type': 'Continuous Proxy'}
         if 'thermoformer' in baselines['fireprot']:
-            results['ThermoFormer'] = {'y_pred': np.array(baselines['fireprot']['thermoformer'])[kept_indices], 'type': 'Continuous Proxy'}
+            # OGT checkpoint scored against Tm labels; reported only as a proxy-domain-shift control.
+            results['ThermoFormer (OGT ckpt, control)'] = {'y_pred': np.array(baselines['fireprot']['thermoformer'])[kept_indices], 'type': 'OGT Control'}
+        if 'thermoformer_tm' in baselines['fireprot']:
+            results['ThermoFormer-TM'] = {'y_pred': np.array(baselines['fireprot']['thermoformer_tm'])[kept_indices], 'type': 'Dedicated Tm Head'}
     else:
         print("WARNING: Baseline predictions file missing.")
 

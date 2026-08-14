@@ -12,6 +12,30 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(SCRIPT_DIR)))
 sys.path.append(PROJECT_ROOT)
 
+_Z = np.array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0, 2.5, 3.0])
+
+
+def _ece(y_true, y_pred, sigma):
+    import scipy.special
+    expected = scipy.special.erf(_Z / np.sqrt(2.0))
+    errors = np.abs(y_true - y_pred)
+    return np.mean(np.abs(np.array([np.mean(errors <= z * sigma) for z in _Z]) - expected))
+
+
+def crossfit_sigma_scale(y_true, y_pred, sigma, seed=0):
+    """Two-fold cross-fit so no observation contributes to the scale applied to it."""
+    grid = np.arange(0.5, 6.001, 0.005)
+    fold = np.random.default_rng(seed).permutation(len(y_true)) % 2
+    scaled = np.empty_like(sigma, dtype=float)
+    cs = []
+    for f in (0, 1):
+        fit, app = fold != f, fold == f
+        c = min(grid, key=lambda k: _ece(y_true[fit], y_pred[fit], k * sigma[fit]))
+        scaled[app] = sigma[app] * c
+        cs.append(c)
+    return scaled, float(np.mean(cs))
+
+
 def set_aesthetics():
     """
     Apply premium, publication-quality plotting aesthetics.
@@ -234,8 +258,9 @@ def plot_confidence_adjusted_comparison(protherm_data, fireprot_data, out_dir):
             maes.append(mae)
             
             if y_conf is not None:
+                conf_cal, _c = crossfit_sigma_scale(np.asarray(y_true), np.asarray(y_pred), np.asarray(y_conf))
                 int_unscaled = np.mean(np.maximum(0.0, np.abs(y_true - y_pred) - y_conf))
-                int_calibrated = np.mean(np.maximum(0.0, np.abs(y_true - y_pred) - 3.8 * y_conf))
+                int_calibrated = np.mean(np.maximum(0.0, np.abs(y_true - y_pred) - conf_cal))
             else:
                 int_unscaled = mae
                 int_calibrated = mae
@@ -245,7 +270,7 @@ def plot_confidence_adjusted_comparison(protherm_data, fireprot_data, out_dir):
             
         rects1 = ax.bar(x - width, maes, width, label='Standard MAE (°C)', color=colors_std, edgecolor='none', alpha=0.85)
         rects2 = ax.bar(x, int_maes_unscaled, width, label='Conf-Adj MAE (Unscaled, T=1.0, °C)', color=colors_int, edgecolor='none', alpha=0.95)
-        rects3 = ax.bar(x + width, int_maes_calibrated, width, label='Conf-Adj MAE (Calibrated, T=3.8, °C)', color=colors_cal, edgecolor='none', alpha=0.95)
+        rects3 = ax.bar(x + width, int_maes_calibrated, width, label='Int-MAE (calibrated, fitted $c$, °C)', color=colors_cal, edgecolor='none', alpha=0.95)
         
         ax.set_ylabel('Mean Absolute Error (°C)', fontweight='bold')
         ax.set_title(f'{title}: Standard vs. Confidence-Adjusted Error', fontweight='bold', pad=15)

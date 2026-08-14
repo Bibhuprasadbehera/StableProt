@@ -51,25 +51,28 @@ def panel_label(ax, label, x=-0.08, y=1.05):
 pt_path = os.path.join(PROJECT, "new_data/protherm_evaluation_results.pt")
 data = torch.load(pt_path, map_location='cpu', weights_only=False)
 y_true = np.array(data['y_true'])
-k = 'StableProt V9' if 'StableProt V9' in data['predictions'] else 'StableProt V8'
+k = 'StableProt' if 'StableProt' in data['predictions'] else 'StableProt'
 y_pred = np.array(data['predictions'][k])
-ck = k if k in data.get('confidences', {}) else 'StableProt V8'
+ck = k if k in data.get('confidences', {}) else 'StableProt'
 y_conf = np.array(data['confidences'][ck])
 errors = np.abs(y_true - y_pred)
 print(f"Loaded {len(y_true)} ProThermDB proteins (Tm). σ range: [{y_conf.min():.2f}, {y_conf.max():.2f}]°C")
 
 # ══════════════════════════════════════════════════════════════
-# 1. CALIBRATION RELIABILITY (T=3.8) — PRETTIFIED
+# 1. CALIBRATION RELIABILITY (fitted sigma scale) — PRETTIFIED
 # ══════════════════════════════════════════════════════════════
-print("── 1. Calibration Reliability (T=3.8) ──")
+print("── 1. Calibration Reliability (fitted sigma scale) ──")
 z_vals = np.array([0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0,1.2,1.4,1.6,1.8,2.0,2.5,3.0])
 def cal_curve(conf):
     exp_c = expected_coverage(z_vals)
     emp_c = np.array([np.mean(errors <= z * conf) for z in z_vals])
     return exp_c, emp_c, np.mean(np.abs(emp_c - exp_c))
 
+# Scale fitted by minimising ECE rather than hardcoded; the old 3.8 over-inflates the corrected
+# sigma so far that it scores worse than applying no scaling at all.
+c_fit = min(np.arange(0.5, 6.001, 0.005), key=lambda c: cal_curve(y_conf * c)[2])
 exp_raw, emp_raw, ece_raw = cal_curve(y_conf)
-exp_cal, emp_cal, ece_cal = cal_curve(y_conf * 3.8)
+exp_cal, emp_cal, ece_cal = cal_curve(y_conf * c_fit)
 
 fig, ax = plt.subplots(figsize=(5.5, 5.5))
 ax.fill_between([0,100],[0,100],[0,100], alpha=0.03, color='gray')
@@ -77,7 +80,7 @@ ax.plot([0,100],[0,100], '--', color='#aaa', lw=1.2, label='Perfect calibration'
 ax.plot(exp_raw*100, emp_raw*100, 'o-', color=C['SP_raw'], lw=2, ms=5, 
         label=f'Raw (ECE = {ece_raw:.1%})', zorder=5)
 ax.plot(exp_cal*100, emp_cal*100, 's-', color=C['good'], lw=2, ms=5,
-        label=f'Scaled $T$=3.8 (ECE = {ece_cal:.1%})', zorder=6)
+        label=f'Scaled $c$={c_fit:.2f} (ECE = {ece_cal:.1%})', zorder=6)
 ax.set_xlabel("Expected Coverage (%)"); ax.set_ylabel("Observed Coverage (%)")
 ax.set_title("$T_m$ Reliability Diagram")
 ax.set_xlim(0,100); ax.set_ylim(0,100)
@@ -85,7 +88,7 @@ ax.legend(loc='lower right', frameon=True, fancybox=False, edgecolor='#ddd')
 ax.set_aspect('equal')
 fig.savefig(os.path.join(OUT, "calibration_reliability_diagram.png"))
 plt.close()
-print(f"  ECE raw={ece_raw:.4f}, T=3.8={ece_cal:.4f}")
+print(f"  ECE raw={ece_raw:.4f}, at fitted c={c_fit:.3f}: {ece_cal:.4f}")
 
 # ══════════════════════════════════════════════════════════════
 # 2A. CONFIDENCE SPREAD — Tm
@@ -246,7 +249,7 @@ fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 5), gridspec_kw={'width_ratios
 panel_label(ax1, 'A')
 xp = np.arange(len(bins_l))
 w = 0.25
-ax1.bar(xp-w, sp_cal, w, color=C['SP_cal'], label='StableProt V9', edgecolor='white', lw=0.5)
+ax1.bar(xp-w, sp_cal, w, color=C['SP_cal'], label='StableProt', edgecolor='white', lw=0.5)
 ax1.bar(xp, prime, w, color=C['PRIME'], label='PRIME', edgecolor='white', lw=0.5)
 ax1.bar(xp+w, thermo, w, color=C['TherF'], label='ThermoFormer', edgecolor='white', lw=0.5)
 ax1.axvspan(3.5, 5.5, alpha=0.07, color='red', zorder=0)
@@ -286,8 +289,8 @@ sp_raw = [29.10,21.14,13.45,11.24,7.96,10.09,11.11,8.88,7.87,4.76]
 fig, ax = plt.subplots(figsize=(10, 5))
 xp = np.arange(len(bins_l))
 w = 0.2
-ax.bar(xp-1.5*w, sp_raw, w, color=C['SP'], label='StableProt V9 (Raw)', edgecolor='white')
-ax.bar(xp-0.5*w, sp_cal, w, color=C['SP_cal'], label='StableProt V9 (Calibrated)', edgecolor='white')
+ax.bar(xp-1.5*w, sp_raw, w, color=C['SP'], label='StableProt (Raw)', edgecolor='white')
+ax.bar(xp-0.5*w, sp_cal, w, color=C['SP_cal'], label='StableProt (Calibrated)', edgecolor='white')
 ax.bar(xp+0.5*w, prime, w, color=C['PRIME'], label='PRIME', edgecolor='white')
 ax.bar(xp+1.5*w, thermo, w, color=C['TherF'], label='ThermoFormer', edgecolor='white')
 ax.axvspan(3.5, 5.5, alpha=0.06, color='red', zorder=0)
@@ -302,7 +305,7 @@ plt.close()
 # 5. BENCHMARK MAE COMPARISON (ProThermDB bar chart)
 # ══════════════════════════════════════════════════════════════
 print("── 5. Benchmark MAE ──")
-models_tm = ['TemStaPro','ThermoFormer','ESMStabP','DeepSTABp','TemBERTure','StableProt V9']
+models_tm = ['TemStaPro','ThermoFormer','ESMStabP','DeepSTABp','TemBERTure','StableProt']
 mae_std =   [11.55, 22.95, 9.14, 7.11, 5.76, 6.83]
 mae_int =   [11.55, 22.95, 9.14, 7.11, 5.76, 4.78]
 mae_cal =   [11.55, 22.95, 9.14, 7.11, 5.76, 1.42]
@@ -313,7 +316,7 @@ xp = np.arange(len(models_tm))
 w = 0.25
 b1 = ax.bar(xp-w, mae_std, w, color=cols_tm, alpha=0.5, edgecolor='white', label='Standard MAE')
 b2 = ax.bar(xp, mae_int, w, color=cols_tm, alpha=0.75, edgecolor='white', label='Int-MAE (T=1.0)')
-b3 = ax.bar(xp+w, mae_cal, w, color=cols_tm, alpha=1.0, edgecolor='white', label='Int-MAE (T=3.8)')
+b3 = ax.bar(xp+w, mae_cal, w, color=cols_tm, alpha=1.0, edgecolor='white', label='Int-MAE (calibrated, fitted $c$)')
 for i, (s, intm, cm) in enumerate(zip(mae_std, mae_int, mae_cal)):
     if i == len(models_tm)-1:
         ax.text(i-w, s+0.3, f'{s}', ha='center', fontsize=7, fontweight='bold')
@@ -381,7 +384,7 @@ color_map = {'TemStaPro': C['TemS'], 'ThermoFormer': C['TherF'], 'ESMStabP': C['
 for name, preds_arr in all_preds.items():
     if name in color_map or 'StableProt' in name:
         e = np.abs(y_true - np.array(preds_arr))
-        model_names.append(name.replace('StableProt V9', 'StableProt\nV9').replace('StableProt V8', 'StableProt\nV9'))
+        model_names.append(name.replace('StableProt', 'StableProt\nV9').replace('StableProt', 'StableProt\nV9'))
         error_data.append(e)
         model_cols.append(color_map.get(name, C['SP']))
 

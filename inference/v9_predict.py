@@ -343,6 +343,8 @@ class V9Predictor:
                 })
 
         delta_tm = round(res_mut["tm_pred"] - res_wt["tm_pred"], 2)
+        is_stab = delta_tm > 0
+        effect = "Stabilizing" if delta_tm > 0 else ("Destabilizing" if delta_tm < 0 else "Neutral")
         
         # Secondary structure check
         ss_res = predict_secondary_structure(wt)
@@ -363,11 +365,13 @@ class V9Predictor:
             "mut_conf": res_mut["tm_conf"],
             "mut_tier": res_mut["tm_tier"],
             "delta_tm": delta_tm,
-            "is_stabilizing": delta_tm > 0,
+            "is_stabilizing": is_stab,
+            "thermal_effect": effect,
             "mutations": mutations,
             "n_mutations": len(mutations),
             "in_loop_region": in_loop
         }
+
 
     def generate_random_loop_mutation(self, wt_sequence: str, loop_positions=None, loop_length=None) -> dict:
         """Pick random positions in identified loop regions and generate random non-WT mutations scaled to loop length."""

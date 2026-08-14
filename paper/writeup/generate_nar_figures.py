@@ -38,22 +38,22 @@ def expected_coverage(z):
     return scipy.special.erf(z / np.sqrt(2.0))
 
 # ════════════════════════════════════════════════════════════════════
-# 1. CALIBRATION RELIABILITY DIAGRAM (T=3.8)
+# 1. CALIBRATION RELIABILITY DIAGRAM (fitted sigma scale)
 # ════════════════════════════════════════════════════════════════════
 def plot_calibration():
-    print("── 1. Calibration Reliability Diagram (T=3.8) ──")
+    print("── 1. Calibration Reliability Diagram (fitted sigma scale) ──")
     pt_path = os.path.join(PROJECT, "new_data/protherm_evaluation_results.pt")
     if not os.path.exists(pt_path):
         print(f"SKIP: {pt_path} missing"); return
     
     data = torch.load(pt_path, map_location='cpu', weights_only=False)
     y_true = np.array(data['y_true'])
-    k = 'StableProt V9' if 'StableProt V9' in data['predictions'] else 'StableProt V8'
+    k = 'StableProt' if 'StableProt' in data['predictions'] else 'StableProt'
     y_pred = np.array(data['predictions'][k])
     
     y_conf = None
     if 'confidences' in data:
-        ck = k if k in data['confidences'] else 'StableProt V8'
+        ck = k if k in data['confidences'] else 'StableProt'
         if ck in data['confidences']:
             y_conf = np.array(data['confidences'][ck])
     if y_conf is None:
@@ -68,15 +68,19 @@ def plot_calibration():
         ece = np.mean(np.abs(emp_c - exp_c))
         return exp_c, emp_c, ece
     
+    # Scale fitted by minimising ECE rather than hardcoded. The old constant 3.8 was fitted
+    # against a sigma that omitted the aleatoric term and now over-inflates the interval.
+    c_fit = min(np.arange(0.5, 6.001, 0.005),
+                key=lambda c: cal_curve(y_conf * c)[2])
     exp_raw, emp_raw, ece_raw = cal_curve(y_conf)
-    exp_cal, emp_cal, ece_cal = cal_curve(y_conf * 3.8)  # T=3.8!
+    exp_cal, emp_cal, ece_cal = cal_curve(y_conf * c_fit)
     
     fig, ax = plt.subplots(figsize=(6, 6))
     ax.plot([0,100],[0,100], '--', color='#888', alpha=0.7, lw=1.5, label='Ideal ($y=x$)')
     ax.plot(exp_raw*100, emp_raw*100, 'o-', color='#3b82f6', lw=2, ms=6, 
             label=f'Unscaled (ECE = {ece_raw:.3f})')
     ax.plot(exp_cal*100, emp_cal*100, 's-', color='#10b981', lw=2, ms=6,
-            label=f'Calibrated $T$=3.8 (ECE = {ece_cal:.3f})')
+            label=f'Calibrated $c$={c_fit:.2f} (ECE = {ece_cal:.3f})')
     ax.set_xlabel("Expected Coverage (%)")
     ax.set_ylabel("Observed Coverage (%)")
     ax.set_title("Reliability Diagram: $T_m$ Uncertainty Calibration")
@@ -87,7 +91,7 @@ def plot_calibration():
     fig.savefig(out_path)
     plt.close()
     print(f"  Saved: {out_path}")
-    print(f"  ECE raw={ece_raw:.4f}, ECE T=3.8={ece_cal:.4f}")
+    print(f"  ECE raw={ece_raw:.4f}, ECE at fitted c={c_fit:.3f}: {ece_cal:.4f}")
     return y_true, y_pred, y_conf
 
 # ════════════════════════════════════════════════════════════════════
@@ -177,7 +181,7 @@ def plot_overfitting_subplot():
     x = np.arange(len(bins))
     w = 0.22
     
-    ax_main.bar(x - w, sp_cal, w, color=COLORS['StableProt_cal'], label='StableProt V9 (Calibrated)', edgecolor='white', lw=0.5)
+    ax_main.bar(x - w, sp_cal, w, color=COLORS['StableProt_cal'], label='StableProt (Calibrated)', edgecolor='white', lw=0.5)
     ax_main.bar(x, prime, w, color=COLORS['PRIME'], label='PRIME', edgecolor='#888', lw=0.5)
     ax_main.bar(x + w, thermo, w, color=COLORS['ThermoFormer'], label='ThermoFormer', edgecolor='white', lw=0.5)
     
@@ -307,7 +311,7 @@ def plot_architecture_boilerplate():
             ha='center', fontsize=8, fontstyle='italic', color='#555',
             bbox=dict(boxstyle='round', facecolor='#f0f0f0', edgecolor='#ccc'))
     
-    ax.set_title("StableProt V9: Disjoint Multi-Head Bottleneck Architecture", fontsize=13, fontweight='bold', pad=10)
+    ax.set_title("StableProt: Disjoint Multi-Head Bottleneck Architecture", fontsize=13, fontweight='bold', pad=10)
     
     out_path = os.path.join(OUT, "architecture_boilerplate.png")
     fig.savefig(out_path)

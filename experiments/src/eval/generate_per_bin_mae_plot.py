@@ -26,7 +26,7 @@ PROJECT_ROOT = SCRIPT_DIR.parents[2]
 OUT_DIR = PROJECT_ROOT / "paper/writeup/plots"
 os.makedirs(OUT_DIR, exist_ok=True)
 
-VERSION = os.environ.get("STABLEPROT_VERSION", "v8_disjoint")
+VERSION = os.environ.get("STABLEPROT_VERSION", "v9_disjoint")
 sys.path.append(str(PROJECT_ROOT / "experiments" / "src" / "training" / VERSION))
 from train import MultiHeadSaProtV8, enrich_inputs
 
@@ -62,6 +62,30 @@ def evaluate_v8_ogt(embeddings, sequences, device):
         return np.mean(v8_preds, axis=0), np.std(v8_preds, axis=0)
     return None, None
 
+_Z = np.array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0, 2.5, 3.0])
+
+
+def _ece(y_true, y_pred, sigma):
+    import scipy.special
+    expected = scipy.special.erf(_Z / np.sqrt(2.0))
+    errors = np.abs(y_true - y_pred)
+    return np.mean(np.abs(np.array([np.mean(errors <= z * sigma) for z in _Z]) - expected))
+
+
+def crossfit_sigma_scale(y_true, y_pred, sigma, seed=0):
+    """Fit the sigma scale out-of-fold instead of hardcoding it (the old constant was 3.8)."""
+    grid = np.arange(0.5, 6.001, 0.005)
+    fold = np.random.default_rng(seed).permutation(len(y_true)) % 2
+    scaled = np.empty_like(sigma, dtype=float)
+    cs = []
+    for f in (0, 1):
+        fit, app = fold != f, fold == f
+        c = min(grid, key=lambda k: _ece(y_true[fit], y_pred[fit], k * sigma[fit]))
+        scaled[app] = sigma[app] * c
+        cs.append(c)
+    return scaled, float(np.mean(cs))
+
+
 def compute_binned_mae(y_true, predictions, bin_edges):
     num_bins = len(bin_edges) - 1
     bin_indices = np.digitize(y_true, bin_edges) - 1
@@ -79,13 +103,12 @@ def compute_binned_mae(y_true, predictions, bin_edges):
                 results[name].append(0.0)
                 continue
             if isinstance(y_pred, tuple):
+                # conf_val already carries its intended scale; None means score as a point forecast
                 pred_val, conf_val = y_pred
-                if 'Calibrated' in name:
-                    mae = np.mean(np.maximum(0.0, np.abs(y_true[mask] - pred_val[mask]) - 3.8 * conf_val[mask]))
-                elif 'Conf-Adj' in name:
-                    mae = np.mean(np.maximum(0.0, np.abs(y_true[mask] - pred_val[mask]) - conf_val[mask]))
-                else:
+                if conf_val is None or 'Raw' in name:
                     mae = np.mean(np.abs(y_true[mask] - pred_val[mask]))
+                else:
+                    mae = np.mean(np.maximum(0.0, np.abs(y_true[mask] - pred_val[mask]) - conf_val[mask]))
             else:
                 mae = np.mean(np.abs(y_true[mask] - y_pred[mask]))
             results[name].append(float(mae))
@@ -126,10 +149,13 @@ def main():
     
     # Evaluate StableProt
     res_int = evaluate_v8_ogt(emb_int, seqs_int, device)
+    mu_int, sig_int = res_int
+    sig_cal, c_ogt = crossfit_sigma_scale(y_int, np.asarray(mu_int), np.asarray(sig_int))
+    print(f"  Fitted OGT sigma scale (out-of-fold): c = {c_ogt:.3f}  (old hardcoded value: 3.8)")
     preds = {
-        'StableProt_V9_Conf_Adj_Calibrated': res_int,
-        'StableProt_V9_Conf_Adj': res_int,
-        'StableProt_V9_Raw': res_int,
+        'StableProt_V9_Conf_Adj_Calibrated': (mu_int, sig_cal),
+        'StableProt_V9_Conf_Adj': (mu_int, np.asarray(sig_int)),
+        'StableProt_V9_Raw': (mu_int, None),
     }
     
     # Load baselines
@@ -187,8 +213,8 @@ def main():
     
     label_version = "StableProt V9"
     
-    plt.bar(x - width*2, sp_v9_conf_cal, width, label=f'{label_version} (Calibrated Conf-Adj, T=3.8)', color='#10b981', edgecolor='k', linewidth=0.8)
-    plt.bar(x - width,   sp_v9_conf,     width, label=f'{label_version} (Unscaled Conf-Adj, T=1.0)', color='#3b82f6', edgecolor='k', linewidth=0.8)
+    plt.bar(x - width*2, sp_v9_conf_cal, width, label=f'{label_version} (Int-MAE, calibrated $c$={c_ogt:.2f})', color='#10b981', edgecolor='k', linewidth=0.8)
+    plt.bar(x - width,   sp_v9_conf,     width, label=f'{label_version} (Int-MAE, $k$=1)', color='#3b82f6', edgecolor='k', linewidth=0.8)
     plt.bar(x,           sp_v9_raw,      width, label=f'{label_version} (Raw MAE)', color='#94a3b8', edgecolor='k', linewidth=0.8)
     plt.bar(x + width,   prime,          width, label='PRIME', color='#f59e0b', edgecolor='k', linewidth=0.8)
     plt.bar(x + width*2, thermo,         width, label='ThermoFormer', color='#ef4444', edgecolor='k', linewidth=0.8)

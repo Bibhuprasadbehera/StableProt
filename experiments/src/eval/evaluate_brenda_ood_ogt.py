@@ -105,7 +105,7 @@ def load_v7_ensemble(device):
     return models
 
 def evaluate_v8_ensemble(embeddings, sequences, device):
-    VERSION = os.environ.get("STABLEPROT_VERSION", "v8_disjoint")
+    VERSION = os.environ.get("STABLEPROT_VERSION", "v9_disjoint")
     label_version = "StableProt V9"
     print(f"Loading 5-seed ensemble of {label_version} (Ours)...")
     v8_dir = str(PROJECT_ROOT / f"experiments/src/training/{VERSION}")
@@ -194,6 +194,30 @@ def run_thermoformer(sequences):
             y_pred.extend(outputs.predicted_values.squeeze(-1).cpu().numpy().tolist())
     return np.array(y_pred)
 
+_Z = np.array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0, 2.5, 3.0])
+
+
+def _ece(y_true, y_pred, sigma):
+    import scipy.special
+    expected = scipy.special.erf(_Z / np.sqrt(2.0))
+    errors = np.abs(y_true - y_pred)
+    return np.mean(np.abs(np.array([np.mean(errors <= z * sigma) for z in _Z]) - expected))
+
+
+def crossfit_sigma_scale(y_true, y_pred, sigma, seed=0):
+    """Two-fold cross-fit so no observation contributes to the scale applied to it."""
+    grid = np.arange(0.5, 6.001, 0.005)
+    fold = np.random.default_rng(seed).permutation(len(y_true)) % 2
+    scaled = np.empty_like(sigma, dtype=float)
+    cs = []
+    for f in (0, 1):
+        fit, app = fold != f, fold == f
+        c = min(grid, key=lambda k: _ece(y_true[fit], y_pred[fit], k * sigma[fit]))
+        scaled[app] = sigma[app] * c
+        cs.append(c)
+    return scaled, float(np.mean(cs))
+
+
 def compute_metrics(y_true, y_pred):
     mae = np.mean(np.abs(y_true - y_pred))
     rmse = np.sqrt(np.mean((y_true - y_pred)**2))
@@ -237,12 +261,18 @@ def main():
     torch.save(baselines, BASELINE_PREDS_PATH)
 
     # Compute comparison table
-    VERSION = os.environ.get("STABLEPROT_VERSION", "v8_disjoint")
-    label_version = "StableProt V9" if VERSION == "v8_disjoint" else "StableProt V9"
+    VERSION = os.environ.get("STABLEPROT_VERSION", "v9_disjoint")
+    label_version = f"StableProt ({VERSION})"
+    # Fit the sigma scale out-of-fold rather than hardcoding 3.8, which was fitted against a
+    # sigma that omitted the aleatoric term and now over-inflates every interval.
+    if y_v9 is not None:
+        conf_cal, c_fit = crossfit_sigma_scale(y_true, np.asarray(y_v9), np.asarray(y_v9_conf))
+        print(f"Fitted sigma scale (out-of-fold): c = {c_fit:.3f}  (old hardcoded value: 3.8)")
     model_preds = {
         f'{label_version} (Ours)': y_v9,
-        f'{label_version} (Conf-Adj, T=1.0)': (y_v9, y_v9_conf) if y_v9 is not None else None,
-        f'{label_version} (Calibrated Conf-Adj, T=3.8)': (y_v9, y_v9_conf) if y_v9 is not None else None,
+        f'{label_version} (Int-MAE, k=1)': (y_v9, y_v9_conf) if y_v9 is not None else None,
+        f'{label_version} (Int-MAE, calibrated c={c_fit:.2f})' if y_v9 is not None else 'unused':
+            (y_v9, conf_cal) if y_v9 is not None else None,
         'PRIME (AI4Protein/Prime_690M)': baselines.get('PRIME', None),
         'ThermoFormer (GinnM/ThermoFormer)': baselines.get('ThermoFormer', None)
     }
@@ -253,10 +283,7 @@ def main():
         if y_p is None: continue
         if isinstance(y_p, tuple):
             val, conf = y_p
-            if 'T=3.8' in name:
-                errors = np.maximum(0.0, np.abs(y_true - val) - 3.8 * conf)
-            else:
-                errors = np.maximum(0.0, np.abs(y_true - val) - conf)
+            errors = np.maximum(0.0, np.abs(y_true - val) - conf)
             mae = np.mean(errors)
             rmse = np.sqrt(np.mean(errors**2))
             pcc, _ = scipy.stats.pearsonr(y_true, val)
@@ -295,10 +322,7 @@ def main():
         short_name = name.replace(' (AI4Protein/Prime_690M)', '').replace(' (GinnM/ThermoFormer)', '')
         if isinstance(y_p, tuple):
             val, conf = y_p
-            if 'T=3.8' in name:
-                errors = np.maximum(0.0, np.abs(y_true - val) - 3.8 * conf)
-            else:
-                errors = np.maximum(0.0, np.abs(y_true - val) - conf)
+            errors = np.maximum(0.0, np.abs(y_true - val) - conf)
         else:
             errors = np.abs(y_true - y_p)
         for err in errors:

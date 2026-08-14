@@ -188,3 +188,4 @@ data,ogt_subsample_meso_rate,0.15,1,12,3.7252,7.8864,279.8
 optim,learning_rate,5e-4,2,14,3.7130,7.8058,319.2
 optim,learning_rate,1e-3,2,14,3.6860,8.0987,339.8
 optim,learning_rate,1e-4,2,15,3.6947,8.1131,383.2
+data,iqr_scale,999999,1,14,3.7104,7.9734,718.2

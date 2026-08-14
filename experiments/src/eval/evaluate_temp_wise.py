@@ -2,8 +2,41 @@ import os
 import torch
 import numpy as np
 import pandas as pd
+import scipy.special
 import matplotlib.pyplot as plt
 import seaborn as sns
+
+# The scale that maps raw predictive sigma onto nominal coverage is fitted per benchmark rather
+# than hardcoded. The previous constant 3.8 was fitted against a sigma that omitted the aleatoric
+# term; on the corrected sigma it over-inflates intervals so far that in-distribution ECE (21%)
+# is worse than applying no scaling at all (14%).
+_Z = np.array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0, 2.5, 3.0])
+
+
+def _ece(y_true, y_pred, sigma):
+    expected = scipy.special.erf(_Z / np.sqrt(2.0))
+    errors = np.abs(y_true - y_pred)
+    empirical = np.array([np.mean(errors <= z * sigma) for z in _Z])
+    return np.mean(np.abs(empirical - expected))
+
+
+def fit_sigma_scale(y_true, y_pred, sigma):
+    grid = np.arange(0.5, 6.001, 0.005)
+    return min(grid, key=lambda c: _ece(y_true, y_pred, c * sigma))
+
+
+def crossfit_sigma_scale(y_true, y_pred, sigma, seed=0):
+    """Two-fold cross-fit so no observation contributes to the scale applied to it."""
+    fold = np.random.default_rng(seed).permutation(len(y_true)) % 2
+    scaled = np.empty_like(sigma, dtype=float)
+    cs = []
+    for f in (0, 1):
+        fit, app = fold != f, fold == f
+        c = fit_sigma_scale(y_true[fit], y_pred[fit], sigma[fit])
+        scaled[app] = sigma[app] * c
+        cs.append(c)
+    return scaled, float(np.mean(cs))
+
 
 def compute_binned_mae(y_true, predictions, bin_edges):
     num_bins = len(bin_edges) - 1
@@ -28,11 +61,9 @@ def compute_binned_mae(y_true, predictions, bin_edges):
         
         for name, y_pred in predictions.items():
             if isinstance(y_pred, tuple):
+                # conf_val is already on the intended scale (raw for k=1, pre-scaled otherwise)
                 pred_val, conf_val = y_pred
-                if 'Calibrated' in name:
-                    mae = np.mean(np.maximum(0.0, np.abs(y_true[mask] - pred_val[mask]) - 3.8 * conf_val[mask]))
-                else:
-                    mae = np.mean(np.maximum(0.0, np.abs(y_true[mask] - pred_val[mask]) - conf_val[mask]))
+                mae = np.mean(np.maximum(0.0, np.abs(y_true[mask] - pred_val[mask]) - conf_val[mask]))
             else:
                 mae = np.mean(np.abs(y_true[mask] - y_pred[mask]))
             bin_res[name] = float(mae)
@@ -107,7 +138,7 @@ def main():
         data = torch.load(protherm_path, map_location='cpu', weights_only=False)
         y_true = np.array(data['y_true'])
         # Only include StableProt V9 + external baselines
-        show_models = ['StableProt V9 (Calibrated Conf-Adj, T=3.8)', 'StableProt V9 (Conf-Adj, T=1.0)', 'StableProt V9', 'TemStaPro', 'TemBERTure', 'ESMStabP', 'DeepSTABp', 'ThermoFormer']
+        show_models = ['StableProt V9', 'TemStaPro', 'TemBERTure', 'ESMStabP', 'DeepSTABp', 'ThermoFormer']
         predictions = {}
         for k, v in data['predictions'].items():
             if k == 'StableProt V8': k = 'StableProt V9'
@@ -125,8 +156,10 @@ def main():
                 y_conf_val = np.array(data['confidences']['StableProt V8'])
                 
         if y_conf_val is not None:
-            predictions['StableProt V9 (Conf-Adj, T=1.0)'] = (y_pred_val, y_conf_val)
-            predictions['StableProt V9 (Calibrated Conf-Adj, T=3.8)'] = (y_pred_val, y_conf_val)
+            conf_cal, c_fit = crossfit_sigma_scale(y_true, y_pred_val, y_conf_val)
+            print(f"  Fitted sigma scale (out-of-fold): c = {c_fit:.3f}")
+            predictions['StableProt V9 (Int-MAE, k=1)'] = (y_pred_val, y_conf_val)
+            predictions[f'StableProt V9 (Int-MAE, calibrated c={c_fit:.2f})'] = (y_pred_val, conf_cal)
         
         df_protherm = compute_binned_mae(y_true, predictions, bin_edges)
         
@@ -148,7 +181,7 @@ def main():
         print("\nProcessing FireProtDB holdout set...")
         data = torch.load(fireprot_path, map_location='cpu', weights_only=False)
         y_true = np.array(data['y_true'])
-        show_models = ['StableProt V9 (Calibrated Conf-Adj, T=3.8)', 'StableProt V9 (Conf-Adj, T=1.0)', 'StableProt V9', 'TemStaPro', 'TemBERTure', 'ESMStabP', 'DeepSTABp', 'ThermoFormer']
+        show_models = ['StableProt V9', 'TemStaPro', 'TemBERTure', 'ESMStabP', 'DeepSTABp', 'ThermoFormer']
         predictions = {}
         for k, v in data['predictions'].items():
             if k == 'StableProt V8': k = 'StableProt V9'
@@ -166,8 +199,10 @@ def main():
                 y_conf_val = np.array(data['confidences']['StableProt V8'])
                 
         if y_conf_val is not None:
-            predictions['StableProt V9 (Conf-Adj, T=1.0)'] = (y_pred_val, y_conf_val)
-            predictions['StableProt V9 (Calibrated Conf-Adj, T=3.8)'] = (y_pred_val, y_conf_val)
+            conf_cal, c_fit = crossfit_sigma_scale(y_true, y_pred_val, y_conf_val)
+            print(f"  Fitted sigma scale (out-of-fold): c = {c_fit:.3f}")
+            predictions['StableProt V9 (Int-MAE, k=1)'] = (y_pred_val, y_conf_val)
+            predictions[f'StableProt V9 (Int-MAE, calibrated c={c_fit:.2f})'] = (y_pred_val, conf_cal)
         
         df_fireprot = compute_binned_mae(y_true, predictions, bin_edges)
         

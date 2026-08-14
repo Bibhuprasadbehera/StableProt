@@ -18,9 +18,35 @@ from scipy.stats import pearsonr, spearmanr
 from sklearn.metrics import mean_absolute_error
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
-VERSION = os.environ.get("STABLEPROT_VERSION", "v8_disjoint")
+VERSION = os.environ.get("STABLEPROT_VERSION", "v9_disjoint")
 sys.path.append(str(PROJECT_ROOT / "experiments" / "src" / "training" / VERSION))
 from train import MultiHeadSaProtV8, enrich_inputs
+
+# The sigma scale is fitted per benchmark rather than hardcoded. The old constant 3.8 was fitted
+# against a sigma that omitted the aleatoric term and now over-inflates every interval.
+_Z = np.array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0, 2.5, 3.0])
+
+
+def _ece(y_true, y_pred, sigma):
+    import scipy.special
+    expected = scipy.special.erf(_Z / np.sqrt(2.0))
+    errors = np.abs(y_true - y_pred)
+    return np.mean(np.abs(np.array([np.mean(errors <= z * sigma) for z in _Z]) - expected))
+
+
+def crossfit_sigma_scale(y_true, y_pred, sigma, seed=0):
+    """Two-fold cross-fit so no observation contributes to the scale applied to it."""
+    grid = np.arange(0.5, 6.001, 0.005)
+    fold = np.random.default_rng(seed).permutation(len(y_true)) % 2
+    scaled = np.empty_like(sigma, dtype=float)
+    cs = []
+    for f in (0, 1):
+        fit, app = fold != f, fold == f
+        c = min(grid, key=lambda k: _ece(y_true[fit], y_pred[fit], k * sigma[fit]))
+        scaled[app] = sigma[app] * c
+        cs.append(c)
+    return scaled, float(np.mean(cs))
+
 
 def compute_binned_mae(y_true, predictions, bin_edges):
     num_bins = len(bin_edges) - 1
@@ -40,12 +66,10 @@ def compute_binned_mae(y_true, predictions, bin_edges):
         }
         for name, y_pred in predictions.items():
             if isinstance(y_pred, tuple):
+                # conf_val already carries its intended scale
                 pred_val, conf_val = y_pred
-                if 'Conf-Adj' in name:
-                    if 'T=3.8' in name:
-                        mae = np.mean(np.maximum(0.0, np.abs(y_true[mask] - pred_val[mask]) - 3.8 * conf_val[mask]))
-                    else:
-                        mae = np.mean(np.maximum(0.0, np.abs(y_true[mask] - pred_val[mask]) - conf_val[mask]))
+                if 'Int-MAE' in name:
+                    mae = np.mean(np.maximum(0.0, np.abs(y_true[mask] - pred_val[mask]) - conf_val[mask]))
                 else:
                     mae = np.mean(np.abs(y_true[mask] - pred_val[mask]))
             else:
@@ -60,12 +84,15 @@ def plot_temp_wise(df_binned, title, save_path):
     
     model_cols = [col for col in df_binned.columns if col not in ['Bin', 'Range', 'Count']]
     palette = {
-        'StableProt V9 (Calibrated Conf-Adj, T=3.8)': '#10B981',
-        'StableProt V9 (Conf-Adj, T=1.0)': '#1E40AF',
         'StableProt V9 (Ours)': '#3B82F6',
         'PRIME': '#EF4444',
         'ThermoFormer': '#F59E0B'
     }
+    for col in model_cols:
+        if col.startswith('StableProt V9 (Int-MAE, calibrated'):
+            palette[col] = '#10B981'
+        elif col == 'StableProt V9 (Int-MAE, k=1)':
+            palette[col] = '#1E40AF'
     
     for i, model_name in enumerate(model_cols):
         color = palette.get(model_name, sns.color_palette("husl")[i])
@@ -100,7 +127,7 @@ def df_to_markdown(df):
     return "\n".join(lines)
 
 def evaluate_v9_ogt(embeddings, sequences, device):
-    VERSION = os.environ.get("STABLEPROT_VERSION", "v8_disjoint")
+    VERSION = os.environ.get("STABLEPROT_VERSION", "v9_disjoint")
     emb_v9, aux_v9 = enrich_inputs(embeddings, sequences, tmhmm_flags=None, ogt_priors=None)
     from config import CONFIG
     import inspect
@@ -145,9 +172,12 @@ def main():
     
     preds_brenda = {}
     res_brenda = evaluate_v9_ogt(emb_brenda, seqs_brenda, device)
-    preds_brenda['StableProt V9 (Calibrated Conf-Adj, T=3.8)'] = res_brenda
-    preds_brenda['StableProt V9 (Conf-Adj, T=1.0)'] = res_brenda
-    preds_brenda['StableProt V9 (Ours)'] = res_brenda[0]
+    mu_b, sig_b = np.asarray(res_brenda[0]), np.asarray(res_brenda[1])
+    sig_b_cal, c_brenda = crossfit_sigma_scale(y_brenda, mu_b, sig_b)
+    print(f"  Fitted OGT sigma scale on BRENDA OOD (out-of-fold): c = {c_brenda:.3f}  (old hardcoded value: 3.8)")
+    preds_brenda[f'StableProt V9 (Int-MAE, calibrated c={c_brenda:.2f})'] = (mu_b, sig_b_cal)
+    preds_brenda['StableProt V9 (Int-MAE, k=1)'] = (mu_b, sig_b)
+    preds_brenda['StableProt V9 (Ours)'] = mu_b
     
     baselines_brenda = torch.load(PROJECT_ROOT / "data/embeddings/brenda_ood_baseline_preds.pt", map_location='cpu', weights_only=False)
     if 'PRIME' in baselines_brenda: preds_brenda['PRIME'] = np.array(baselines_brenda['PRIME'])
@@ -156,10 +186,7 @@ def main():
     for k, v in preds_brenda.items():
         if isinstance(v, tuple):
             val, conf = v
-            if 'T=3.8' in k:
-                mae = np.mean(np.maximum(0.0, np.abs(y_brenda - val) - 3.8 * conf))
-            else:
-                mae = np.mean(np.maximum(0.0, np.abs(y_brenda - val) - conf))
+            mae = np.mean(np.maximum(0.0, np.abs(y_brenda - val) - conf))
         else:
             mae = mean_absolute_error(y_brenda, v)
         print(f"  [BRENDA OOD] {k} MAE: {mae:.2f}°C")
@@ -197,9 +224,12 @@ def main():
     
     preds_int = {}
     res_int = evaluate_v9_ogt(emb_int, seqs_int, device)
-    preds_int['StableProt V9 (Calibrated Conf-Adj, T=3.8)'] = res_int
-    preds_int['StableProt V9 (Conf-Adj, T=1.0)'] = res_int
-    preds_int['StableProt V9 (Ours)'] = res_int[0]
+    mu_i, sig_i = np.asarray(res_int[0]), np.asarray(res_int[1])
+    sig_i_cal, c_int = crossfit_sigma_scale(y_int, mu_i, sig_i)
+    print(f"  Fitted OGT sigma scale on internal BacDive (out-of-fold): c = {c_int:.3f}")
+    preds_int[f'StableProt V9 (Int-MAE, calibrated c={c_int:.2f})'] = (mu_i, sig_i_cal)
+    preds_int['StableProt V9 (Int-MAE, k=1)'] = (mu_i, sig_i)
+    preds_int['StableProt V9 (Ours)'] = mu_i
     
     # Load baselines
     bench_path = PROJECT_ROOT / "experiments/src/eval/ogt_baselines/benchmark_predictions.pt"
@@ -214,10 +244,7 @@ def main():
     for k, v in preds_int.items():
         if isinstance(v, tuple):
             val, conf = v
-            if 'T=3.8' in k:
-                mae = np.mean(np.maximum(0.0, np.abs(y_int - val) - 3.8 * conf))
-            else:
-                mae = np.mean(np.maximum(0.0, np.abs(y_int - val) - conf))
+            mae = np.mean(np.maximum(0.0, np.abs(y_int - val) - conf))
         else:
             mae = mean_absolute_error(y_int, v)
         print(f"  [Internal Test] {k} MAE: {mae:.2f}°C")

@@ -24,7 +24,7 @@ from scipy.stats import pearsonr, spearmanr
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 EXPERIMENTS_DIR = os.path.dirname(os.path.dirname(SCRIPT_DIR))
 PROJECT_ROOT = os.path.dirname(EXPERIMENTS_DIR)
-VERSION = os.environ.get("STABLEPROT_VERSION", "v8_disjoint")
+VERSION = os.environ.get("STABLEPROT_VERSION", "v9_disjoint")
 sys.path.append(os.path.join(EXPERIMENTS_DIR, f"src/training/{VERSION}"))
 
 from train import MultiHeadSaProtV8, enrich_inputs
@@ -36,7 +36,7 @@ os.makedirs(VAL_SUITE_DIR, exist_ok=True)
 
 def load_v9_model(device):
     import inspect
-    VERSION = os.environ.get("STABLEPROT_VERSION", "v8_disjoint")
+    VERSION = os.environ.get("STABLEPROT_VERSION", "v9_disjoint")
     model_dir = os.path.join(EXPERIMENTS_DIR, f"src/training/{VERSION}/results/seed1")
     ckpt_path = os.path.join(model_dir, "model_tm.pt")
     if not os.path.exists(ckpt_path):
@@ -75,9 +75,11 @@ def main():
     y_true = df['label'].values.astype(np.float32)
     
     # Check normalization stats
-    VERSION = os.environ.get("STABLEPROT_VERSION", "v8_disjoint")
+    VERSION = os.environ.get("STABLEPROT_VERSION", "v9_disjoint")
     stats_path = os.path.join(EXPERIMENTS_DIR, f"src/training/{VERSION}/results/normalization_stats.pt")
-    norms = torch.load(stats_path, map_location='cpu', weights_only=False) if os.path.exists(stats_path) else {'tm_mean': 56.4, 'tm_std': 13.2}
+    if not os.path.exists(stats_path):
+        raise FileNotFoundError(f"normalization_stats.pt not found at {stats_path}")
+    norms = torch.load(stats_path, map_location='cpu', weights_only=False)
     
     model = load_v9_model(device)
     

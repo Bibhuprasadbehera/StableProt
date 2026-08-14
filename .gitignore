@@ -45,3 +45,11 @@ paper/writeup/manuscript_figures/
 paper/writeup/generate_manuscript_figures.py
 paper/writeup/manuscript.md
 .mimocode/
+data/emergent_benchmarks/
+experimental_validation/
+experiments/src/model_calibration/plots/
+paper/writeup/plots_v3/
+paper/writeup/plots_v4/
+stableprot_intro/
+experiments/new_data/validation_suite/
+paper/writeup/stableprot_v9_comprehensive_report.html

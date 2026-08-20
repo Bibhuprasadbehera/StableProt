@@ -23,6 +23,16 @@ except ModuleNotFoundError:
 
 STANDARD_AAS = list("ACDEFGHIKLMNPQRSTVWY")
 
+# Global scale applied to the raw predictive sigma so that intervals attain nominal coverage.
+# Refitted by minimising ECE after the variance-aggregation fix; the old 3.8 was fitted against a
+# sigma that omitted the aleatoric term and now over-inflates intervals by ~2x.
+#
+# The scale does not transfer across distributions: 1.56 on in-distribution ProThermDB, 3.29 on
+# the FireProtDB out-of-distribution holdout. Submitted sequences are novel by definition, so the
+# server uses the out-of-distribution value; under-covering a user's protein is the worse error.
+TM_SIGMA_SCALE = 3.29
+OGT_SIGMA_SCALE = 3.29  # not independently fitted — no held-out OGT set with stored sigmas yet
+
 # Chou-Fasman & GOR secondary structure propensities
 CHOU_FASMAN_HELIX = {'A': 1.42, 'R': 0.98, 'N': 0.67, 'D': 1.01, 'C': 0.70, 'E': 1.51, 'Q': 1.11, 'G': 0.57, 'H': 1.00, 'I': 1.08, 'L': 1.21, 'K': 1.16, 'M': 1.45, 'F': 1.13, 'P': 0.57, 'S': 0.77, 'T': 0.83, 'W': 1.08, 'Y': 0.69, 'V': 1.06}
 CHOU_FASMAN_SHEET = {'A': 0.83, 'R': 0.93, 'N': 0.89, 'D': 0.54, 'C': 1.19, 'E': 0.37, 'Q': 1.10, 'G': 0.75, 'H': 0.87, 'I': 1.60, 'L': 1.30, 'K': 0.74, 'M': 1.05, 'F': 1.38, 'P': 0.55, 'S': 0.75, 'T': 1.19, 'W': 1.37, 'Y': 1.47, 'V': 1.70}
@@ -147,15 +157,19 @@ class V9Predictor:
         norm_path = os.path.join(models_dir, "normalization_stats.pt")
         if os.path.exists(norm_path):
             norms = torch.load(norm_path, map_location='cpu', weights_only=False)
-            self.tm_mean = norms.get('tm_mean', 52.88)
-            self.tm_std = norms.get('tm_std', 16.50)
-            self.ogt_mean = norms.get('ogt_mean', 37.51)
-            self.ogt_std = norms.get('ogt_std', 14.22)
+            self.tm_mean = norms['tm_mean']
+            self.tm_std = norms['tm_std']
+            self.ogt_mean = norms['ogt_mean']
+            self.ogt_std = norms['ogt_std']
             print(f"Loaded normalization stats: Tm=N({self.tm_mean:.2f}, {self.tm_std:.2f}), OGT=N({self.ogt_mean:.2f}, {self.ogt_std:.2f})")
         else:
-            self.tm_mean, self.tm_std = 52.88, 16.50
-            self.ogt_mean, self.ogt_std = 37.51, 14.22
-            print("WARNING: normalization_stats.pt not found. Using default stats.")
+            # Silent fallbacks here previously used v8 statistics (52.88/16.50 against v9's
+            # 51.74/11.49), which mis-scales every prediction by ~40% in the standard deviation.
+            raise FileNotFoundError(
+                f"normalization_stats.pt not found at {norm_path}. Refusing to fall back to "
+                "hardcoded statistics — they differ per model version and silently corrupt "
+                "every prediction."
+            )
             
         for s in range(1, 6):
             pt_tm = os.path.join(models_dir, f"seed{s}/model_tm.pt")
@@ -212,11 +226,13 @@ class V9Predictor:
             # Confidence-weighted ensemble: weight by inverse variance
             weights = 1.0 / (vars_stack + 1e-6)
             tm_val = (mus_stack * weights).sum(dim=0) / weights.sum(dim=0)
-            total_var = 1.0 / weights.sum(dim=0)
-            # Apply post-hoc temperature scaling (T=3.8) for calibration
-            tm_conf = torch.sqrt(total_var) * 3.8
+            # Predictive variance for a new measurement = mean aleatoric variance + spread of
+            # the seed means. 1/weights.sum() alone is the standard error of the ensemble mean,
+            # which shrinks with seed count and is not a predictive interval.
+            total_var = vars_stack.mean(dim=0) + ((mus_stack - tm_val) ** 2).mean(dim=0)
+            tm_conf = torch.sqrt(total_var) * TM_SIGMA_SCALE
             
-        return tm_val.item(), tm_conf.item(), ogt_val, ogt_conf * 3.8
+        return tm_val.item(), tm_conf.item(), ogt_val, ogt_conf * OGT_SIGMA_SCALE
 
     def predict_single(self, raw_input: str) -> dict:
         """Sanitize raw input, apply length guardrails, and return structured prediction dict."""

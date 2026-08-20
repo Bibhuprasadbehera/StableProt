@@ -3,86 +3,155 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>StableProt V9 — Thermostability & Loop Design Suite</title>
+    <title>StableProt — Tm and OGT prediction</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@600;700;800&family=Fira+Code:wght@400;600&display=swap" rel="stylesheet">
     <style>
-        :root { --bg:#f8fafc; --surface:#fff; --border:#e2e8f0; --text:#0f172a; --muted:#64748b; --primary:#4f46e5; --success:#059669; --error:#dc2626; --warning-bg:#fffbe0; --warning-border:#fde68a; --warning-text:#92400e; }
+        :root {
+            --bg:#FFFFFF;
+            --surface:#FFFFFF;
+            --wash:#FFF7ED;
+            --wash-yellow:#FEF3C7;
+            --border:#FED7AA;
+            --text:#1C1410;
+            --muted:#7A5C4A;
+            --primary:#C2410C;
+            --primary-hover:#9A3412;
+            --tm:#DC2626;
+            --ogt:#D97706;
+            --yellow:#EAB308;
+            --orange:#EA580C;
+            --loop:#C2410C;
+            --error:#B91C1C;
+            --ink:#1C1410;
+            --focus:rgba(194,65,12,.18);
+        }
         * { box-sizing:border-box; margin:0; padding:0; }
         body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); padding:2rem 1rem; min-height:100vh; }
         .container { max-width:960px; margin:0 auto; }
         header { text-align:center; margin-bottom:2rem; }
-        h1 { font-family:'Outfit',sans-serif; font-size:2.5rem; font-weight:800; letter-spacing:-0.5px; }
-        h1 span { color:var(--primary); }
+        h1 { font-family:'Outfit',sans-serif; font-size:2.6rem; font-weight:800; letter-spacing:-0.5px; color:var(--ink); }
+        h1 .prot {
+            background:linear-gradient(90deg, #EAB308 0%, #EA580C 48%, #DC2626 100%);
+            -webkit-background-clip:text; background-clip:text; color:transparent;
+        }
         p.subtitle { color:var(--muted); font-size:1rem; margin-top:.3rem; }
         .tab-nav { display:flex; justify-content:center; gap:.5rem; margin-bottom:1.8rem; }
         .tab-btn { background:#fff; border:1px solid var(--border); color:var(--muted); padding:.6rem 1.4rem; border-radius:10px; font-family:'Outfit',sans-serif; font-weight:600; font-size:.95rem; cursor:pointer; transition:.15s; }
-        .tab-btn:hover { color:var(--text); background:#f1f5f9; }
+        .tab-btn:hover { color:var(--text); background:var(--wash); }
         .tab-btn.active { color:#fff; background:var(--primary); border-color:var(--primary); }
-        .glass-panel { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:2rem; box-shadow:0 4px 20px rgba(0,0,0,.03); margin-bottom:1.5rem; }
+        .tab-btn.cta-secondary { background:#fff; border-color:var(--ink); color:var(--ink); }
+        .tab-btn.cta-secondary:hover { background:#F4F4F5; }
+        .glass-panel { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:2rem; margin-bottom:1.5rem; }
         .tab-content { display:none; }
         .tab-content.active { display:block; }
-        .input-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:.5rem; }
+        .input-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:.5rem; gap:.5rem; flex-wrap:wrap; }
+        .input-header .tools { display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; }
+        .btn-action:disabled { opacity:.65; cursor:wait; }
+        .text-link { background:none; border:none; color:var(--primary); font-weight:700; font-size:.88rem; cursor:pointer; text-decoration:underline; padding:0; font-family:'Inter',sans-serif; }
+        .text-link:hover { color:var(--primary-hover); }
+        .viewer-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:.4rem; gap:.8rem; flex-wrap:wrap; }
+        @media (max-width: 700px) {
+            body { padding:1rem .7rem 2.5rem; }
+            .container { max-width:100%; }
+            h1 { font-size:2rem; }
+            p.subtitle { font-size:.9rem; }
+            .glass-panel { padding:1.15rem .9rem; border-radius:12px; }
+            .tab-nav { flex-wrap:wrap; gap:.4rem; }
+            .tab-btn { padding:.5rem .85rem; font-size:.85rem; }
+            .result-grid { grid-template-columns:1fr; }
+            .result-val { font-size:2rem; }
+            .btn-group { flex-direction:column; }
+            .btn-group .btn-action { width:100%; flex:none !important; }
+            .feature-grid { grid-template-columns:1fr; }
+            .loops-grid { grid-template-columns:1fr; }
+            .gauge-labels { font-size:.65rem; }
+            .history-table { display:block; overflow-x:auto; }
+            .seq-visualizer { max-height:220px; font-size:.92rem; }
+            .aa-res { width:1.35rem; height:1.5rem; line-height:1.35rem; }
+        }
         label { font-weight:600; font-size:.95rem; color:var(--text); margin:0; }
         textarea { width:100%; height:120px; background:#fff; border:1px solid var(--border); border-radius:10px; font-family:'Fira Code',monospace; font-size:.9rem; padding:.85rem; resize:vertical; line-height:1.5; }
-        textarea:focus { outline:none; border-color:var(--primary); box-shadow:0 0 0 3px rgba(79,70,229,.1); }
-        .btn-group { display:flex; gap:.75rem; flex-wrap:wrap; margin-top:1rem; }
-        .btn-action { display:inline-flex; align-items:center; justify-content:center; padding:.65rem 1.4rem; font-family:'Outfit',sans-serif; font-weight:600; font-size:.95rem; color:#fff; background:var(--primary); border:none; border-radius:8px; cursor:pointer; transition:.15s; }
-        .btn-action:hover { background:#4338ca; }
-        .btn-secondary { background:#fff; border:1px solid var(--border); color:var(--text); }
-        .btn-secondary:hover { background:#f1f5f9; }
-        .btn-success { background:var(--success); } .btn-success:hover { background:#047857; }
-        .btn-amber { background:#d97706; } .btn-amber:hover { background:#b45309; }
+        textarea:focus { outline:none; border-color:var(--primary); box-shadow:0 0 0 3px var(--focus); }
+        .btn-group { display:flex; gap:.75rem; flex-wrap:wrap; margin-top:1rem; align-items:stretch; }
+        .btn-action { display:inline-flex; align-items:center; justify-content:center; padding:.65rem 1.4rem; font-family:'Outfit',sans-serif; font-weight:700; font-size:.95rem; color:#fff; background:var(--primary); border:none; border-radius:8px; cursor:pointer; transition:.15s; }
+        .btn-action:hover { background:var(--primary-hover); }
+        .btn-lg { padding:1rem 1.6rem; font-size:1.12rem; font-weight:800; letter-spacing:.01em; border-radius:10px; }
+        .btn-md { padding:.8rem 1.2rem; font-size:1rem; }
+        .btn-sm { padding:.45rem .9rem; font-size:.82rem; font-weight:600; }
+        .btn-secondary { background:#fff; border:1px solid var(--border); color:var(--text); font-weight:600; }
+        .btn-secondary:hover { background:var(--wash); }
+        .btn-amber { background:#D97706; }
+        .btn-amber:hover { background:#B45309; }
+        .btn-success { background:var(--ink); }
+        .btn-success:hover { background:#000; }
         .result-grid { display:grid; grid-template-columns:1fr 1fr; gap:1.2rem; margin-top:1.5rem; }
-        .result-box { padding:1.5rem; border-radius:12px; text-align:center; background:#ecfdf5; border:1px solid #a7f3d0; }
-        .result-box.ogt-box { background:#f0fdf4; border-color:#bbf7d0; }
+        .result-box { padding:1.5rem; border-radius:12px; text-align:center; background:#FFF1F2; border:1px solid #FECDD3; }
+        .result-box.ogt-box { background:var(--wash-yellow); border-color:#FDE68A; }
         .result-title { font-size:.85rem; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; font-weight:700; margin-bottom:.3rem; }
-        .result-val { font-size:2.5rem; font-weight:800; font-family:'Outfit',sans-serif; color:var(--success); }
-        .result-box.ogt-box .result-val { color:var(--primary); }
+        .result-val { font-size:2.5rem; font-weight:800; font-family:'Outfit',sans-serif; color:var(--tm); }
+        .result-box.ogt-box .result-val { color:var(--ogt); }
         .gauge-card { margin-top:1.2rem; padding:1.2rem; background:#fff; border:1px solid var(--border); border-radius:12px; }
-        .gauge-track { position:relative; height:20px; background:linear-gradient(90deg, #3b82f6 0%, #3b82f6 38%, #059669 42%, #059669 58%, #d97706 62%, #d97706 78%, #dc2626 82%, #dc2626 100%); border-radius:10px; margin:1.2rem 0 .8rem; }
-        .gauge-ci { position:absolute; top:-5px; bottom:-5px; background:rgba(15,23,42,0.12); border:2px solid #0f172a; border-radius:6px; }
-        .gauge-marker { position:absolute; top:-7px; bottom:-7px; width:4px; background:#0f172a; border-radius:2px; }
+        .gauge-track { position:relative; height:20px; background:linear-gradient(90deg, #FDE68A 0%, #EAB308 38%, #EA580C 62%, #DC2626 82%, #9F1239 100%); border-radius:10px; margin:1.2rem 0 .8rem; }
+        .gauge-ci { position:absolute; top:-5px; bottom:-5px; background:rgba(28,20,16,0.12); border:2px solid var(--ink); border-radius:6px; }
+        .gauge-marker { position:absolute; top:-7px; bottom:-7px; width:4px; background:var(--ink); border-radius:2px; }
         .gauge-labels { position:relative; height:22px; font-size:.75rem; color:var(--muted); }
         .gauge-labels span { position:absolute; transform:translateX(-50%); }
-        .stacked-bar-track { display:flex; height:14px; border-radius:7px; overflow:hidden; background:#e2e8f0; margin-top:.4rem; }
+        .stacked-bar-track { display:flex; height:14px; border-radius:7px; overflow:hidden; background:var(--wash); margin-top:.4rem; }
         .stacked-bar-seg { height:100%; transition:width .3s ease; }
-        .seq-visualizer { background:#fff; border:1px solid var(--border); border-radius:10px; padding:1rem; margin-top:1rem; font-family:'Fira Code',monospace; font-size:.95rem; line-height:2.2; max-height:240px; overflow-y:auto; word-break:normal; }
-        .aa-res { display:inline-block; width:1.4rem; height:1.5rem; line-height:1.5rem; text-align:center; border-radius:4px; margin:1px; font-weight:600; cursor:pointer; }
-        .aa-H { background:#f3e8ff; color:#7e22ce; border:1px solid #e9d5ff; }
-        .aa-E { background:#dbeafe; color:#1d4ed8; border:1px solid #bfdbfe; }
-        .aa-L { background:#fef3c7; color:#b45309; border:1px solid #fde68a; }
-        .aa-MUT { background:#f43f5e!important; color:#fff!important; border:1px solid #be123c!important; font-weight:700; }
+        .result-box.wt-box { background:#FAFAF9; border-color:#E7E5E4; }
+        .result-box.wt-box .result-val { color:var(--muted); }
+        .result-box.stab-box { background:#FFF7ED; border-color:#FDBA74; }
+        .result-box.stab-box .result-val { color:#C2410C; }
+        .result-box.destab-box { background:#FEF2F2; border-color:#FECACA; }
+        .result-box.destab-box .result-val { color:#B91C1C; }
+        .seq-visualizer { background:#fff; border:1px solid var(--border); border-radius:10px; padding:1rem; margin-top:1rem; font-family:'Fira Code',monospace; font-size:1.02rem; line-height:2.35; max-height:280px; overflow-y:auto; word-break:normal; }
+        .aa-res { display:inline-block; width:1.55rem; height:1.7rem; line-height:1.55rem; text-align:center; border-radius:3px; margin:1px; font-weight:700; cursor:pointer; }
+        .aa-H { background:#F4F4F5; color:#3F3F46; border:1px solid #D4D4D8; border-radius:3px; font-weight:500; }
+        .aa-E { background:#E4E4E7; color:#27272A; border:1px solid #A1A1AA; border-radius:2px; font-weight:500; }
+        .aa-L { background:#FFF7ED; color:#9A3412; border:2px solid #DC2626; border-radius:4px; font-weight:800; }
+        .aa-MUT { background:#1C1410!important; color:#fff!important; border:2px solid #DC2626!important; border-radius:4px!important; font-weight:800; }
+        .ss-legend { display:flex; gap:1rem; font-size:.8rem; font-weight:700; flex-wrap:wrap; align-items:center; }
+        .ss-legend .swatch { display:inline-block; width:1.05rem; height:1.05rem; vertical-align:-2px; margin-right:.25rem; }
+        .ss-legend .swatch-h { background:#F4F4F5; border:1px solid #D4D4D8; }
+        .ss-legend .swatch-e { background:#E4E4E7; border:1px solid #A1A1AA; }
+        .ss-legend .swatch-l { background:#FFF7ED; border:2px solid #DC2626; }
+        .ss-legend .swatch-m { background:#1C1410; border:2px solid #DC2626; }
+        .ss-legend .quiet { color:#71717A; font-weight:500; }
+        .ss-note { font-size:.78rem; color:var(--muted); font-style:italic; margin-top:.45rem; }
+        .mut-controls { margin-top:1.5rem; padding:1.5rem; background:var(--wash); border:1px solid var(--border); border-radius:12px; }
+        .mut-controls h3 { font-family:'Outfit',sans-serif; font-size:1.15rem; font-weight:800; margin-bottom:1.1rem; }
         .mut-status-bar { margin-top:1rem; padding:.65rem .9rem; border-radius:8px; font-size:.88rem; font-weight:600; }
-        .mut-status-active { background:#fff1f2; border:1px solid #fecdd3; color:#e11d48; }
-        .mut-status-none { background:#f8fafc; border:1px solid #e2e8f0; color:#64748b; }
+        .mut-status-active { background:#FFF1F2; border:1px solid #FECDD3; color:#B91C1C; }
+        .mut-status-none { background:var(--wash); border:1px solid var(--border); color:var(--muted); }
         .loops-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:1rem; margin-top:1rem; }
         .loop-card { background:#fff; border:1px solid var(--border); border-radius:10px; padding:1rem; transition:.15s; }
-        .loop-card:hover, .loop-card.selected { border-color:#b45309; background:#fffbeb; }
+        .loop-card:hover, .loop-card.selected { border-color:var(--primary); background:var(--wash-yellow); }
         .loop-card-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:.4rem; font-weight:700; font-size:.9rem; }
-        .loop-card input.loop-edit-input { width:100%; font-family:'Fira Code',monospace; font-size:.9rem; font-weight:600; color:#b45309; background:#fff; border:1px solid #fde68a; border-radius:6px; padding:.4rem; margin-top:.4rem; }
+        .loop-card input.loop-edit-input { width:100%; font-family:'Fira Code',monospace; font-size:.9rem; font-weight:600; color:var(--primary); background:#fff; border:1px solid #FDE68A; border-radius:6px; padding:.4rem; margin-top:.4rem; }
         .history-table { width:100%; border-collapse:collapse; margin-top:1rem; font-size:.88rem; background:#fff; border-radius:10px; overflow:hidden; border:1px solid var(--border); }
         .history-table th, .history-table td { padding:.75rem .9rem; text-align:left; border-bottom:1px solid var(--border); }
-        .history-table th { background:#f8fafc; color:var(--muted); font-weight:700; text-transform:uppercase; font-size:.75rem; }
-        .delta-pos { color:var(--success); font-weight:700; } .delta-neg { color:var(--error); font-weight:700; }
-        .tag-badge { display:inline-block; padding:.15rem .5rem; border-radius:4px; font-size:.75rem; font-weight:600; background:#f1f5f9; color:var(--muted); }
-        .tag-badge.loop-tag { background:#fef3c7; color:#b45309; }
-        .tag-badge.stab-tag { background:#dcfce7; color:#15803d; border:1px solid #bbf7d0; }
-        .tag-badge.destab-tag { background:#ffe4e6; color:#be123c; border:1px solid #fecdd3; }
+        .history-table th { background:var(--wash); color:var(--muted); font-weight:700; text-transform:uppercase; font-size:.75rem; }
+        .delta-pos { color:var(--ogt); font-weight:700; } .delta-neg { color:var(--tm); font-weight:700; }
+        .tag-badge { display:inline-block; padding:.15rem .5rem; border-radius:4px; font-size:.75rem; font-weight:600; background:var(--wash); color:var(--muted); }
+        .tag-badge.loop-tag { background:var(--wash-yellow); color:#B45309; }
+        .tag-badge.stab-tag { background:#FFEDD5; color:#C2410C; border:1px solid #FED7AA; }
+        .tag-badge.destab-tag { background:#FEE2E2; color:#B91C1C; border:1px solid #FECACA; }
         .feature-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:1.2rem; margin-top:1.5rem; }
-
         .feature-card { background:#fff; border:1px solid var(--border); border-radius:12px; padding:1.5rem; }
         .feature-title { font-family:'Outfit',sans-serif; font-size:1.1rem; font-weight:700; margin-bottom:.4rem; }
         .feature-desc { font-size:.9rem; color:var(--muted); line-height:1.5; }
         .info-card { background:#fff; border:1px solid var(--border); border-radius:12px; padding:1.5rem; margin-bottom:1.2rem; }
         .info-card h3 { font-family:'Outfit',sans-serif; font-size:1.15rem; font-weight:700; margin-bottom:.6rem; }
         .info-card p { font-size:.92rem; color:var(--muted); line-height:1.6; margin-bottom:.8rem; }
+        .info-card p:last-child { margin-bottom:0; }
+        a { color:var(--primary); font-weight:600; }
     </style>
 </head>
 <body>
 <div class="container">
     <header>
-        <h1>Stable<span>Prot</span></h1>
-        <p class="subtitle">V9 Structure-Aware Multi-Head Predictor & Interactive Loop Design Suite</p>
+        <h1>Stable<span class="prot">Prot</span></h1>
+        <p class="subtitle">Structure-aware T<sub>m</sub> and OGT prediction with a calibrated interval</p>
     </header>
 
     <div class="tab-nav">
@@ -95,17 +164,26 @@
     <!-- TAB 1: Home -->
     <div id="home-tab" class="tab-content active">
         <div class="glass-panel" style="text-align:center; padding:2.5rem 2rem;">
-            <h2 style="font-family:'Outfit',sans-serif; font-size:2rem; font-weight:800; margin-bottom:.8rem;">Structure-Aware Protein Thermostability Engineering</h2>
-            <p style="max-width:720px; margin:0 auto 1.8rem; color:var(--muted); font-size:1rem; line-height:1.6;">StableProt V9 couples Foldseek 3Di structural representations (SaProt 650M) with auxiliary feature pathways for accurate zero-shot melting temperature (Tm) prediction and targeted loop stabilization.</p>
+            <h2 style="font-family:'Outfit',sans-serif; font-size:1.85rem; font-weight:800; margin-bottom:.8rem;">T<sub>m</sub> and OGT from sequence, with an interval</h2>
+            <p style="max-width:740px; margin:0 auto 1.8rem; color:var(--muted); font-size:1rem; line-height:1.65;">StableProt couples SaProt 3Di conformational tokens with disjoint heads for melting temperature (T<sub>m</sub>) and optimal growth temperature (OGT). It returns a calibrated predictive interval rather than a point estimate. Training and every evaluation split are separated by a bidirectional homology audit (&lt;30% sequence identity), with mesophilic downsampling on the OGT set.</p>
             <div style="display:flex; justify-content:center; gap:1rem; flex-wrap:wrap;">
-                <button class="tab-btn active" onclick="switchTabById('predict-tab')">Single Sequence Predictor</button>
-                <button class="tab-btn" onclick="switchTabById('design-tab')" style="background:#fffbe0; border-color:#fde68a; color:var(--loop);">Interactive Loop Design Studio</button>
+                <button class="tab-btn active" onclick="switchTabById('predict-tab')">Predict T<sub>m</sub> &amp; OGT</button>
+                <button class="tab-btn cta-secondary" onclick="switchTabById('design-tab')">Loop design aid</button>
             </div>
         </div>
         <div class="feature-grid">
-            <div class="feature-card"><div class="feature-title">Decontaminated Accuracy</div><div class="feature-desc">Evaluated under strict &lt;30% sequence identity decontamination audits across ProThermDB and FireProtDB holdout suites.</div></div>
-            <div class="feature-card"><div class="feature-title">Targeted Loop Stabilization</div><div class="feature-desc">Instant sequence-based loop detection (&lt;1ms) allowing targeted proline/hydrophobic mutagenesis in coil regions.</div></div>
-            <div class="feature-card"><div class="feature-title">Calibrated Risk Bounds</div><div class="feature-desc">Heteroscedastic Gaussian NLL variance heads coupled with 5-seed ensemble disagreement provide 95% confidence intervals.</div></div>
+            <div class="feature-card">
+                <div class="feature-title">In distribution (ProThermDB)</div>
+                <div class="feature-desc">n = 3,340. Point MAE 6.16 °C; TemBERTure remains ahead at 5.76 °C. Under CRPS, which equals MAE for a point forecast, StableProt scores <b>4.52 °C</b> against 5.76 °C for the strongest baseline.</div>
+            </div>
+            <div class="feature-card">
+                <div class="feature-title">Out of distribution (FireProtDB)</div>
+                <div class="feature-desc">n = 322, &lt;30% identity to training. MAE <b>11.85 °C</b> and CRPS <b>8.71 °C</b>, the lowest of the models tested (TemBERTure 12.76 °C on both).</div>
+            </div>
+            <div class="feature-card">
+                <div class="feature-title">Calibration, with limits</div>
+                <div class="feature-desc">A global variance scale cuts ECE from 14.4% to 1.9%; 67.5% of ProThermDB points fall in the nominal 68.3% interval. The scale does not transfer (c ≈ 1.65 in distribution vs ~3.3–3.6 OOD). Coverage fails in the 60–80 °C band. This server uses the OOD scale; the half-width is ±1σ (about 68%), not a 95% CI.</div>
+            </div>
         </div>
     </div>
 
@@ -115,7 +193,7 @@
             <form id="predict-form" onsubmit="runPredictForm(event)">
                 <div class="input-header">
                     <label for="sequence">Amino Acid Sequence</label>
-                    <div style="display:flex; gap:.5rem; align-items:center;">
+                    <div class="tools">
                         <span id="seq-count-badge" class="tag-badge">0 AA</span>
                         <button type="button" class="btn-action btn-secondary" style="padding:.25rem .6rem; font-size:.78rem;" onclick="format5AABlocks('sequence')">Format (5-AA Spacing)</button>
                         <button type="button" class="btn-action btn-secondary" style="padding:.25rem .6rem; font-size:.78rem;" onclick="sanitizeInput('sequence')">Clean FASTA</button>
@@ -124,21 +202,21 @@
                 <textarea id="sequence" name="sequence" placeholder="Enter protein sequence (e.g. MTEYK LVVVG AGGVG KSA...)" oninput="updateSeqBadge('sequence')">{{ sequence if sequence else '' }}</textarea>
                 
                 <div class="btn-group">
-                    <button type="submit" id="btn-predict-submit" class="btn-action" style="flex:2;">Predict Tm & OGT</button>
-                    <button type="button" class="btn-action btn-secondary" style="flex:1;" onclick="loadPredictSample()">Load Sample Sequence</button>
+                    <button type="submit" id="btn-predict-submit" class="btn-action btn-lg" style="flex:2;">Predict Tm & OGT</button>
+                    <button type="button" class="btn-action btn-secondary btn-sm" style="flex:1;" onclick="loadPredictSample()">Load Sample Sequence</button>
                 </div>
             </form>
 
             <div id="predict-results-container" style="{% if tm and ogt %}display:block;{% else %}display:none;{% endif %}">
                 <div class="result-grid">
-                    <div class="result-box"><div class="result-title">Melting Temperature (Tm)</div><div id="predict-val-tm" class="result-val">{{ tm if tm else '-' }}°C</div><div id="predict-conf-tm" style="font-size:.85rem; color:var(--muted); margin-top:.2rem;">{% if tm_conf %}± {{ tm_conf }}°C (95% CI){% endif %}</div></div>
-                    <div class="result-box ogt-box"><div class="result-title">Optimal Growth (OGT)</div><div id="predict-val-ogt" class="result-val">{{ ogt if ogt else '-' }}°C</div><div id="predict-conf-ogt" style="font-size:.85rem; color:var(--muted); margin-top:.2rem;">{% if ogt_conf %}± {{ ogt_conf }}°C Disagreement{% endif %}</div></div>
+                    <div class="result-box"><div class="result-title">Melting Temperature (Tm)</div><div id="predict-val-tm" class="result-val">{{ tm if tm else '-' }}°C</div><div id="predict-conf-tm" style="font-size:.85rem; color:var(--muted); margin-top:.2rem;">{% if tm_conf %}± {{ tm_conf }}°C{% endif %}</div></div>
+                    <div class="result-box ogt-box"><div class="result-title">Optimal Growth (OGT)</div><div id="predict-val-ogt" class="result-val">{{ ogt if ogt else '-' }}°C</div><div id="predict-conf-ogt" style="font-size:.85rem; color:var(--muted); margin-top:.2rem;">{% if ogt_conf %}± {{ ogt_conf }}°C{% endif %}</div></div>
                 </div>
 
                 <!-- Visual Thermometer Gauge & Range Bands -->
                 <div class="gauge-card">
                     <div style="display:flex; justify-content:space-between; align-items:center; font-weight:600; font-size:.88rem;">
-                        <span>Visual Thermometer Scale & 95% Confidence Range</span>
+                        <span>Thermal scale</span>
                         <span id="predict-tier-badge" class="tag-badge">-</span>
                     </div>
                     <div class="gauge-track">
@@ -146,31 +224,33 @@
                         <div id="gauge-tm-marker" class="gauge-marker"></div>
                     </div>
                     <div class="gauge-labels">
-                        <span style="left:20%;">Psychrophilic (&lt;40°C)</span>
-                        <span style="left:50%;">Mesophilic (40–60°C)</span>
-                        <span style="left:70%;">Thermophilic (60–80°C)</span>
-                        <span style="left:90%;">Hyperthermophilic (&gt;80°C)</span>
+                        <span style="left:20%;">&lt;40</span>
+                        <span style="left:50%;">40–60</span>
+                        <span style="left:70%;">60–80</span>
+                        <span style="left:90%;">&gt;80</span>
                     </div>
 
                     <!-- AA Composition Stacked Horizontal Progress Bar -->
                     <div style="margin-top:1.2rem;">
                         <div style="font-size:.82rem; font-weight:600; color:var(--muted); margin-bottom:.3rem;">Amino Acid Composition Breakdown</div>
                         <div class="stacked-bar-track">
-                            <div id="comp-seg-hydrophobic" class="stacked-bar-seg" style="background:#3b82f6; width:0%;" title="Hydrophobic"></div>
-                            <div id="comp-seg-polar" class="stacked-bar-seg" style="background:#10b981; width:0%;" title="Polar"></div>
-                            <div id="comp-seg-charged" class="stacked-bar-seg" style="background:#8b5cf6; width:0%;" title="Charged"></div>
-                            <div id="comp-seg-aromatic" class="stacked-bar-seg" style="background:#f59e0b; width:0%;" title="Aromatic"></div>
+                            <div id="comp-seg-hydrophobic" class="stacked-bar-seg" style="background:#FDE68A; width:0%;" title="Hydrophobic"></div>
+                            <div id="comp-seg-polar" class="stacked-bar-seg" style="background:#F59E0B; width:0%;" title="Polar"></div>
+                            <div id="comp-seg-charged" class="stacked-bar-seg" style="background:#EA580C; width:0%;" title="Charged"></div>
+                            <div id="comp-seg-aromatic" class="stacked-bar-seg" style="background:#DC2626; width:0%;" title="Aromatic"></div>
                         </div>
                         <div id="predict-comp-legend" style="margin-top:.4rem; display:flex; gap:1.2rem; font-size:.82rem; color:var(--muted); flex-wrap:wrap;"></div>
+                        <div class="ss-note">Display composition of this sequence, not the six auxiliary ratios used by the model.</div>
                     </div>
 
-                    <div style="margin-top:1rem; text-align:right;">
+                    <div style="margin-top:1rem; display:flex; justify-content:flex-end; gap:.9rem; flex-wrap:wrap; align-items:center;">
+                        <button type="button" class="text-link" onclick="sendSequenceToDesign()">Use this sequence in Design</button>
                         <button type="button" class="btn-action btn-secondary" style="padding:.35rem .9rem; font-size:.8rem;" onclick="exportPredictionFASTA()">Export FASTA Prediction</button>
                     </div>
                 </div>
             </div>
 
-            <div id="predict-error-box" style="{% if error %}display:block;{% else %}display:none;{% endif %} margin-top:1.2rem; padding:.85rem; border-radius:8px; background:#fef2f2; border:1px solid #fca5a5; color:var(--error); text-align:center;">
+            <div id="predict-error-box" style="{% if error %}display:block;{% else %}display:none;{% endif %} margin-top:1.2rem; padding:.85rem; border-radius:8px; background:#FEF2F2; border:1px solid #FECACA; color:var(--error); text-align:center;">
                 <span id="predict-error-text">{{ error if error else '' }}</span>
             </div>
         </div>
@@ -184,7 +264,7 @@
 
             <div class="input-header">
                 <label for="design-sequence">Active Baseline Protein Sequence</label>
-                <div style="display:flex; gap:.5rem; align-items:center;">
+                <div class="tools">
                     <span id="design-seq-badge" class="tag-badge">0 AA</span>
                     <button type="button" class="btn-action btn-secondary" style="padding:.25rem .6rem; font-size:.78rem;" onclick="format5AABlocks('design-sequence')">Format (5-AA Spacing)</button>
                     <button type="button" class="btn-action btn-secondary" style="padding:.25rem .6rem; font-size:.78rem;" onclick="sanitizeInput('design-sequence')">Clean FASTA</button>
@@ -193,21 +273,22 @@
             <textarea id="design-sequence" placeholder="Paste protein sequence to identify loop regions..." oninput="updateSeqBadge('design-sequence')"></textarea>
 
             <div class="btn-group">
-                <button type="button" class="btn-action" style="flex:2;" onclick="identifyLoops()">Identify Loop Regions</button>
-                <button type="button" class="btn-action btn-secondary" style="flex:1;" onclick="loadSampleSequence()">Load Sample Sequence</button>
+                <button type="button" id="btn-identify-loops" class="btn-action btn-lg" style="flex:2;" onclick="identifyLoops()">Identify Loop Regions</button>
+                <button type="button" class="btn-action btn-secondary btn-sm" style="flex:1;" onclick="loadSampleSequence()">Load Sample Sequence</button>
             </div>
 
             <div id="loop-output" style="display:none; margin-top:1.8rem;">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:.4rem;">
-                    <div style="font-weight:700; font-size:1rem; font-family:'Outfit',sans-serif;">Secondary Structure Annotation & Sequence Viewer</div>
-                    <div style="display:flex; gap:.8rem; font-size:.8rem; font-weight:600;">
-                        <span><span style="color:#7e22ce;">●</span> Helix (H)</span>
-                        <span><span style="color:#1d4ed8;">●</span> Sheet (E)</span>
-                        <span><span style="color:var(--loop);">●</span> Loop (L)</span>
-                        <span><span style="color:#f43f5e; font-weight:700;">●</span> Mutated</span>
+                <div class="viewer-head">
+                    <div style="font-weight:700; font-size:1rem; font-family:'Outfit',sans-serif;">Sequence viewer</div>
+                    <div class="ss-legend">
+                        <span><span class="swatch swatch-l"></span> Loop</span>
+                        <span><span class="swatch swatch-m"></span> Mutated</span>
+                        <span class="quiet"><span class="swatch swatch-h"></span> Helix</span>
+                        <span class="quiet"><span class="swatch swatch-e"></span> Sheet</span>
                     </div>
                 </div>
                 <div id="seq-visualizer" class="seq-visualizer"></div>
+                <p class="ss-note">Loop calls are Chou–Fasman sequence propensities (5-residue window), not a 3D structure assignment. Click a residue to drop that site into the mutation box, then type the new amino acid (e.g. G45P).</p>
                 <div id="mut-status-bar" class="mut-status-bar mut-status-none">
                     <span>Mutation Status:</span> <span id="mut-status-text">No mutations detected (WT sequence active)</span>
                 </div>
@@ -217,34 +298,32 @@
                     <div id="loops-grid" class="loops-grid"></div>
                 </div>
 
-                <div style="margin-top:1.5rem; padding:1.5rem; background:#f8fafc; border:1px solid var(--border); border-radius:12px;">
-                    <div style="font-weight:700; font-family:'Outfit',sans-serif; font-size:1.05rem; margin-bottom:1rem;">Interactive Mutation Controls</div>
-                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1rem;">
-                        <div>
-                            <label for="manual-mutation">Specific Mutation (e.g. G45P or G45P, A50V)</label>
-                            <input type="text" id="manual-mutation" placeholder="e.g. G45P" oninput="onManualMutationInput(this.value)" style="width:100%; padding:.65rem; background:#fff; border:1px solid var(--border); border-radius:6px; font-family:'Fira Code',monospace; font-weight:600;">
-                        </div>
-                        <div style="display:flex; align-items:flex-end;">
-                            <button type="button" class="btn-action btn-amber" style="width:100%;" onclick="generateRandomLoopMutation()">Random Loop Mutation</button>
-                        </div>
+                <div class="mut-controls">
+                    <h3>Interactive Mutation Controls</h3>
+                    <div style="margin-bottom:1rem;">
+                        <label for="manual-mutation">Mutation (e.g. G45P or G45P, A50V)</label>
+                        <input type="text" id="manual-mutation" placeholder="e.g. G45P" oninput="onManualMutationInput(this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();evaluateDesign();}" style="width:100%; margin-top:.4rem; padding:.85rem; background:#fff; border:1px solid var(--border); border-radius:8px; font-family:'Fira Code',monospace; font-weight:600; font-size:1rem;">
                     </div>
-                    <div class="btn-group" style="margin-top:1rem;">
-                        <button type="button" class="btn-action" style="flex:2;" onclick="evaluateDesign()">Evaluate Design (Tm & Delta Tm)</button>
-                        <button type="button" class="btn-action btn-success" id="btn-update-baseline" style="flex:2; display:none;" onclick="updateMainBaseline()">Set as Active Baseline Sequence</button>
-                        <button type="button" class="btn-action btn-secondary" style="flex:1;" onclick="undoLastTrial()">Undo / Retry</button>
+                    <div class="btn-group" style="margin-top:0;">
+                        <button type="button" id="btn-evaluate-design" class="btn-action btn-lg" style="flex:3;" onclick="evaluateDesign()">Evaluate Design</button>
+                        <button type="button" class="btn-action btn-amber btn-md" style="flex:1.4;" onclick="generateRandomLoopMutation()">Random Loop Mutation</button>
+                    </div>
+                    <div class="btn-group" style="margin-top:.7rem;">
+                        <button type="button" class="btn-action btn-success btn-md" id="btn-update-baseline" style="flex:2; display:none;" onclick="updateMainBaseline()">Set as Active Baseline</button>
+                        <button type="button" class="btn-action btn-secondary btn-sm" style="flex:1;" onclick="undoLastTrial()">Undo / Retry</button>
                     </div>
                 </div>
 
                 <div id="live-eval-card" style="display:none; margin-top:1.5rem;">
                     <div class="result-grid">
-                        <div class="result-box" style="background:#fff; border-color:var(--border);">
+                        <div class="result-box wt-box">
                             <div class="result-title">Wild-Type Tm</div>
-                            <div id="eval-wt-tm" class="result-val" style="color:var(--muted);">-</div>
+                            <div id="eval-wt-tm" class="result-val">-</div>
                         </div>
-                        <div class="result-box" id="mut-tm-box">
+                        <div class="result-box destab-box" id="mut-tm-box">
                             <div class="result-title">Design Mutant Tm</div>
                             <div id="eval-mut-tm" class="result-val">-</div>
-                            <div id="eval-delta-badge" style="margin-top:.4rem; font-weight:700; font-size:1.1rem;"></div>
+                            <div id="eval-delta-badge" style="margin-top:.4rem; font-weight:800; font-size:1.1rem;"></div>
                         </div>
                     </div>
                 </div>
@@ -268,19 +347,22 @@
     <div id="about-tab" class="tab-content">
         <div class="glass-panel">
             <div class="info-card">
-                <h3>About StableProt V9</h3>
-                <p>StableProt is an open-source structure-aware neural framework designed for accurate prediction of protein melting temperatures (Tm) and organismal optimal growth temperatures (OGT).</p>
+                <h3>What this server runs</h3>
+                <p>StableProt is a structure-aware model for protein melting temperature (T<sub>m</sub>) and organismal optimal growth temperature (OGT). The T<sub>m</sub> and OGT heads are disjoint: the OGT prior enters the T<sub>m</sub> path only. Predictions average a 5-seed ensemble and include a scaled predictive interval.</p>
             </div>
-
             <div class="info-card">
-                <h3>Benchmark Performance Highlights</h3>
-                <p>• <strong>ProThermDB Empirical Benchmark</strong>: Standard MAE = 6.83°C, Pearson r = 0.803.<br>• <strong>FireProtDB Zero-Shot Holdout</strong>: Int-MAE = 6.03°C (T=3.8).<br>• <strong>Real Wet-Lab Mutation Benchmark (N=3,649)</strong>: $\Delta T_m$ MAE = 5.05°C, Spearman $\rho$ = 0.211.<br>• <strong>Decontamination Audit</strong>: Enforces strict &lt;30% sequence identity separation.</p>
+                <h3>Data and evaluation</h3>
+                <p>Training uses 29,300 T<sub>m</sub> and 940,000 OGT records after curation and mesophilic downsampling. Held-out evaluation is ProThermDB, FireProtDB, and BRENDA/BacDive, with a bidirectional homology audit at &lt;30% sequence identity for T<sub>m</sub>.</p>
+                <p>On bin-balanced OGT scoring, StableProt is the only compared model that does not degrade outside the mesophilic band. On FireProtDB single-point mutations (n = 3,649) ΔT<sub>m</sub> MAE is 5.05 °C with weak rank agreement (ρ = 0.21). That is a limit, not a design guarantee.</p>
             </div>
-
-
             <div class="info-card">
-                <h3>Contact Details & Project Information</h3>
-                <p>• <strong>Research Group</strong>: Biocomputing & Enzyme Engineering Group<br>• <strong>Email Contact</strong>: <code>contact@stableprot.org</code><br>• <strong>Source Code & Models</strong>: <a href="https://github.com/Bibhuprasadbehera/StableProt" target="_blank" style="color:var(--primary); font-weight:600;">GitHub Repository</a></p>
+                <h3>Loop design tab</h3>
+                <p>Loop highlighting uses Chou–Fasman propensities, then re-scores T<sub>m</sub> for edited sequences. It is a sequence-side aid, not a wet-lab-validated design method.</p>
+            </div>
+            <div class="info-card">
+                <h3>Affiliation</h3>
+                <p>Computational Biology and Bioinformatics Laboratory, iBRIC–Institute of Life Sciences (ILS), Bhubaneswar, Odisha, India.</p>
+                <p>Source: <a href="https://github.com/Bibhuprasadbehera/StableProt" target="_blank">github.com/Bibhuprasadbehera/StableProt</a></p>
             </div>
         </div>
     </div>
@@ -298,8 +380,8 @@
         if (badge) {
             const valid = clean.length >= 50 && clean.length <= 1024;
             badge.innerText = `${clean.length} AA ${valid ? '✓' : '(50–1024 valid)'}`;
-            badge.style.background = valid ? '#ecfdf5' : '#fef2f2';
-            badge.style.color = valid ? '#059669' : '#dc2626';
+            badge.style.background = valid ? '#FEF3C7' : '#FEF2F2';
+            badge.style.color = valid ? '#B45309' : '#B91C1C';
         }
     }
 
@@ -363,10 +445,10 @@
             document.getElementById('comp-seg-aromatic').style.width = a + '%';
 
             document.getElementById('predict-comp-legend').innerHTML = `
-                <span><span style="color:#3b82f6;">●</span> Hydrophobic: <b>${h}%</b></span>
-                <span><span style="color:#10b981;">●</span> Polar: <b>${p}%</b></span>
-                <span><span style="color:#8b5cf6;">●</span> Charged: <b>${c}%</b></span>
-                <span><span style="color:#f59e0b;">●</span> Aromatic: <b>${a}%</b></span>
+                <span><span style="color:#EAB308;">●</span> Hydrophobic: <b>${h}%</b></span>
+                <span><span style="color:#F59E0B;">●</span> Polar: <b>${p}%</b></span>
+                <span><span style="color:#EA580C;">●</span> Charged: <b>${c}%</b></span>
+                <span><span style="color:#DC2626;">●</span> Aromatic: <b>${a}%</b></span>
             `;
         }
     }
@@ -382,20 +464,31 @@
         const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'StableProt_Prediction.fasta'; a.click();
     }
 
+    function sendSequenceToDesign() {
+        const raw = document.getElementById('sequence').value;
+        const dest = document.getElementById('design-sequence');
+        dest.value = raw;
+        updateSeqBadge('design-sequence');
+        switchTabById('design-tab');
+        dest.focus();
+    }
+
     function switchTab(tabId, evt) {
-        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-nav .tab-btn').forEach(b => b.classList.remove('active'));
         document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
         if (evt && evt.target) evt.target.classList.add('active');
         document.getElementById(tabId).classList.add('active');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
     function switchTabById(tabId) {
         const idx = {'home-tab':0, 'predict-tab':1, 'design-tab':2, 'about-tab':3}[tabId] || 0;
-        const btns = document.querySelectorAll('.tab-btn');
-        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        const btns = document.querySelectorAll('.tab-nav .tab-btn');
+        btns.forEach(b => b.classList.remove('active'));
         document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
         if (btns[idx]) btns[idx].classList.add('active');
         document.getElementById(tabId).classList.add('active');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
     function loadSampleSequence() {
@@ -409,16 +502,25 @@
         if (!raw) { alert("Please enter a sequence first."); return; }
         currentWTSequence = raw.replace(/[^A-Za-z]/g, '').toUpperCase();
         currentMutantSequence = currentWTSequence;
-
-        const res = await fetch('/api/identify_loops', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({sequence: currentWTSequence}) });
-        const data = await res.json();
-        if (data.error) { alert(data.error); return; }
-
-        currentLoopData = data;
-        renderSequenceVisualizer(currentWTSequence, data.ss_str, currentMutantSequence);
-        renderLoopsGrid(data.loops);
-        updateMutationStatusBar();
-        document.getElementById('loop-output').style.display = 'block';
+        const btn = document.getElementById('btn-identify-loops');
+        const prev = btn.innerText;
+        btn.disabled = true;
+        btn.innerText = "Identifying loops...";
+        try {
+            const res = await fetch('/api/identify_loops', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({sequence: currentWTSequence}) });
+            const data = await res.json();
+            if (data.error) { alert(data.error); return; }
+            currentLoopData = data;
+            renderSequenceVisualizer(currentWTSequence, data.ss_str, currentMutantSequence);
+            renderLoopsGrid(data.loops);
+            updateMutationStatusBar();
+            document.getElementById('loop-output').style.display = 'block';
+        } catch (e) {
+            alert(e.message);
+        } finally {
+            btn.disabled = false;
+            btn.innerText = prev;
+        }
     }
 
     function renderSequenceVisualizer(wtSeq, ssStr, mutSeq) {
@@ -431,12 +533,31 @@
                 const isMut = (mutSeq[j] !== wtSeq[j]);
                 const ss = isMut ? 'MUT' : (ssStr[j] || 'L');
                 const title = isMut ? `Pos ${j+1}: ${wtSeq[j]} -> ${aa} (Mutated)` : `Pos ${j+1}: ${aa} (${ss})`;
-                blockHtml += `<span class="aa-res aa-${ss}" title="${title}">${aa}</span>`;
+                blockHtml += `<span class="aa-res aa-${ss}" title="${title}" onclick="fillSiteInMutationBox(${j + 1})">${aa}</span>`;
             }
             blockHtml += `</span>`;
             html += blockHtml;
         }
         document.getElementById('seq-visualizer').innerHTML = html;
+    }
+
+    function fillSiteInMutationBox(pos) {
+        if (!currentWTSequence) return;
+        const i = pos - 1;
+        if (i < 0 || i >= currentWTSequence.length) return;
+        const token = `${currentWTSequence[i]}${pos}`;
+        const el = document.getElementById('manual-mutation');
+        if (!el) return;
+        const cur = (el.value || '').trim();
+        const siteRe = new RegExp('(^|[\\s,])' + currentWTSequence[i] + pos + '(?![0-9])', 'i');
+        if (!cur) {
+            el.value = token;
+        } else if (!siteRe.test(cur)) {
+            el.value = cur.replace(/[,\s]+$/, '') + ', ' + token;
+        }
+        el.focus();
+        const n = el.value.length;
+        el.setSelectionRange(n, n);
     }
 
     function updateMutationStatusBar() {
@@ -561,26 +682,37 @@
 
         syncMutationState();
 
-        const res = await fetch('/api/evaluate_design', {
-            method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ wt_sequence: currentWTSequence, mutant_sequence: currentMutantSequence })
-        });
-        const data = await res.json();
-        if (data.error) { alert(data.error); return; }
-        renderLiveEvalCard(data);
-        trialHistory.push(data);
-        renderHistoryTable();
-        document.getElementById('btn-update-baseline').style.display = 'inline-flex';
+        const btn = document.getElementById('btn-evaluate-design');
+        const prev = btn ? btn.innerText : '';
+        if (btn) { btn.disabled = true; btn.innerText = "Evaluating..."; }
+        try {
+            const res = await fetch('/api/evaluate_design', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ wt_sequence: currentWTSequence, mutant_sequence: currentMutantSequence })
+            });
+            const data = await res.json();
+            if (data.error) { alert(data.error); return; }
+            renderLiveEvalCard(data);
+            trialHistory.push(data);
+            renderHistoryTable();
+            document.getElementById('btn-update-baseline').style.display = 'inline-flex';
+        } catch (e) {
+            alert(e.message);
+        } finally {
+            if (btn) { btn.disabled = false; btn.innerText = prev || "Evaluate Design"; }
+        }
     }
 
     function renderLiveEvalCard(data) {
         document.getElementById('live-eval-card').style.display = 'block';
         document.getElementById('eval-wt-tm').innerText = `${data.wt_tm}°C`;
         document.getElementById('eval-mut-tm').innerText = `${data.mut_tm}°C`;
+        const box = document.getElementById('mut-tm-box');
         const badge = document.getElementById('eval-delta-badge');
         const isStab = data.delta_tm > 0;
+        box.className = isStab ? "result-box stab-box" : "result-box destab-box";
         badge.className = isStab ? "delta-pos" : "delta-neg";
-        badge.innerText = isStab ? `+${data.delta_tm}°C STABILIZING GAIN` : `${data.delta_tm}°C DESTABILIZING SHIFT`;
+        badge.innerText = isStab ? `+${data.delta_tm}°C stabilizing` : `${data.delta_tm}°C destabilizing`;
     }
 
     function renderHistoryTable() {
@@ -680,9 +812,9 @@
             } else {
                 errBox.style.display = 'none'; resBox.style.display = 'block';
                 document.getElementById('predict-val-tm').innerText = `${data.tm_pred.toFixed(2)}°C`;
-                document.getElementById('predict-conf-tm').innerText = `± ${data.tm_conf.toFixed(2)}°C (95% CI)`;
+                document.getElementById('predict-conf-tm').innerText = `± ${data.tm_conf.toFixed(2)}°C`;
                 document.getElementById('predict-val-ogt').innerText = `${data.ogt_pred.toFixed(2)}°C`;
-                document.getElementById('predict-conf-ogt').innerText = `± ${data.ogt_conf.toFixed(2)}°C Disagreement`;
+                document.getElementById('predict-conf-ogt').innerText = `± ${data.ogt_conf.toFixed(2)}°C`;
                 updateGauge(data.tm_pred, data.ci_low, data.ci_high, data.thermal_tier, data.aa_composition);
             }
         } catch (e) {

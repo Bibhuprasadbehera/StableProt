@@ -258,7 +258,8 @@ non-standard residue symbols (X, B, Z, J) were filtered.</p>
 <p><b>Mesophilic subsampling.</b> In the source OGT database, 42.3% of records sit at exactly 28, 30 or 37&nbsp;&deg;C, and
 87% lie between 25 and 40&nbsp;&deg;C. Retaining a randomly sampled 14% of mesophilic sequences (25.0&ndash;40.0&nbsp;&deg;C)
 per epoch, while retaining all psychrophilic (&lt;25.0&nbsp;&deg;C) and thermophilic (&gt;40.0&nbsp;&deg;C) sequences, shifts
-thermophile representation from 16.8% to 38.0% (<code>ogt_subsample_meso_rate = 0.14</code>; Figure 1A inset, Figure S1).
+thermophile representation from 16.8% to 38.0% (<code>ogt_subsample_meso_rate = 0.14</code>; Figure 1A inset). Figure S1
+shows the T<sub>m</sub> and OGT label distributions through each curation step.
 Because roughly 84% of database OGT annotations are rounded integers, which produce step-function plateaus during regression,
 continuous target jitter (&sigma;&nbsp;=&nbsp;0.5&nbsp;&deg;C) is applied during forward passes. OGT targets are z-score
 normalized during training to prevent raw temperature magnitudes from dominating the loss gradient. All hyperparameters named
@@ -364,7 +365,7 @@ the mean:</p>
 
 <p>The detached-mean term is what makes the OGT interval usable: a variance head trained jointly with the mean degenerates
 into a function of the mean, whereas the detached formulation leaves point accuracy unchanged while producing a variance that
-is correctly scaled without post-hoc inflation (&sect;3.3, Figure S2C). Replacing the point loss entirely with NLL was tested
+is correctly scaled without post-hoc inflation (&sect;3.3, Figure S4). Replacing the point loss entirely with NLL was tested
 and degraded OGT MAE from 13.6 to 21.4&nbsp;&deg;C, so the hybrid is retained. Supplementary Note 2 records this and the four
 other interventions that were tested and rejected.</p>
 
@@ -545,7 +546,7 @@ and ESMStabP at 3.90&nbsp;&deg;C, both because they win the 80&ndash;90&nbsp;&de
 
 <p>To evaluate generalization in the engineering setting, where candidate enzymes share little sequence similarity with known
 databases, we benchmarked all models on the FireProtDB holdout at &lt;30% identity against all training data (n = 322; lower
-block of Table 2, per-protein scatter in Figure S3A).</p>
+block of Table 2, per-protein scatter in Figure S2A).</p>
 
 <p>Under these constraints StableProt attains the lowest point error of any model tested (11.85&nbsp;&deg;C, against
 TemBERTure 12.76, DeepSTABp 13.59, ThermoFormer-TM 13.61 and ESMStabP 14.91&nbsp;&deg;C). The margin over each baseline
@@ -554,17 +555,17 @@ bounds of &minus;1.01 or lower. StableProt also attains the highest rank correla
 0.214 for TemBERTure; [+0.021, +0.252]), and the gap is significant against ThermoFormer-TM as well ([+0.008, +0.227]).
 Under CRPS the margin widens to 8.71 against 12.76&nbsp;&deg;C (95% CI [&minus;4.74, &minus;3.32]). Bin-balanced, the
 separation is wider than the aggregate suggests: 15.53&nbsp;&deg;C against 16.79 for TemBERTure and 19.41 for ESMStabP, and
-StableProt attains the lowest error in every bin above 60&nbsp;&deg;C, which holds 40% of this benchmark.</p>
+StableProt attains the lowest error in every bin above 60&nbsp;&deg;C, which holds 40% of this benchmark (Figure S2B).</p>
 
 <p>The ordering is the reverse of the in-distribution result in &sect;3.1. Taken together the two benchmarks describe a model
 that gives up some accuracy on densely sampled mesophilic proteins in exchange for not collapsing when the target is
-unfamiliar, which is the regime the method is intended for. Figure S3B shows the distributional form of this: baseline errors
+unfamiliar, which is the regime the method is intended for. Figure S2C–D shows the distributional form of this: baseline errors
 skew negative on the thermostable tail, while StableProt's stay centred.</p>
 
 <h3>3.3 Environmental adaptation profiling (OGT)</h3>
 
 <p>We evaluated the OGT pathway on an external out-of-distribution benchmark (BRENDA, n = 525) and an internal BacDive test
-split (n = 4,854), against the two dedicated OGT predictors, PRIME and ThermoFormer (Table 3, Figure 3).</p>
+split (n = 4,854), against the two dedicated OGT predictors, PRIME and ThermoFormer (Table 3, Figure 3; BacDive per-bin profile in Figure S4D).</p>
 
 <p><b>The count-weighted comparison is unfavourable and we report it first.</b> On BRENDA, StableProt's point error is
 10.84&nbsp;&deg;C against 6.48 for ThermoFormer and 6.75 for PRIME; on BacDive it is 7.94 against 4.71 and 4.96&nbsp;&deg;C.
@@ -609,7 +610,7 @@ profile across thermal regimes are.</p>
 earlier version of the OGT head emitted no learned variance at all, and using five-seed ensemble disagreement as a substitute
 required inflating the interval by a factor of 5.5 to reach honest coverage, which is to say the quantity carried almost no
 information about its own error. With the variance head in place the required factor is 0.87 internally and 1.22 externally,
-so the interval is close to correctly sized as emitted (Figure S2C).</p>
+so the interval is close to correctly sized as emitted (Figure S4).</p>
 
 <p>For binary thermophile screening at an OGT threshold of 50&nbsp;&deg;C on BRENDA (n = 282 positives), StableProt attains
 a ROC AUC of 0.939 against 0.982 for both PRIME and ThermoFormer (Figure 3D). All three are usable as screens; the two
@@ -635,7 +636,8 @@ T<sub>m</sub> predictors on the same axes, which compared two different physical
 
 <p>Raw predictive variances are under-dispersed by a factor of approximately 1.6. A single global variance scale, fitted by
 two-fold cross-fitting so that no observation contributes to the scale applied to it, reduces the expected calibration error
-on ProThermDB from 14.4% to 1.9% (c = 1.65; Figure 4A, and Figure S2A for the full range of nominal levels). After scaling,
+on ProThermDB from 14.4% to 1.9% (c = 1.65; Figure 4A). The matching FireProtDB reliability curve, coverage at the three
+quoted levels with half-widths, and the coverage-against-sharpness trade-off are in Figure S3. After scaling,
 67.5% of observations fall inside the nominal 68.3% interval and 91.4% inside the nominal 95.4% interval, at mean half-widths
 of 7.4 and 14.8&nbsp;&deg;C respectively. On the out-of-distribution FireProtDB holdout the same procedure gives
 67.4% and 90.4% coverage at half-widths of 14.4 and 29.0&nbsp;&deg;C, but requires a larger scale (c = 3.62), reducing
@@ -677,7 +679,7 @@ as such.</p>
 things. Gradient interference is about sharing <em>parameters</em>; the prior shares <em>information</em>, one-way, at the
 level of predictions. That the information is worth sharing can be measured directly: supplying the T<sub>m</sub> head with
 the true OGT rather than the predicted one lowers validation error from 6.27 to 3.61&nbsp;&deg;C, and a constant prior gives
-5.00&nbsp;&deg;C (Table S2b). The premise holds; the limiting factor is the accuracy of the predicted prior on T<sub>m</sub>
+5.00&nbsp;&deg;C (Table S2b, Figure S5A). The premise holds; the limiting factor is the accuracy of the predicted prior on T<sub>m</sub>
 proteins, not the value of the prior itself. Supplementary Note 1 develops this distinction; the constant prior was tested and
 rejected on architectural grounds, as recorded in Supplementary Note 2.</p>
 
@@ -706,16 +708,16 @@ the mesophilic overfitting pattern.</p>
 <p>Under cluster-based family separation with MMseqs2 (<code>--min-seq-id 0.3 -c 0.8</code>) the evaluation corpus partitions
 into 5,861 homology clusters, across which the overall error is 6.35&nbsp;&deg;C (Figure 5C); the largest clusters give
 5.02&nbsp;&deg;C (n = 18, mean T<sub>m</sub> 62.4&nbsp;&deg;C), 6.62&nbsp;&deg;C (n = 16, 60.1&nbsp;&deg;C) and
-6.19&nbsp;&deg;C (n = 16, 60.0&nbsp;&deg;C). Figure S3C plots error against cluster size across all 5,861 clusters; the trend
-is flat, indicating the model is not simply interpolating within large, well-populated families. Within individual organism
-proteomes the model retains positive rank correlation
+6.19&nbsp;&deg;C (n = 16, 60.0&nbsp;&deg;C). The trend across those large families is flat, indicating the model is not
+simply interpolating within well-populated clusters. Within individual organism proteomes the model retains positive rank
+correlation
 (Figure 5D), indicating discrimination beyond species-level amino acid composition. Linear probes on the frozen embeddings
 also recover signal on tasks the model was never trained for (Figure 5B); these are reported as an observation about the
 representation and carry no claim of state of the art.</p>
 
 <p>On the FireProtDB single-point mutation set (n = 3,649 experimentally measured &Delta;T<sub>m</sub> values) StableProt
 attains a &Delta;T<sub>m</sub> error of 5.05&nbsp;&deg;C MAE with weak but non-random rank agreement (&rho; = 0.21, r = 0.19)
-and 56.8% directional accuracy (ROC AUC = 0.585; Figure S3D). The model was not trained on mutational data, and the typical
+and 56.8% directional accuracy (ROC AUC = 0.585; Figure S5C). The model was not trained on mutational data, and the typical
 single-mutation effect is smaller than its predicted interval, so we do not present it as a &Delta;T<sub>m</sub> predictor.
 What the result shows is that the interval behaves as intended: it widens to cover an effect the model cannot resolve rather
 than reporting false precision. The design tab of the web server is accordingly positioned as a hypothesis generator for
@@ -739,71 +741,73 @@ one-stage against two-stage inference); one must be chosen and named. Panel titl
 
 <h3>3.7 Prospective evaluation on laboratory and engineered sequences</h3>
 
-<p>We applied StableProt to 117 sequences drawn from five sources outside any public thermostability benchmark: a
-codon-optimised synthesis series of five subtilisin E (5OCR) variants, two high-activity carrageenases, 45 thermolabile and 52
-thermostable lipases, and 13 uncharacterised carrageenase candidates held for prospective assay. For 104 of these a reference
-is available, and for all but two of those the reference is a qualitative class ("thermostable", meaning a melting temperature
-at or above 50&nbsp;&deg;C) rather than a measured temperature. We therefore report classification against the
-50&nbsp;&deg;C threshold for every cohort, and a numeric comparison only where a measured temperature exists.</p>
+<p>We applied StableProt to 115 sequences drawn from four sources outside any public thermostability benchmark: a
+codon-optimised synthesis series of five subtilisin E (5OCR) variants, thirteen Sea6 carrageenase candidates with
+literature activity or stability annotations, and 45 thermolabile and 52 thermostable lipases. For 113 of these a
+reference class or numeric proxy exists; for the lipase and 5OCR cohorts the reference is a qualitative class
+(&ldquo;thermostable&rdquo;, meaning a melting temperature at or above 50&nbsp;&deg;C) rather than a measured melting
+temperature. We therefore report classification against the 50&nbsp;&deg;C threshold for every cohort with a reference,
+and a numeric comparison only where a literature temperature proxy exists.</p>
 
 <p>Two quantities are reported. Tier&nbsp;1 is point classification: whether the predicted temperature falls on the correct
 side of 50&nbsp;&deg;C. Tier&nbsp;2 asks whether the predicted 95% interval is consistent with the reference class.
 Tier&nbsp;2 is a consistency check on the stated uncertainty and not a measure of accuracy: it improves monotonically as the
 interval widens, so it is reported with the mean interval half-width alongside it, using the variance scale fitted in
-&sect;3.4. Table 4 gives both per cohort.</p>
+&sect;3.4. Table 4 gives both per cohort; per-sequence values are in Supplementary Table S3 and the numeric-reference scatter is Figure S5D.</p>
 
 <table>
-<caption><b>Table 4. Prospective evaluation on 117 laboratory and engineered sequences.</b> Intervals use c = 1.56. No
-measured melting temperature exists for the 5OCR series or either lipase cohort, so no point error is reported for
-them. <span style="color:#c0392b"><b>Pending recomputation at c = 1.65</b> (see note below).</span></caption>
+<caption><b>Table 4. Prospective evaluation on 115 laboratory and engineered sequences.</b> Intervals use c = 1.56
+(&mu; &plusmn; 1.96&thinsp;c&thinsp;&sigma;). Carrageenase point agreement is mean |&Delta;| against parsed literature
+activity or stability ranges (n = 11), not melting temperature. Tier 1 and Tier 2 for carrageenases are computed on the
+eleven sequences with a specified literature reference. <span style="color:#c0392b"><b>Point predictions and Tier 2 will
+shift slightly when recomputed at c = 1.65 under the v10 OGT prior (C.4c-1).</b></span></caption>
 <thead>
 <tr><th>Cohort</th><th>N</th><th>Reference type</th><th>Point agreement</th><th>Tier 1&uarr;</th><th>Tier 2&uarr;</th><th>Mean 95% half-width</th></tr>
 </thead>
 <tbody>
-<tr><td>Codon-optimised 5OCR series</td><td class="num">5</td><td style="text-align:left">Threshold label</td><td>not available</td><td class="num"><b>100.0%</b> (5/5)</td><td class="num"><b>100.0%</b> (5/5)</td><td class="num">7.3&deg;C</td></tr>
-<tr><td>High-activity carrageenases</td><td class="num">2</td><td style="text-align:left">Measured T<sub>opt</sub></td><td class="num">2.29&deg;C</td><td class="num"><b>100.0%</b> (2/2)</td><td class="num"><b>100.0%</b> (2/2)</td><td class="num">6.0&deg;C</td></tr>
-<tr><td>Thermolabile lipases</td><td class="num">45</td><td style="text-align:left">Threshold label</td><td>not available</td><td class="num">51.1% (23/45)</td><td class="num">77.8% (35/45)</td><td class="num">5.9&deg;C</td></tr>
-<tr><td>Thermostable lipases</td><td class="num">52</td><td style="text-align:left">Threshold label</td><td>not available</td><td class="num">38.5% (20/52)</td><td class="num">80.8% (42/52)</td><td class="num">6.5&deg;C</td></tr>
-<tr class="sep ours"><td>All scored</td><td class="num">104</td><td>&nbsp;</td><td>&nbsp;</td><td class="num">48.1%</td><td class="num">80.8%</td><td class="num">6.2&deg;C</td></tr>
-<tr><td>Carrageenase test suite</td><td class="num">13</td><td style="text-align:left">Prospective, no reference</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr>
+<tr><td>Codon-optimised 5OCR</td><td class="num">5</td><td style="text-align:left">Threshold label</td><td>not available</td><td class="num"><b>100.0%</b> (5/5)</td><td class="num"><b>100.0%</b> (5/5)</td><td class="num">7.1&deg;C</td></tr>
+<tr><td>Sea6 carrageenases</td><td class="num">13</td><td style="text-align:left">Literature stability / activity optimum (not T<sub>m</sub>)</td><td class="num"><b>6.63&deg;C</b> (n=11)</td><td class="num">81.8% (9/11)</td><td class="num">81.8% (9/11)</td><td class="num">6.0&deg;C</td></tr>
+<tr><td>Thermolabile lipases</td><td class="num">45</td><td style="text-align:left">Threshold label</td><td>not available</td><td class="num">51.1% (23/45)</td><td class="num">77.8% (35/45)</td><td class="num">5.7&deg;C</td></tr>
+<tr><td>Thermostable lipases</td><td class="num">52</td><td style="text-align:left">Threshold label</td><td>not available</td><td class="num">38.5% (20/52)</td><td class="num">80.8% (42/52)</td><td class="num">6.3&deg;C</td></tr>
+<tr class="sep ours"><td>All scored</td><td class="num">115</td><td>&nbsp;</td><td>&nbsp;</td><td class="num">50.4% (57/113)</td><td class="num">80.5% (91/113)</td><td class="num">6.0&deg;C</td></tr>
 </tbody>
 </table>
 
 <div class="note">
-<b>Recompute this table (C.4c).</b> Adopting a single OGT head moved the cross-fitted variance scale from 1.56 to 1.65, so
+<b>Recompute at c = 1.65 (C.4c-1).</b> Adopting a single OGT head moved the cross-fitted variance scale from 1.56 to 1.65, so
 every half-width in the last column widens by about 6% and the Tier&nbsp;2 inclusion rates rise slightly with it. The point
 predictions themselves also shift, since the T<sub>m</sub> head now consumes the v10 prior. The cohort structure, the
-threshold-label caveats and the directional finding in the paragraph below are unaffected, but the numbers in this table and
-in Tables S3a to S3c must be regenerated before submission. Everything else in the manuscript is already at the shipped
-configuration.
+reference-type caveats and the directional findings below are unaffected, but the numeric entries in this table and in
+Supplementary Table S3 must be regenerated before submission.
 </div>
 
 <p><b>Point classification is weak on the two lipase cohorts.</b> StableProt assigns the correct class to 51.1% of the
-thermolabile set (23/45) and 38.5% of the thermostable set (20/52), against 48.1% across all 104 scored sequences: at the
-50&nbsp;&deg;C threshold and on these sequences the point estimate carries little information. The failure is directional
+thermolabile set (23/45) and 38.5% of the thermostable set (20/52), against 50.4% across all 113 sequences with a
+reference class: at the 50&nbsp;&deg;C threshold and on these sequences the point estimate carries little information. The failure is directional
 rather than random. Thirty-two of the 52 thermostable lipases are predicted below the threshold, and 28 of those fall between
 42 and 49&nbsp;&deg;C, clustered immediately beneath it. This is the same under-prediction of thermostable proteins
 characterised in &sect;3.1 and &sect;3.4, and it is concentrated in sequences whose host organism carries no
-growth-temperature annotation, so the auxiliary prior reverts to the corpus mean. Table S3c gives the breakdown.</p>
+growth-temperature annotation, so the auxiliary prior reverts to the corpus mean.</p>
 
 <p><b>The intervals behave better than the point estimates.</b> The predicted 95% interval is consistent with the reference
-class for 80.8% of the 104 scored sequences, so in most cases where the point estimate falls on the wrong side of the
+class for 80.5% of the 113 scored sequences, so in most cases where the point estimate falls on the wrong side of the
 threshold the model has already indicated that it cannot resolve which side that is. Applying instead the wider variance scale
 fitted on out-of-distribution data (c = 3.62, mean half-width 13.8&nbsp;&deg;C) raises this to 93.3%, which illustrates the
 limitation rather than removing it: interval consistency can always be bought with width, which is why &sect;3.4 scores the
 interval with a proper scoring rule instead.</p>
 
-<p><b>Where a measured temperature exists the agreement is close.</b> For the two high-activity carrageenases the predicted
-melting temperature is within 2.4 and 2.2&nbsp;&deg;C of the measured activity optimum (mean 2.29&nbsp;&deg;C), and both fall
-inside the predicted interval. The activity optimum and the melting temperature are related but distinct quantities, and the
-former is typically the lower of the two, so this agreement should be read as consistency rather than as validation of numeric
-accuracy; Table S3b gives both sequences. No measured melting temperature is available for the 5OCR series: the four designed variants carry only a threshold
-label, and the wild-type value quoted in earlier drafts of this work was the model's own prediction. We therefore report the
-5OCR series as classification only, where all five sequences are assigned correctly and all five intervals are consistent with
-the label; the four designed variants are predicted 7.2 to 17.1&nbsp;&deg;C above the wild type, in the direction intended by
-the design, though we have no measured value against which to score that shift (Table S3a). The 13 uncharacterised
-carrageenase candidates are reported as prospective predictions with intervals and are not scored. Per-sequence values for the
-97 lipases are in Supplementary Data 1.</p>
+<p><b>Carrageenases expose both the limit and the value of the proxy labels.</b> Against eleven parsed literature
+temperatures (activity optima, stability ranges and retention temperatures, not melting temperatures) the mean absolute
+error is 6.63&nbsp;&deg;C and Tier&nbsp;1 at 50&nbsp;&deg;C is 81.8% (9/11). The dominant miss is MtKC16A: the literature
+reports retention at 80&ndash;100&nbsp;&deg;C while the model predicts 57.7&nbsp;&deg;C with a 95% interval that stops at
+64.2&nbsp;&deg;C, so the interval excludes the stated optimum even though the point estimate crosses the 50&nbsp;&deg;C
+threshold. Two borderline enzymes at literature optima of 50&nbsp;&deg;C are predicted just below the threshold
+(GH16 family carrageenase and Cgbk16A_Wf). CgiB_Ce and CaKC16B carry no numeric reference in the source sheet and are
+reported with intervals only. No measured melting temperature is available for the 5OCR series: the four designed variants
+carry only a threshold label, and the wild-type entry in earlier drafts was the model&rsquo;s own prediction. We therefore
+report the 5OCR series as classification only, where all five sequences are assigned correctly and all five intervals are
+consistent with the label; the four designed variants are predicted 7.2 to 17.1&nbsp;&deg;C above the wild type, in the
+direction intended by the design, though we have no measured value against which to score that shift (Supplementary Table S3).</p>
 
 <div class="note">
 <b>Open (B.7).</b> The threshold-classification table across all models at 50, 60, 65 and 70&nbsp;&deg;C, with class balance

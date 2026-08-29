@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Uploaded to: SVG Repo, www.svgrepo.com, Generator: SVG Repo Mixer Tools -->
+
+<svg
+   fill="#000000"
+   width="552.99976"
+   height="117.8987"
+   viewBox="0 0 16.589993 3.5369609"
+   version="1.1"
+   id="svg1"
+   sodipodi:docname="flame-svgrepo-com.svg"
+   inkscape:version="1.4.2 (ebf0e940d0, 2025-05-08)"
+   inkscape:export-filename="flame_with_text.svg"
+   inkscape:export-xdpi="96"
+   inkscape:export-ydpi="96"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs1">
+    <linearGradient
+       id="linearGradient22"
+       inkscape:collect="always">
+      <stop
+         style="stop-color:#0074b8;stop-opacity:1;"
+         offset="0"
+         id="stop22" />
+      <stop
+         style="stop-color:#eaac08;stop-opacity:1;"
+         offset="0.0265019"
+         id="stop24" />
+      <stop
+         style="stop-color:#dd2825;stop-opacity:1;"
+         offset="1"
+         id="stop23" />
+    </linearGradient>
+    <linearGradient
+       id="linearGradient1"
+       inkscape:collect="always">
+      <stop
+         style="stop-color:#dc2f2f;stop-opacity:1;"
+         offset="0"
+         id="stop1" />
+      <stop
+         style="stop-color:#ef7605;stop-opacity:1;"
+         offset="0.40888378"
+         id="stop19" />
+      <stop
+         style="stop-color:#6e7174;stop-opacity:1;"
+         offset="0.74892122"
+         id="stop18" />
+      <stop
+         style="stop-color:#006db2;stop-opacity:1;"
+         offset="1"
+         id="stop2" />
+    </linearGradient>
+    <linearGradient
+       inkscape:collect="always"
+       xlink:href="#linearGradient1"
+       id="linearGradient2"
+       x1="7.7665772"
+       y1="4.1167107"
+       x2="14.72679"
+       y2="18.206898"
+       gradientUnits="userSpaceOnUse"
+       spreadMethod="pad"
+       gradientTransform="matrix(0.15455401,0,0,0.17069491,-0.61469273,-0.21832716)" />
+    <linearGradient
+       inkscape:collect="always"
+       xlink:href="#linearGradient22"
+       id="linearGradient23"
+       x1="150.99278"
+       y1="1.3010931"
+       x2="264.34155"
+       y2="1.296062"
+       gradientUnits="userSpaceOnUse"
+       gradientTransform="matrix(0.17909174,0,0,0.17909174,36.10727,-19.748664)" />
+  </defs>
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:zoom="1.41375"
+     inkscape:cx="477.80725"
+     inkscape:cy="262.7763"
+     inkscape:window-width="2560"
+     inkscape:window-height="1363"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="g6"
+     inkscape:export-bgcolor="#ffffff00">
+    <inkscape:page
+       x="0"
+       y="0"
+       width="16.589993"
+       height="3.5369608"
+       id="page2"
+       margin="0"
+       bleed="0" />
+  </sodipodi:namedview>
+  <path
+     fill-rule="evenodd"
+     d="m 1.1125722,1.7497792 c 0.08445,-0.1309129 0.07503,-0.2687881 0.01647,-0.5167994 -0.115818,-0.49049576 -0.0697,-0.75933906 0.329566,-1.07762846 L 1.6534822,1.4616686e-7 1.7006222,0.26028154 c 0.05009,0.2766157 0.132353,0.4477025 0.343572,0.77679106 0.0084,0.013072 0.0084,0.013072 0.01682,0.026202 0.30425,0.4740661 0.415378,0.7598445 0.415378,1.2788219 0,0.6295829 -0.576277,1.1948643 -1.236432,1.1948643 -0.66019193,0 -1.23643193,-0.5652042 -1.23643193,-1.1948643 0,-0.01177 1.1e-5,-0.011414 -0.0018,-0.063422 -0.01397,-0.4022671 0.05338,-0.7171031 0.325901,-1.0570433 0.05758,-0.071824 0.123027,-0.1408548 0.196679,-0.2069082 l 0.162589,-0.14581596 0.07821,0.21458366 c 0.05779,0.1585571 0.125504,0.2831979 0.201994,0.3746635 0.06479,0.077469 0.11284493,0.1748869 0.14546593,0.291625 z M 0.55906527,1.447938 c -0.209787,0.2616883 -0.259663,0.494836 -0.248456,0.8176572 0.0021,0.060098 0.002,0.057983 0.002,0.076501 0,0.4314976 0.430217,0.8534746 0.92732393,0.8534746 0.497067,0 0.927324,-0.4220481 0.927324,-0.8534746 0,-0.4338712 -0.08783,-0.6597308 -0.358452,-1.0814038 l -0.01681,-0.026193 C 1.6276442,0.97843334 1.5296782,0.80030934 1.4648662,0.60109714 c -0.105847,0.1400819 -0.09962,0.2794051 -0.03674,0.54573456 0.115818,0.4904957 0.0697,0.7593389 -0.329566,1.0776285 l -0.22765693,0.1814853 -0.01707,-0.3095159 c -0.0109,-0.1977561 -0.05143,-0.3320416 -0.113822,-0.4066453 -0.06164,-0.073708 -0.117295,-0.1600007 -0.167203,-0.2587227 -0.0047,0.00561 -0.0092,0.011236 -0.01376,0.016876 z"
+     id="path1"
+     style="mix-blend-mode:multiply;fill:url(#linearGradient2);fill-opacity:1;fill-rule:evenodd;stroke:#ffffff;stroke-width:0;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1;paint-order:markers fill stroke"
+     sodipodi:nodetypes="csscsccssscsscssccsssscccsscsscc" />
+  <g
+     transform="matrix(0.30843252,0,0,0.30843252,-8.3951628,8.0125591)"
+     id="g6"
+     style="font-family:Inter, '-apple-system', BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif">
+    <text
+       x="36.536495"
+       y="-15.985711"
+       font-size="9.41557px"
+       font-weight="800"
+       fill="#0f172a"
+       letter-spacing="-0.5"
+       id="text5"
+       style="fill:url(#linearGradient23);stroke-width:0.33627"><tspan
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-family:sans-serif;-inkscape-font-specification:'sans-serif Bold';fill:url(#linearGradient23);stroke-width:0.33627"
+         id="tspan21">Stable</tspan><tspan
+         fill="#0284c7"
+         font-weight="600"
+         id="tspan5"
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-family:sans-serif;-inkscape-font-specification:'sans-serif Bold';fill:url(#linearGradient23);fill-opacity:1;stroke-width:0.33627">Prot</tspan></text>
+  </g>
+</svg>

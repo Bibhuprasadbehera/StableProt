@@ -14,9 +14,10 @@ except ImportError:
 
 app = FastAPI(title="StableProt V9 Predictor & Loop Design Suite")
 
-# Setup templates
+# Setup templates & static
 base_dir = os.path.dirname(os.path.abspath(__file__))
 templates = Jinja2Templates(directory=os.path.join(base_dir, "templates"))
+app.mount("/static", StaticFiles(directory=os.path.join(base_dir, "static")), name="static")
 
 # Initialize model predictor (Singleton pattern)
 predictor = None

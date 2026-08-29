@@ -193,6 +193,18 @@ the true-OGT row as a quantified ceiling, not a failure.
 - [x] **B.1f** Coverage + sharpness table written (`manuscript.html` Table 3): c, ECE raw and
       scaled, coverage and mean width at 68.3 % and 95.4 %, Int-MAE at k = 1, both benchmarks.
       Still to add as a figure panel: the coverage-vs-sharpness curve across k.
+- [ ] **B.1g Alignment of Manuscript Text & Metrics with 100% Empirical Data Audit**:
+      1. **Cross-Species Intra-Organism Rank Correlation (§3.5, Line 197)**:
+         - Draft text claimed $\rho > 0.45$ across species.
+         - Real data (`cross_species_summary.csv`): *E. coli* $\rho = 0.186$, *T. thermophilus* $\rho = 0.136$, *S. cerevisiae* $\rho = 0.098$, *H. sapiens* $\rho = 0.026$.
+         - Scientific finding: Models rank species by macro-environmental OGT, but fine-grained intra-proteome stability rank correlation degrades significantly ($\rho = 0.03\text{--}0.19$). Disclose honestly.
+      2. **Megascale Correlation on SPURS/FLIP (§3.5, Line 197)**:
+         - Draft text/plot claimed $r = 0.842$.
+         - Real data (`spurs_megascale_summary.csv`): Exact Pearson $r = 0.4355$, Spearman $\rho = 0.2381$ on $N=781$ holdouts.
+      3. **Single-Point Mutational $\Delta T_m$ Directional Accuracy (§3.5, Line 197)**:
+         - Draft text claimed $54.0\%$ accuracy ($\text{AUC} = 0.528$).
+         - Real data (`mutation_deltatm_results.csv`, $N=500$): Exact sign accuracy is **$50.6\%$** (stabilizing $56.3\%$, destabilizing $45.1\%$, Pearson $r = -0.061$).
+         - Scientific finding: Explicitly frame as a biophysical boundary of global pLM embeddings without 3D structural energy relaxation.
 
 ### B.2 Baseline fairness — [ ]
 
@@ -455,9 +467,8 @@ dropped outright and the remaining seven compose into three multi-panel figures:
 **Dropped:** `figS8_hyperparameter_sweep` (fabricated, B.11a) and `figS9_carrageenase` (two data
 points that Table S3b already gives, plotted with the withdrawn ±3.8σ band).
 
-- [ ] **B.11f-1** The HTML currently stacks the constituent PNGs under one figure number and one
-      caption in the intended panel order. Composing them onto a single canvas with shared A/B/C/D
-      labelling is a change to `generate_figures_v4.py`, to be done in the same pass as B.11b.
+- [x] **B.11f-1** Composed S1–S3 canvases. `figures/generate_supplement.py` writes `figS1_data_cleaning`,
+      `figS2_calibration`, `figS3_ood` into `plots_v4/`. Main figures are `generate_main.py`.
 
 **B.11i — citation pass done 13 Aug.** Every figure, table and note is now cited from the body at
 the point of use: Fig 1 ×7, Fig 2 ×5, Fig 3 ×7, Fig 4 ×10, Fig 5 ×5, Fig 6 ×2, Fig S1 ×2,
@@ -515,9 +526,159 @@ nowhere else.
       description; the server still needs to be reachable and documented but does not need help
       pages, one-click example jobs or a job queue. B.9d (transmembrane flag at inference) drops
       from blocking to nice-to-have.
-- [ ] **B.9j** Data Availability (GitHub, HuggingFace weights, Zenodo DOI, server URL — all
-      placeholders), repo license, author contributions, funding, competing interests, and the
-      reference list (`paper.txt` has citation markers but no bibliography).
+- [ ] **B.9j** Data Availability and journal back-matter. Expanded 20 Aug. Live-site chrome
+      (footer, privacy, logos, favicon) is **not** this item; it lives in
+      `inference/templates/index.html` and is done on the server, not in the HTML manuscript.
+
+      **Links (all still placeholders in `manuscript.html` §6 and the abstract):**
+      - [ ] GitHub — About tab already uses `github.com/Bibhuprasadbehera/StableProt`; paste
+            the same URL into §6
+      - [ ] Public HTTPS server URL (abstract still says `[URL]`)
+      - [ ] HuggingFace weights (`model_tm.pt`, `model_ogt.pt`, 3Di vocab)
+      - [ ] Zenodo DOI for the exact evaluation holdouts
+            (`10.5281/zenodo.[placeholder]`)
+
+      **License (DECIDED 20 Aug: academic / non-commercial, not MIT/Apache).** Exact SPDX or
+      short ILS text still to pick (e.g. PolyForm Noncommercial, or a custom “research use
+      only” notice). Code licence and weight licence can differ; say so in §6. Do not write
+      “open-source” in the paper until the text matches.
+
+      **Author-line extras (names are already on the HTML):**
+      - [ ] Corresponding author marked, with email and ORCID
+      - [ ] CRediT / author contributions
+      - [ ] Funding (DBT / iBRIC / fellowship — only what is true)
+      - [ ] Competing interests
+      - [ ] Acknowledgements
+
+      **Still unwritten:**
+      - [ ] Bibliography — numeric superscripts in the body, no reference list
+      - [ ] B.5c §5 Web server (only unwritten section)
+      - [ ] Figure 6 live recapture (B.11b); caption must not claim a ΔT_m heatmap the app
+            does not serve
+      - [ ] Preprint (bioRxiv / arXiv) — optional before NAR
+
+### B.13 GitHub / release package — added 20 Aug — [ ]
+
+Today `readme.md` is a TemStaPro lab log, not a StableProt README. There is no `LICENSE`,
+`CITATION.cff`, or current deploy notes. Docker files under `docker/` are v6/v7.
+
+- [ ] **B.13a** `LICENSE` matching B.9j (academic / non-commercial). Same text on the site
+      footer once the file exists.
+- [ ] **B.13b** Replace `readme.md` with a StableProt README: what it predicts, install,
+      one-sequence inference, link to the live server, licence badge, citation.
+- [ ] **B.13c** `CITATION.cff` (or a citation block in the README) so GitHub offers “Cite
+      this repository.”
+- [ ] **B.13d** Upload HuggingFace weights; put the model-card URL in §6.
+- [ ] **B.13e** Upload evaluation holdouts to Zenodo; put the DOI in §6.
+- [ ] **B.13f** Inference / FastAPI runbook for the current ensemble. Do not document
+      `Dockerfile.v6` / `v7` as the served stack.
+- [ ] **B.13g** Repo hygiene is **B.14**, not a one-liner. B.9k (`venv`) is one row of that.
+- [ ] **B.13h** CONTRIBUTING / CODE_OF_CONDUCT — optional for a two-author lab repo; skip
+      unless you want them.
+
+Do **not** put help pages, a job queue, or batch FASTA upload on this list. B.9i already
+dropped those for the NAR Regular track.
+
+### B.14 Clean the repo — added 20 Aug — [ ]
+
+The working tree is a lab notebook, not a repository: v0–v10 training folders, three paper
+roots, two inference predictors, Docker for v6/v7, a TemStaPro `readme.md`, and a
+`.gitignore` that hides the canonical figures (`paper/writeup/plots_v4/`). A stranger (or
+you in six months) cannot tell what is shipped.
+
+Do this in two layers. **Do not delete local training history until B.6 ablations are
+written** — B.6b still needs the v7 / gated / ungated checkpoints.
+
+**Target public tree** (what GitHub should look like):
+
+```
+README.md
+LICENSE
+CITATION.cff
+inference/          # FastAPI + v9_predict.py + templates/
+experiments/src/    # shipped training + eval that reproduce Tables 1–5
+paper/writeup/      # manuscript.html, supplementary HTML, plots_v4, tables, figstyle.py
+docker/             # current stack only
+```
+
+Weights and holdouts live on HuggingFace / Zenodo (B.13d–e), not in git (`*.pt` is already
+ignored).
+
+#### Keep (public)
+
+| path | why |
+|:--|:--|
+| `inference/main.py`, `v9_predict.py`, `templates/index.html` | served app |
+| `experiments/src/training/v9_disjoint/` | shipped T_m ensemble |
+| `experiments/src/training/v10/` | shipped OGT head |
+| `experiments/src/eval/` scripts that produce manuscript numbers | reproducibility |
+| `experiments/src/data/` decontamination / embedding pipeline | Methods |
+| `paper/writeup/manuscript.html` | canonical paper |
+| `paper/writeup/supplementary_materials.html` | canonical supplement |
+| `paper/writeup/REVISION_PLAN.md` | internal; can stay private or in a `lab/` branch |
+| `paper/writeup/plots_v4/` | canonical figures (stop gitignoring this) |
+| `paper/writeup/figstyle.py` + `tables/` that match the HTML | regenerate / cite |
+| `experimental_validation/` sequences used in Table 5 | only if you are allowed to share them |
+
+#### Keep locally, do not put on the public default branch
+
+Archive as `archive/2026-lab/` or a private branch. Needed until B.6 / C.4c-1 close, then
+you can drop them from the working copy.
+
+| path | why keep locally |
+|:--|:--|
+| `experiments/src/training/v0_original` … `v8_disjoint` | ablation history; v7 is B.6b |
+| `experiments/src/training/v10` gated/ungated result dirs | B.6b, then delete |
+| `logs/`, `new_data/pre_sigma_fix_backup/`, `new_data/tmp_mmseqs/` | debug, not release |
+| `paper/writeup/alternative_plots/`, `plots/`, `plots_v3/` | superseded figure passes |
+| `paper/writeup/figures/` (newer generators) | only if they become the v4 replacement |
+| `paper/writeup/one_slide_*`, `two_slides_*` | talks, not the paper |
+| `paper.txt`, `paper/writeup/paper_with_comments.md` | changelog / drafts |
+| `presentation/`, `images_inspiration/`, `ss.png` | scratch |
+| `benchmark_models_tm/`, `benchmark_models_ogt/` | third-party clones |
+| `stableprot_intro/` | other people’s PDFs |
+| `.mimocode/`, `.agents/` | editor tooling |
+
+#### Remove from the public tree (delete or gitignore and stop tracking)
+
+Do **not** `git rm` the shipped model code. Remove confusion, not evidence.
+
+| path | action |
+|:--|:--|
+| `venv/` | never commit; B.9k retire or reinstall; document conda `stableprot_v2` |
+| `inference/v7_predict.py` | dead; served path is `v9_predict.py` |
+| `docker/Dockerfile.v6`, `Dockerfile.v7`, `requirements_v6.txt` | replace with one current Dockerfile (B.13f) |
+| `readme.md` | TemStaPro lab log; replace (B.13b) |
+| `results.md`, root `final_paper.md` | stale numbers |
+| `paper/writeup/manuscript.md` | superseded by `manuscript.html`; already gitignored |
+| `paper/writeup/walkthrough_and_todo.md` | stale MAE / Int-MAE marketing |
+| `paper/writeup/stableprot_v9_comprehensive_report.html` | stale |
+| `paper/writeup/generate_plan_v3_figures.py`, `generate_nar_figures.py`, `generate_fig1_v5.py` | old figure stacks |
+| `paper/writeup/img_with_diff_versions.zip`, `Pasted image.png` | junk |
+| `experiments/src/eval/_do_not_run/` | name says it |
+| `experiments/experiments/` nested copy if unused | drop |
+| `.gitignore` line `paper/writeup/plots_v4/` | **bug**: hides the figures the paper uses |
+| `.gitignore` typo `paper/writeup/plotsnew_data/` | split or delete |
+
+#### Add (same as B.13, listed here so the cleanup has a destination)
+
+- `LICENSE` (academic / non-commercial, B.9j)
+- `README.md` — StableProt, install, one predict, server URL, cite
+- `CITATION.cff`
+- `requirements.txt` (or `pyproject.toml`) for **inference**, not the old CPU TemStaPro pin
+- `docker/Dockerfile` for the current FastAPI + 5-seed ensemble
+- short `docs/reproduce.md`: which eval script rebuilds which table
+- optional `archive/` in `.gitignore` so the lab dump is not pushed
+
+#### Order
+
+1. Fix `.gitignore` so `plots_v4/` can be committed; keep `*.pt`, `venv/`, `data/training_data/`.
+2. Write README + LICENSE (B.13) **before** deleting folders, so the public story exists.
+3. Move v0–v8 and old plots into `archive/` (or a `lab` branch); do not delete until B.6 and
+   C.4c-1 are done.
+4. Drop `v7_predict.py` and v6/v7 Docker once the current Dockerfile runs.
+5. Public clone should run: install → load weights from HuggingFace → `inference` server
+   and/or one CLI predict. It should not require `venv/`, TemStaPro, or `paper.txt`.
 
 ### B.10 Final consistency pass — run last — [ ]
 
@@ -683,3 +844,9 @@ which is a repository fact, not a paper fact.
       baselines. The previously quoted 0.841 was the superseded head and does not reproduce at any
       threshold. Superseded note: Recompute Pearson r and Spearman ρ for the v10 OGT head. Currently omitted from the
       OGT table rather than carried over from v9.
+
+What actually deserves to be in the main manuscript
+
+Figure S5 (FireProt scatter + per-bin) — strongest case. The paper’s claim is “behind in distribution, best out of distribution,” but Figure 2 only shows ProTherm. FireProt is the OOD half of that sentence and currently lives in a table plus the supplement. A 2×2 Figure 2 (ProTherm scatter/bins + FireProt scatter/bins), with today’s 2C (MAE vs CRPS) moved to the supplement, would match the argument.
+
+Figure S2A (FireProt reliability) — second case. Figure 4A is ProTherm (c = 1.65). The transferability limitation is c = 3.62 on FireProt, and that curve is not in the main grid.

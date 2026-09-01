@@ -1,70 +1,65 @@
 """Single source of figure style for every panel in the manuscript and supplement.
 
-Figures were previously drawn by three scripts that each defined their own palette and rcParams,
-which is why the assembled set looked like it came from different papers: the OGT accent differed
-between Figure 1 and Figure 3, panel labels sat at different offsets, and grids were dotted in one
-script and solid in another.
-
-Every generation script imports from here and defines nothing of its own.
+Colour language (from images_inspiration, especially the Tm density figures):
+  * cold → hot is blue → coral. That ramp is for temperature, bins, and regimes.
+  * StableProt is ink navy, the one colour that means "this model".
+  * TemBERTure is coral, the rival, on the warm side of the same ramp.
+  * Every other model is muted so it recedes.
+  * Grey is reference: identity lines, raw-σ, shared-backbone.
 
   from figstyle import PALETTE, MARKERS, apply, savefig, panel_label, despine, model_color
+  from figstyle import thermal_cmap, ink_cmap, error_cmap, tm_hexbin
   apply()
-
-House rules, from the journal proofs and from what actually reads well in print:
-  * no grid lines anywhere; where a reference level is genuinely needed, draw one axhline
-  * top and right spines off
-  * one colour per model, used consistently in every figure it appears in
-  * one temperature ramp, cold to hot, used for every binned-by-temperature panel
-  * panel labels bold, upper left, outside the axes, at a fixed offset
 """
+from __future__ import annotations
 
 from pathlib import Path
 
 import matplotlib
 import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib.colors import LinearSegmentedColormap
 
 # ── colour ────────────────────────────────────────────────────────────────────
-# Model colours are chosen to stay distinguishable in greyscale and under the
-# common forms of colour-vision deficiency: the two that carry the argument,
-# StableProt and TemBERTure, are separated on both hue and lightness.
 PALETTE = {
-    # models
-    "StableProt": "#1E3A5F",       # deep navy, the house colour
-    "StableProt_ci": "#4A90D9",    # interval fill and calibrated curves
-    "StableProt_pale": "#B8D4F0",
-    "StableProt_wash": "#F0F5FA",
-    "TemBERTure": "#E07B54",       # terracotta, the strongest baseline
-    "DeepSTABp": "#7BAE7F",
-    "ESMStabP": "#C4A35A",
-    "ThermoFormer": "#9B6B9E",
-    "ThermoFormer-TM": "#9B6B9E",
-    "TemStaPro": "#A0A0A0",
-    "PRIME": "#D4807B",
-    "Pro-PRIME": "#D4807B",
-    # the OGT head, one value everywhere
-    "OGT": "#C2610C",
-    "OGT_pale": "#FBD9A5",
-    "OGT_wash": "#FFF7ED",
-    # temperature ramp, cold to hot, for any panel binned by temperature
-    "psychro": "#4A90D9",
-    "meso": "#7BAE7F",
-    "moderate": "#E4B363",
-    "thermo": "#E07B54",
-    "hyper": "#A63A2B",
+    # models — ink navy vs coral rival, everyone else muted
+    "StableProt": "#1F4E79",
+    "StableProt_ci": "#5B93C5",
+    "StableProt_pale": "#C5D9EC",
+    "StableProt_wash": "#EEF4F9",
+    "TemBERTure": "#C44E3A",
+    "DeepSTABp": "#4F9A8A",
+    "ESMStabP": "#D4A054",
+    "ThermoFormer": "#6B5B95",
+    "ThermoFormer-TM": "#6B5B95",
+    "TemStaPro": "#8D949C",
+    "PRIME": "#B56A5A",
+    "Pro-PRIME": "#B56A5A",
+    # OGT head sits on the warm side, distinct from TemBERTure
+    "OGT": "#D0894B",
+    "OGT_pale": "#F3D7B0",
+    "OGT_wash": "#FBF4EA",
+    # temperature ramp, cold to hot — bins, regimes, holdout colouring
+    "psychro": "#3E7CB1",
+    "meso": "#5B9A8A",
+    "moderate": "#D4A054",
+    "thermo": "#C44E3A",
+    "hyper": "#8C2F2B",
     # structure
-    "spine": "#2D2D2D",
-    "muted": "#6B7280",
-    "neutral": "#F3F4F6",
-    "rule": "#D8DCE2",
-    "parity": "#9CA3AF",       # identity lines, reference levels
-    "callout": "#FDEBE4",      # shaded regions of interest, must stay pale
-    "boundary": "#B91C1C",     # train/test separation marks
-    "boundary_wash": "#FEF2F2",
-    "good": "#2E7D5B",
-    "bad": "#A63A2B",
+    "spine": "#1C1C1C",
+    "muted": "#5C6570",
+    "neutral": "#F3F5F7",
+    "rule": "#E2E6EA",
+    "parity": "#8B9199",
+    "callout": "#F8E4DC",
+    "boundary": "#8C2F2B",
+    "boundary_wash": "#F8EDE9",
+    "good": "#1F4E79",
+    "bad": "#C44E3A",
 }
 
 TEMP_RAMP = [PALETTE[k] for k in ("psychro", "meso", "moderate", "thermo", "hyper")]
+INK_RAMP = ["#1F4E79", "#3A6E9A", "#5B93C5", "#8FB4D0"]
 
 MARKERS = {
     "StableProt": "o",
@@ -78,7 +73,6 @@ MARKERS = {
     "Pro-PRIME": "p",
 }
 
-# Fixed drawing order so the legend reads the same in every figure.
 MODEL_ORDER = [
     "StableProt", "TemBERTure", "ThermoFormer-TM", "DeepSTABp", "ESMStabP", "TemStaPro", "PRIME",
 ]
@@ -104,19 +98,65 @@ RC = {
     "legend.frameon": False,
     "axes.spines.top": False,
     "axes.spines.right": False,
-    "axes.linewidth": 0.9,
+    "axes.linewidth": 0.85,
     "axes.edgecolor": PALETTE["spine"],
-    "axes.grid": False,          # house rule: no grids
+    "axes.grid": False,
     "axes.axisbelow": True,
-    "lines.linewidth": 1.6,
+    "lines.linewidth": 1.7,
     "lines.markersize": 5,
     "figure.facecolor": "#FFFFFF",
     "axes.facecolor": "#FFFFFF",
     "savefig.dpi": 300,
     "savefig.bbox": "tight",
     "savefig.facecolor": "#FFFFFF",
-    "svg.fonttype": "none",      # keep text editable in the vector output
+    "svg.fonttype": "none",
 }
+
+
+def thermal_cmap():
+    """Blue (cold) → coral (hot). For measured Tm/OGT, regime curves, bin washes."""
+    return LinearSegmentedColormap.from_list("sp_thermal", [
+        "#3E7CB1", "#6BA3C4", "#C5D4A3", "#E0A85E", "#C44E3A", "#8C2F2B",
+    ])
+
+
+def ink_cmap():
+    """Pale wash → ink navy. For density hexbins when colour is count, not temperature."""
+    return LinearSegmentedColormap.from_list("sp_ink", [
+        "#F4F7FA", "#D4E4F0", "#8FB4D0", "#4A7FA8", "#1F4E79",
+    ])
+
+
+def error_cmap():
+    """Navy (low error) → coral (high error). Heatmaps of MAE."""
+    return LinearSegmentedColormap.from_list("sp_error", [
+        "#1F4E79", "#6FA3C7", "#F4E4C1", "#E0A85E", "#C44E3A",
+    ])
+
+
+def tm_hexbin(ax, x, y, c=None, gridsize=34, vmin=35, vmax=95, mincnt=1):
+    """Holdout hexbin. If `c` is given it is mean-reduced onto the thermal ramp."""
+    kw = dict(gridsize=gridsize, mincnt=mincnt, linewidths=0.0)
+    if c is None:
+        return ax.hexbin(x, y, cmap=ink_cmap(), **kw)
+    return ax.hexbin(
+        x, y, C=c, reduce_C_function=np.nanmean,
+        cmap=thermal_cmap(), vmin=vmin, vmax=vmax, **kw,
+    )
+
+
+def tm_colors(values, vmin=35, vmax=95):
+    """Map temperatures onto the thermal ramp. Returns an (n, 4) RGBA array."""
+    cmap = thermal_cmap()
+    t = (np.clip(np.asarray(values, dtype=float), vmin, vmax) - vmin) / (vmax - vmin)
+    return cmap(t)
+
+
+def style_colorbar(cb, label, size=7.5):
+    cb.set_label(label, fontsize=size)
+    cb.outline.set_visible(False)
+    cb.ax.tick_params(labelsize=7)
+    return cb
 
 
 def apply():
@@ -154,24 +194,16 @@ def despine(ax, left=True, bottom=True):
 
 
 def panel_label(ax, label, dx=-30, dy=14):
-    """Bold panel letter outside the axes, upper left.
-
-    Offset in typographic points rather than axes fractions: a fraction offset scales with the
-    width of the axes, so the letter drifted into the title on wide panels and off the canvas on
-    narrow ones. Points keep it in the same place in every figure.
-    """
     ax.annotate(label, xy=(0, 1), xycoords="axes fraction", xytext=(dx, dy),
                 textcoords="offset points", fontsize=11.5, fontweight="bold",
                 va="baseline", ha="left", color=PALETTE["spine"], annotation_clip=False)
 
 
 def panel_title(ax, text):
-    """Titles sit left-aligned above the axes, clear of the panel label's fixed point offset."""
     ax.set_title(text, loc="left", pad=10, fontsize=9.5, color=PALETTE["spine"])
 
 
 def reference_line(ax, y=None, x=None, **kw):
-    """The only permitted substitute for a grid."""
     style = dict(color=PALETTE["parity"], lw=0.9, ls=(0, (4, 3)), zorder=0)
     style.update(kw)
     if y is not None:

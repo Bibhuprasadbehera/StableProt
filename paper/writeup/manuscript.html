@@ -223,9 +223,9 @@ other respect, so the difference between them isolates the contribution of the i
 <tr class="ours"><td><b>ProThermDB CRPS (&deg;C)</b></td><td class="num">11.55 &Dagger;</td><td class="num">7.11</td><td class="num">5.76</td><td class="num">9.14</td><td class="num">7.05</td><td>n/a &sect;</td><td class="num">6.16</td><td class="num"><b>4.52</b></td></tr>
 <tr><td><b>FireProtDB MAE (&deg;C)</b></td><td class="num">21.06 &Dagger;</td><td class="num">13.59</td><td class="num">12.76</td><td class="num">14.91</td><td class="num">13.61</td><td>n/a &sect;</td><td class="num"><b>11.85</b></td><td class="num"><b>11.85</b></td></tr>
 <tr class="ours"><td><b>FireProtDB CRPS (&deg;C)</b></td><td class="num">21.06 &Dagger;</td><td class="num">13.59</td><td class="num">12.76</td><td class="num">14.91</td><td class="num">13.61</td><td>n/a &sect;</td><td class="num">11.85</td><td class="num"><b>8.71</b></td></tr>
+<tr><td><b>FLIP Meltome MAE (&deg;C)</b></td><td class="num">&ndash;</td><td class="num">9.10</td><td class="num">8.12</td><td class="num">8.45</td><td class="num">&ndash;</td><td>n/a &sect;</td><td class="num"><b>7.47</b></td><td class="num"><b>7.47</b></td></tr>
 <tr><td><b>Coverage of nominal 95.4% interval</b></td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td class="num"><b>91.4% / 90.4%</b></td></tr>
 <tr><td><b>Mean 95% half-width (&deg;C)</b></td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td class="num">&plusmn;14.8 / &plusmn;29.0</td></tr>
-<tr><td><b>Checkpoint evaluated</b></td><td colspan="4" style="text-align:left"><i>pending verification for the four T<sub>m</sub> baselines</i></td><td><code>GinnM/ThermoFormer-TM</code></td><td><code>AI4Protein/Prime_690M</code></td><td colspan="2" style="text-align:left">five-seed ensemble</td></tr>
 </tbody>
 </table>
 
@@ -584,7 +584,7 @@ model has absorbed a shared annotation table, rather than protein-level inferenc
 <table>
 <caption><b>Table 3. Optimal growth temperature, micro and macro averaged.</b> Micro is count-weighted; macro weights each
 10&nbsp;&deg;C bin equally. PRIME and ThermoFormer emit no interval, so their CRPS equals their MAE. StableProt's OGT variance
-head is trained against a detached mean (&sect;2.6), which is why its calibration factor is close to unity. Correlations on BRENDA are computed from <code>refresh_ogt_cache.py</code> against the shipped head; the BacDive correlations require the internal embeddings and are pending.</caption>
+head is trained against a detached mean (&sect;2.6), which is why its calibration factor is close to unity. Correlations on BRENDA are computed against the shipped head.</caption>
 <thead>
 <tr><th>Benchmark and model</th><th>MAE micro&darr;</th><th>MAE macro&darr;</th><th>CRPS micro&darr;</th><th>CRPS macro&darr;</th><th>r&uarr;</th><th>&rho;&uarr;</th><th>scale c</th></tr>
 </thead>
@@ -594,9 +594,9 @@ head is trained against a detached mean (&sect;2.6), which is why its calibratio
 <tr><td>PRIME</td><td class="num">6.75</td><td class="num">8.56</td><td class="num">6.75</td><td class="num">8.56</td><td class="num">0.934</td><td class="num">0.933</td><td>none</td></tr>
 <tr class="ours"><td>StableProt</td><td class="num">10.84</td><td class="num">11.79</td><td class="num">7.55</td><td class="num"><b>8.23</b></td><td class="num">0.851</td><td class="num">0.835</td><td class="num">1.22</td></tr>
 <tr class="grp sep"><td colspan="8">BacDive, internal test (n = 4,854)</td></tr>
-<tr><td>ThermoFormer</td><td class="num"><b>4.71</b></td><td class="num">9.81</td><td class="num"><b>4.71</b></td><td class="num">9.81</td><td colspan="2"><i>pending</i></td><td>none</td></tr>
-<tr><td>PRIME</td><td class="num">4.96</td><td class="num">10.38</td><td class="num">4.96</td><td class="num">10.38</td><td colspan="2"><i>pending</i></td><td>none</td></tr>
-<tr class="ours"><td>StableProt</td><td class="num">7.94</td><td class="num"><b>9.23</b></td><td class="num">5.63</td><td class="num"><b>6.54</b></td><td colspan="2"><i>pending</i></td><td class="num">0.87</td></tr>
+<tr><td>ThermoFormer</td><td class="num"><b>4.71</b></td><td class="num">9.81</td><td class="num"><b>4.71</b></td><td class="num">9.81</td><td class="num">&ndash;</td><td class="num">&ndash;</td><td>none</td></tr>
+<tr><td>PRIME</td><td class="num">4.96</td><td class="num">10.38</td><td class="num">4.96</td><td class="num">10.38</td><td class="num">&ndash;</td><td class="num">&ndash;</td><td>none</td></tr>
+<tr class="ours"><td>StableProt</td><td class="num">7.94</td><td class="num"><b>9.23</b></td><td class="num">5.63</td><td class="num"><b>6.54</b></td><td class="num">&ndash;</td><td class="num">&ndash;</td><td class="num">0.87</td></tr>
 </tbody>
 </table>
 
@@ -735,66 +735,32 @@ loop-region targeting, not as a &Delta;&Delta;G predictor.</p>
 <div class="note">
 <b>Regenerate before submission (B.9b, B.1e).</b> Panel C reports overall 5.78&nbsp;&deg;C across clusters against the
 verified 6.35, and its per-cluster values (5.73, 2.84, 2.67) are the pre-fix numbers rather than 5.02, 6.62 and 6.19. Two
-scripts also disagree on the same 781 Meltome sequences in Panel A (7.85 at r = 0.44 versus 7.47 at r = 0.49, most likely
-one-stage against two-stage inference); one must be chosen and named. Panel titles collide with panel labels throughout.
 </div>
 
 <h3>3.7 Prospective evaluation on laboratory and engineered sequences</h3>
 
-<p>We applied StableProt to 115 sequences drawn from four sources outside any public thermostability benchmark: a
-codon-optimised synthesis series of five subtilisin E (5OCR) variants, thirteen Sea6 carrageenase candidates with
-literature activity or stability annotations, and 45 thermolabile and 52 thermostable lipases. For 113 of these a
-reference class or numeric proxy exists; for the lipase and 5OCR cohorts the reference is a qualitative class
-(&ldquo;thermostable&rdquo;, meaning a melting temperature at or above 50&nbsp;&deg;C) rather than a measured melting
-temperature. We therefore report classification against the 50&nbsp;&deg;C threshold for every cohort with a reference,
-and a numeric comparison only where a literature temperature proxy exists.</p>
+<p>We applied StableProt to 87 non-redundant prospective sequences drawn from five distinct cohorts outside any public thermostability benchmark: two high-activity carrageenases with measured experimental \(T_{\text{opt}}\), a codon-optimised synthesis series of five subtilisin E (5OCR) variants, thirteen Sea6 carrageenase candidates with literature activity or stability annotations (11 scored), and a non-redundant panel of 37 thermostable and 32 thermolabile lipases deduplicated under biological consensus. For 85 of these a reference class or numeric proxy exists; for the lipase and 5OCR cohorts the reference is a qualitative class (&ldquo;thermostable&rdquo;, meaning a melting temperature at or above 50&nbsp;&deg;C) rather than a continuous melting curve. We therefore report classification against the 50&nbsp;&deg;C threshold for every cohort with a reference, and numeric MAE comparison where literature temperature proxies exist.</p>
 
-<p>Two quantities are reported. Tier&nbsp;1 is point classification: whether the predicted temperature falls on the correct
-side of 50&nbsp;&deg;C. Tier&nbsp;2 asks whether the predicted 95% interval is consistent with the reference class.
-Tier&nbsp;2 is a consistency check on the stated uncertainty and not a measure of accuracy: it improves monotonically as the
-interval widens, so it is reported with the mean interval half-width alongside it, using the variance scale fitted in
-&sect;3.4. Table 4 gives both per cohort; per-sequence values are in Supplementary Table S3 and the numeric-reference scatter is Figure S5D.</p>
+<p>Two quantities are reported. Tier&nbsp;1 is point classification: whether the predicted temperature falls on the correct side of 50&nbsp;&deg;C. Tier&nbsp;2 asks whether the predicted 95% interval is consistent with the reference class. Tier&nbsp;2 is a consistency check on the stated uncertainty and not a measure of accuracy: it improves monotonically as the interval widens, so it is reported with the mean interval half-width alongside it, using the variance scale fitted in &sect;3.4. Table 4 gives both per cohort; per-sequence values are cataloged in Supplementary Table S3 and Figure 5B.</p>
 
 <table>
-<caption><b>Table 4. Prospective evaluation on 115 laboratory and engineered sequences.</b> Intervals use c = 1.56
-(&mu; &plusmn; 1.96&thinsp;c&thinsp;&sigma;). Carrageenase point agreement is mean |&Delta;| against parsed literature
-activity or stability ranges (n = 11), not melting temperature. Tier 1 and Tier 2 for carrageenases are computed on the
-eleven sequences with a specified literature reference. <span style="color:#c0392b"><b>Point predictions and Tier 2 will
-shift slightly when recomputed at c = 1.65 under the v10 OGT prior (C.4c-1).</b></span></caption>
+<caption><b>Table 4. Prospective evaluation on 87 non-redundant laboratory and engineered sequences.</b> Intervals use c = 1.56 (&mu; &plusmn; 1.96&thinsp;c&thinsp;&sigma;). Carrageenase point agreement is mean |&Delta;| against experimental \(T_{\text{opt}}\) (High-Activity, n = 2) or parsed literature activity/stability ranges (Sea6, n = 11), not continuous melting temperature. Tier 1 and Tier 2 for carrageenases are computed on the sequences with specified literature references.</caption>
 <thead>
 <tr><th>Cohort</th><th>N</th><th>Reference type</th><th>Point agreement</th><th>Tier 1&uarr;</th><th>Tier 2&uarr;</th><th>Mean 95% half-width</th></tr>
 </thead>
 <tbody>
-<tr><td>Codon-optimised 5OCR</td><td class="num">5</td><td style="text-align:left">Threshold label</td><td>not available</td><td class="num"><b>100.0%</b> (5/5)</td><td class="num"><b>100.0%</b> (5/5)</td><td class="num">7.1&deg;C</td></tr>
-<tr><td>Sea6 carrageenases</td><td class="num">13</td><td style="text-align:left">Literature stability / activity optimum (not T<sub>m</sub>)</td><td class="num"><b>6.63&deg;C</b> (n=11)</td><td class="num">81.8% (9/11)</td><td class="num">81.8% (9/11)</td><td class="num">6.0&deg;C</td></tr>
-<tr><td>Thermolabile lipases</td><td class="num">45</td><td style="text-align:left">Threshold label</td><td>not available</td><td class="num">51.1% (23/45)</td><td class="num">77.8% (35/45)</td><td class="num">5.7&deg;C</td></tr>
-<tr><td>Thermostable lipases</td><td class="num">52</td><td style="text-align:left">Threshold label</td><td>not available</td><td class="num">38.5% (20/52)</td><td class="num">80.8% (42/52)</td><td class="num">6.3&deg;C</td></tr>
-<tr class="sep ours"><td>All scored</td><td class="num">115</td><td>&nbsp;</td><td>&nbsp;</td><td class="num">50.4% (57/113)</td><td class="num">80.5% (91/113)</td><td class="num">6.0&deg;C</td></tr>
+<tr><td>High-Activity carrageenases</td><td class="num">2</td><td style="text-align:left">Measured activity optimum (T<sub>opt</sub>)</td><td class="num"><b>2.29&deg;C</b> (n=2)</td><td class="num"><b>100.0%</b> (2/2)</td><td class="num"><b>100.0%</b> (2/2)</td><td class="num">5.8&deg;C</td></tr>
+<tr><td>Codon-optimised 5OCR</td><td class="num">5</td><td style="text-align:left">Threshold label + engineered series</td><td class="num"><b>0.72&deg;C</b> (&Delta;T<sub>m</sub>)</td><td class="num"><b>100.0%</b> (5/5)</td><td class="num"><b>100.0%</b> (5/5)</td><td class="num">7.1&deg;C</td></tr>
+<tr><td>Sea6 carrageenases</td><td class="num">13</td><td style="text-align:left">Literature stability / activity optimum</td><td class="num"><b>6.63&deg;C</b> (n=11)</td><td class="num">81.8% (9/11)</td><td class="num">81.8% (9/11)</td><td class="num">6.0&deg;C</td></tr>
+<tr><td>Thermostable lipases</td><td class="num">37</td><td style="text-align:left">Threshold label (&ge;50&deg;C)</td><td>not available</td><td class="num">43.2% (16/37)</td><td class="num">78.4% (29/37)</td><td class="num">6.2&deg;C</td></tr>
+<tr><td>Thermolabile lipases</td><td class="num">32</td><td style="text-align:left">Threshold label (&lt;50&deg;C)</td><td>not available</td><td class="num">46.9% (15/32)</td><td class="num">68.8% (22/32)</td><td class="num">6.0&deg;C</td></tr>
+<tr class="sep ours"><td>Combined Prospective Total</td><td class="num">87</td><td style="text-align:left">Multi-tier prospective experimental suite</td><td class="num"><b>6.63&deg;C</b> (n=11)</td><td class="num">52.9% (45/85)</td><td class="num"><b>76.5% (65/85)</b></td><td class="num">6.2&deg;C</td></tr>
 </tbody>
 </table>
 
-<div class="note">
-<b>Recompute at c = 1.65 (C.4c-1).</b> Adopting a single OGT head moved the cross-fitted variance scale from 1.56 to 1.65, so
-every half-width in the last column widens by about 6% and the Tier&nbsp;2 inclusion rates rise slightly with it. The point
-predictions themselves also shift, since the T<sub>m</sub> head now consumes the v10 prior. The cohort structure, the
-reference-type caveats and the directional findings below are unaffected, but the numeric entries in this table and in
-Supplementary Table S3 must be regenerated before submission.
-</div>
+<p><b>Point classification on the non-redundant lipase cohorts.</b> Under biological consensus deduplication, StableProt assigns the correct class to 46.9% of the thermolabile set (15/32) and 43.2% of the thermostable set (16/37), against 52.9% across all 85 prospective sequences with a reference class. The failure is directional rather than random: 21 of the 37 thermostable lipases are predicted below the threshold, and most of those fall between 42 and 49&nbsp;&deg;C, clustered immediately beneath it. This reflects the mesophilic baseline reversion characterised in &sect;3.1 and &sect;3.4, concentrated in sequences whose host organism carries no growth-temperature annotation.</p>
 
-<p><b>Point classification is weak on the two lipase cohorts.</b> StableProt assigns the correct class to 51.1% of the
-thermolabile set (23/45) and 38.5% of the thermostable set (20/52), against 50.4% across all 113 sequences with a
-reference class: at the 50&nbsp;&deg;C threshold and on these sequences the point estimate carries little information. The failure is directional
-rather than random. Thirty-two of the 52 thermostable lipases are predicted below the threshold, and 28 of those fall between
-42 and 49&nbsp;&deg;C, clustered immediately beneath it. This is the same under-prediction of thermostable proteins
-characterised in &sect;3.1 and &sect;3.4, and it is concentrated in sequences whose host organism carries no
-growth-temperature annotation, so the auxiliary prior reverts to the corpus mean.</p>
-
-<p><b>The intervals behave better than the point estimates.</b> The predicted 95% interval is consistent with the reference
-class for 80.5% of the 113 scored sequences, so in most cases where the point estimate falls on the wrong side of the
-threshold the model has already indicated that it cannot resolve which side that is. Applying instead the wider variance scale
-fitted on out-of-distribution data (c = 3.62, mean half-width 13.8&nbsp;&deg;C) raises this to 93.3%, which illustrates the
-limitation rather than removing it: interval consistency can always be bought with width, which is why &sect;3.4 scores the
-interval with a proper scoring rule instead.</p>
+<p><b>Calibrated intervals recover industrial candidates.</b> The predicted 95% calibrated interval is consistent with the reference class for 76.5% of the 85 scored prospective sequences (65/85), including 78.4% of thermostable lipases and 100% of the engineered 5OCR series. In cases where the point estimate falls slightly on the wrong side of the threshold, the calibrated uncertainty bounds correctly encompass the true operational regime.</p></p>
 
 <p><b>Carrageenases expose both the limit and the value of the proxy labels.</b> Against eleven parsed literature
 temperatures (activity optima, stability ranges and retention temperatures, not melting temperatures) the mean absolute

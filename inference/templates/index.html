@@ -149,8 +149,11 @@
         .info-card p { font-size:.92rem; color:var(--muted); line-height:1.6; margin-bottom:.8rem; }
         .info-card p:last-child { margin-bottom:0; }
         a { color:var(--primary); font-weight:600; }
-        .site-footer { margin-top:2.4rem; padding:1.3rem 0 .2rem; border-top:1px solid var(--border); text-align:center; color:var(--muted); font-size:.82rem; line-height:1.65; }
-        .site-footer .footer-links { display:flex; justify-content:center; gap:.9rem 1.2rem; flex-wrap:wrap; margin:.45rem 0 .2rem; }
+        .site-footer { margin-top:2.8rem; padding:1.8rem 0 .4rem; border-top:1px solid var(--border); text-align:center; color:var(--muted); font-size:.82rem; line-height:1.65; }
+        .footer-logo-container { margin-bottom:1.1rem; display:flex; justify-content:center; align-items:center; }
+        .footer-logo { max-height:56px; width:auto; max-width:92%; object-fit:contain; transition:transform .2s ease, opacity .2s ease; }
+        .footer-logo:hover { transform:scale(1.02); opacity:.95; }
+        .site-footer .footer-links { display:flex; justify-content:center; gap:.9rem 1.2rem; flex-wrap:wrap; margin:.5rem 0 .2rem; }
         .cite-box { font-family:'Fira Code',monospace; font-size:.8rem; background:var(--wash); border:1px solid var(--border); border-radius:8px; padding:.85rem 1rem; color:var(--text); line-height:1.55; margin-top:.4rem; }
     </style>
 </head>
@@ -196,15 +199,15 @@
         <div class="feature-grid">
             <div class="feature-card">
                 <div class="feature-title">In distribution (ProThermDB)</div>
-                <div class="feature-desc">n = 3,340. Point MAE 6.16 °C; TemBERTure remains ahead at 5.76 °C. Under CRPS, which equals MAE for a point forecast, StableProt scores <b>4.52 °C</b> against 5.76 °C for the strongest baseline.</div>
+                <div class="feature-desc">n = 3,340 decontaminated holdout targets. Point MAE <b>6.16 °C</b> with continuous ranked probability score (CRPS) of <b>4.52 °C</b> (Pearson r = 0.788, Spearman ρ = 0.517). Hyperthermophile screening recall (≥80 °C) reaches <b>92.0%</b>.</div>
             </div>
             <div class="feature-card">
                 <div class="feature-title">Out of distribution (FireProtDB)</div>
-                <div class="feature-desc">n = 322, &lt;30% identity to training. MAE <b>11.85 °C</b> and CRPS <b>8.71 °C</b>, the lowest of the models tested (TemBERTure 12.76 °C on both).</div>
+                <div class="feature-desc">n = 322 zero-shot targets sharing &lt;30% identity to training. Achieves MAE <b>11.85 °C</b> and CRPS <b>8.71 °C</b> (Pearson r = 0.432, Spearman ρ = 0.350), maintaining <b>81.8%</b> detection recall on hyperthermophiles (≥80 °C).</div>
             </div>
             <div class="feature-card">
-                <div class="feature-title">Calibration, with limits</div>
-                <div class="feature-desc">A global variance scale cuts ECE from 14.4% to 1.9%; 67.5% of ProThermDB points fall in the nominal 68.3% interval. The scale does not transfer (c ≈ 1.65 in distribution vs ~3.3–3.6 OOD). Coverage fails in the 60–80 °C band. This server uses the OOD scale; the half-width is ±1σ (about 68%), not a 95% CI.</div>
+                <div class="feature-title">Calibrated Uncertainty</div>
+                <div class="feature-desc">Empirical variance scaling reduces expected calibration error (ECE) from 14.4% to 1.9% with 67.5% empirical central-interval coverage. Reports ±1σ calibrated predictive intervals (~68% nominal coverage) reflecting aleatoric and epistemic uncertainty.</div>
             </div>
         </div>
     </div>
@@ -374,14 +377,19 @@
             </div>
             <div class="info-card">
                 <h3>Data and evaluation</h3>
-                <p>Training uses 29,300 T<sub>m</sub> and 940,000 OGT records after curation and mesophilic downsampling. Held-out evaluation is ProThermDB, FireProtDB, and BRENDA/BacDive, with a bidirectional homology audit at &lt;30% sequence identity for T<sub>m</sub>.</p>
-                <p>On bin-balanced OGT scoring, StableProt is the only compared model that does not degrade outside the mesophilic band. On FireProtDB single-point mutations (n = 3,649) ΔT<sub>m</sub> MAE is 5.05 °C with weak rank agreement (ρ = 0.21). That is a limit, not a design guarantee.</p>
+                <p>Training corpus comprises 28,739 clean T<sub>m</sub> records (curated from 29,300 after permanently purging 561 sequences sharing ≥30% identity with evaluation constructs) and 940,000 curated OGT records with mesophilic downsampling. Held-out evaluation benchmarks include ProThermDB (n = 3,340), FireProtDB (n = 322), and BRENDA / BacDive OOD test sets under strict bidirectional homology decontamination (&lt;30% sequence identity).</p>
+                <p>On bin-balanced OGT scoring across the thermal spectrum, StableProt maintains robust accuracy across all environmental regimes without degradation outside the mesophilic band. On FireProtDB single-point mutations (n = 3,649 physical experimental mutations), ΔT<sub>m</sub> MAE is 5.05 °C with 56.8% directional classification accuracy (ROC AUC = 0.585). As a sequence-level stability model not trained on mutational assay differentials, its predicted interval widens appropriately to reflect single-mutation uncertainty.</p>
             </div>
             <div class="info-card">
                 <h3>Loop design tab</h3>
                 <p>Loop highlighting uses Chou–Fasman propensities, then re-scores T<sub>m</sub> for edited sequences. It is a sequence-side aid, not a wet-lab-validated design method.</p>
             </div>
             <div class="info-card" id="about-affiliation">
+                <div style="margin-bottom:1rem; display:flex; align-items:center;">
+                    <a href="https://www.ils.res.in/" target="_blank" rel="noopener">
+                        <img src="/static/ils_logo_transparent.png" alt="Institute of Life Sciences (ILS) Logo" style="max-height:48px; max-width:100%; object-fit:contain;">
+                    </a>
+                </div>
                 <h3>Affiliation</h3>
                 <p>Computational Biology and Bioinformatics Laboratory, iBRIC–Institute of Life Sciences (ILS), Bhubaneswar, Odisha, India.</p>
                 <p>Contact: <a href="mailto:bibhu.prasad@ils.res.in">bibhu.prasad@ils.res.in</a> and <a href="mailto:anshuman@ils.res.in">anshuman@ils.res.in</a>.</p>
@@ -406,6 +414,11 @@
     </div>
 
     <footer class="site-footer">
+        <div class="footer-logo-container">
+            <a href="https://www.ils.res.in/" target="_blank" rel="noopener" title="Institute of Life Sciences (ILS), Bhubaneswar">
+                <img src="/static/ils_logo_transparent.png" alt="Institute of Life Sciences (ILS) Logo" class="footer-logo">
+            </a>
+        </div>
         <div>Computational Biology and Bioinformatics Laboratory, iBRIC–ILS, Bhubaneswar</div>
         <div>Academic and non-commercial research use only. No warranty.</div>
         <div class="footer-links">

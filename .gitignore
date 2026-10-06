@@ -40,21 +40,26 @@ new_data/mmseqs_hits.m8
 benchmark_models_ogt/ThermoFormer
 new_data/brenda_README_2026_1.txt
 new_data/brenda_2026_1.json
-paper/writeup/manuscript_figures/
+# Manuscripts, paper drafts, and internal writeups
+paper/
+manuscript/
+final_paper.md
+paper.txt
+main.html
+intro_points.md
+plan.md
+results.md
 
-paper/writeup/generate_manuscript_figures.py
-paper/writeup/manuscript.md
+# Large archives, inspirations, and reference materials
+*.zip
+nar_papers/
+images_inspiration/
+stableprot_intro/
+presentation/
+logs/
 .mimocode/
 data/emergent_benchmarks/
 experimental_validation/
 experiments/src/model_calibration/plots/
-paper/writeup/plots_v3/
-paper/writeup/plots_v4/
-stableprot_intro/
 experiments/new_data/validation_suite/
-paper/writeup/stableprot_v9_comprehensive_report.html
-images_inspiration/
-paper/writeup/one_slide_ppt/
-paper/writeup/alternative_plots/
-paper/writeup/figures/
-paper/writeup/supplementary_figures/
+stableprot_deployment/

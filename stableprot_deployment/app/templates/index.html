@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StableProt — Structure-Aware Tm & OGT Prediction</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 27 36'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%23dc2f2f'/%3E%3Cstop offset='40%25' stop-color='%23ef7605'/%3E%3Cstop offset='75%25' stop-color='%236e7174'/%3E%3Cstop offset='100%25' stop-color='%23006db2'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath fill='url(%23g)' fill-rule='evenodd' d='M11.5 18c.8-1.3.8-2.8.2-5.3C10.4 7.6 11 4.9 15 1.6L17 0l.5 2.7c.5 2.8 1.4 4.6 3.5 8 .1.1.1.1.2.3 3.1 4.9 4.3 7.8 4.3 13.2 0 6.5-6 12.3-12.7 12.3S0 30.7 0 24.2c0-.1 0-.1 0-.7-.1-4.1.5-7.4 3.4-10.9.6-.7 1.3-1.4 2-2.1l1.7-1.5.8 2.2c.6 1.6 1.3 2.9 2.1 3.9.7.8 1.1 1.8 1.5 3zM5.8 14.9c-2.2 2.7-2.7 5.1-2.6 8.4 0 .6 0 .6 0 .8 0 4.4 4.4 8.8 9.6 8.8 5.1 0 9.5-4.3 9.5-8.8 0-4.5-.9-6.8-3.7-11.1L18.5 12.7c-1.7-2.6-2.7-4.5-3.4-6.5-1.1 1.4-1 2.9-.4 5.6 1.2 5.1.7 7.8-3.4 11.1L9 24.8l-.2-3.2c-.1-2-.5-3.4-1.2-4.2-.6-.8-1.2-1.6-1.7-2.7 0 .1-.1.1-.1.2z'/%3E%3C/svg%3E">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@600;700;800&family=Fira+Code:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg:#F5F4EE;
+            --surface:#FFFFFF;
+            --wash:#FFF7ED;
+            --wash-yellow:#FEF3C7;
+            --wash-red:#FFF1F2;
+            --border:#FED7AA;
+            --text:#1C1410;
+            --muted:#7A5C4A;
+            --primary:#C2410C;
+            --primary-hover:#9A3412;
+            --tm:#DC2626;
+            --ogt:#D97706;
+            --yellow:#EAB308;
+            --orange:#EA580C;
+            --loop:#C2410C;
+            --error:#B91C1C;
+            --ink:#1C1410;
+            --focus:rgba(194,65,12,.18);
+        }
+        * { box-sizing:border-box; margin:0; padding:0; }
+        body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); padding:2rem 1rem; min-height:100vh; }
+        .container { max-width:960px; margin:0 auto; }
+        header { text-align:center; margin-bottom:2rem; }
+        .brand-header { display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; }
+        .brand-logo-title { display:inline-flex; align-items:center; justify-content:center; gap:.75rem; }
+        .brand-logo { height:52px; width:auto; filter:drop-shadow(0 2px 6px rgba(194,65,12,0.18)); transition:transform .2s ease; }
+        .brand-logo:hover { transform:scale(1.05); }
+        h1 { font-family:'Outfit',sans-serif; font-size:2.85rem; font-weight:800; letter-spacing:-0.5px; line-height:1; margin:0; color:var(--ink); }
+        h1 span { color:var(--primary); }
+        p.subtitle { color:var(--muted); font-size:1rem; margin-top:.45rem; text-align:center; }
+        .tab-nav { display:flex; justify-content:center; gap:.5rem; margin-bottom:1.8rem; }
+        .tab-btn { background:#fff; border:1px solid var(--border); color:var(--muted); padding:.6rem 1.4rem; border-radius:10px; font-family:'Outfit',sans-serif; font-weight:600; font-size:.95rem; cursor:pointer; transition:all .15s ease; }
+        .tab-btn:hover { color:var(--text); background:var(--wash); }
+        .tab-btn.active { color:#fff; background:var(--primary); border-color:var(--primary); box-shadow:0 3px 10px rgba(194,65,12,0.22); }
+        .tab-btn.cta-secondary { background:#fff; border-color:var(--ink); color:var(--ink); }
+        .tab-btn.cta-secondary:hover { background:var(--wash); border-color:var(--primary); color:var(--primary); }
+        .glass-panel { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:2rem; margin-bottom:1.5rem; box-shadow:0 4px 20px rgba(28,20,16,0.03); }
+        .tab-content { display:none; }
+        .tab-content.active { display:block; }
+        .input-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:.5rem; gap:.5rem; flex-wrap:wrap; }
+        .input-header .tools { display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; }
+        .btn-action:disabled { opacity:.65; cursor:wait; }
+        .text-link { background:none; border:none; color:var(--primary); font-weight:700; font-size:.88rem; cursor:pointer; text-decoration:underline; padding:0; font-family:'Inter',sans-serif; }
+        .text-link:hover { color:var(--primary-hover); }
+        .viewer-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:.4rem; gap:.8rem; flex-wrap:wrap; }
+        @media (max-width: 700px) {
+            body { padding:1rem .7rem 2.5rem; }
+            .container { max-width:100%; }
+            h1 { font-size:2.2rem; }
+            p.subtitle { font-size:.9rem; }
+            .glass-panel { padding:1.15rem .9rem; border-radius:12px; }
+            .tab-nav { flex-wrap:wrap; gap:.4rem; }
+            .tab-btn { padding:.5rem .85rem; font-size:.85rem; }
+            .result-grid { grid-template-columns:1fr; }
+            .result-val { font-size:2rem; }
+            .btn-group { flex-direction:column; }
+            .btn-group .btn-action { width:100%; flex:none !important; }
+            .feature-grid { grid-template-columns:1fr; }
+            .loops-grid { grid-template-columns:1fr; }
+            .gauge-labels { font-size:.65rem; }
+            .history-table { display:block; overflow-x:auto; }
+            .seq-visualizer { max-height:220px; font-size:.92rem; }
+            .aa-res { width:1.35rem; height:1.5rem; line-height:1.35rem; }
+            .site-footer { font-size:.78rem; }
+        }
+        label { font-weight:600; font-size:.95rem; color:var(--text); margin:0; }
+        textarea { width:100%; height:120px; background:#fff; border:1px solid var(--border); border-radius:10px; font-family:'Fira Code',monospace; font-size:.9rem; padding:.85rem; resize:vertical; line-height:1.5; }
+        textarea:focus { outline:none; border-color:var(--primary); box-shadow:0 0 0 3px var(--focus); }
+        .btn-group { display:flex; gap:.75rem; flex-wrap:wrap; margin-top:1rem; align-items:stretch; }
+        .btn-action { display:inline-flex; align-items:center; justify-content:center; padding:.65rem 1.4rem; font-family:'Outfit',sans-serif; font-weight:700; font-size:.95rem; color:#fff; background:var(--primary); border:none; border-radius:8px; cursor:pointer; transition:all .15s ease; }
+        .btn-action:hover { background:var(--primary-hover); }
+        .btn-lg { padding:1rem 1.6rem; font-size:1.12rem; font-weight:800; letter-spacing:.01em; border-radius:10px; }
+        .btn-md { padding:.8rem 1.2rem; font-size:1rem; }
+        .btn-sm { padding:.45rem .9rem; font-size:.82rem; font-weight:600; }
+        .btn-secondary { background:#fff; border:1px solid var(--border); color:var(--text); font-weight:600; }
+        .btn-secondary:hover { background:var(--wash); }
+        .btn-amber { background:#D97706; }
+        .btn-amber:hover { background:#B45309; }
+        .btn-success { background:var(--ink); }
+        .btn-success:hover { background:#000; }
+        .result-grid { display:grid; grid-template-columns:1fr 1fr; gap:1.2rem; margin-top:1.5rem; }
+        .result-box { padding:1.5rem; border-radius:12px; text-align:center; background:#FFF1F2; border:1px solid #FECDD3; }
+        .result-box.ogt-box { background:var(--wash-yellow); border-color:#FDE68A; }
+        .result-title { font-size:.85rem; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; font-weight:700; margin-bottom:.3rem; }
+        .result-val { font-size:2.5rem; font-weight:800; font-family:'Outfit',sans-serif; color:var(--tm); }
+        .result-box.ogt-box .result-val { color:var(--ogt); }
+        .gauge-card { margin-top:1.2rem; padding:1.2rem; background:#fff; border:1px solid var(--border); border-radius:12px; }
+        .gauge-track { position:relative; height:20px; background:linear-gradient(90deg, #FDE68A 0%, #F59E0B 35%, #EA580C 70%, #DC2626 100%); border-radius:10px; margin:1.2rem 0 .8rem; }
+        .gauge-ci { position:absolute; top:-5px; bottom:-5px; background:rgba(28,20,16,0.12); border:2px solid var(--ink); border-radius:6px; }
+        .gauge-marker { position:absolute; top:-7px; bottom:-7px; width:4px; background:var(--ink); border-radius:2px; }
+        .gauge-labels { position:relative; height:22px; font-size:.75rem; color:var(--muted); }
+        .gauge-labels span { position:absolute; transform:translateX(-50%); }
+        .stacked-bar-track { display:flex; height:14px; border-radius:7px; overflow:hidden; background:var(--wash); margin-top:.4rem; }
+        .stacked-bar-seg { height:100%; transition:width .3s ease; }
+        .result-box.wt-box { background:#FAFAF9; border-color:#E7E5E4; }
+        .result-box.wt-box .result-val { color:var(--muted); }
+        .result-box.stab-box { background:#FFF7ED; border-color:#FDBA74; }
+        .result-box.stab-box .result-val { color:#C2410C; }
+        .result-box.destab-box { background:#FEF2F2; border-color:#FECACA; }
+        .result-box.destab-box .result-val { color:#B91C1C; }
+        .seq-visualizer { background:#fff; border:1px solid var(--border); border-radius:10px; padding:1rem; margin-top:1rem; font-family:'Fira Code',monospace; font-size:1.02rem; line-height:2.35; max-height:280px; overflow-y:auto; word-break:normal; }
+        .aa-res { display:inline-block; width:1.55rem; height:1.7rem; line-height:1.55rem; text-align:center; border-radius:3px; margin:1px; font-weight:700; cursor:pointer; }
+        .aa-H { background:#F4F4F5; color:#27272A; border:1px solid #D4D4D8; border-radius:3px; font-weight:500; }
+        .aa-E { background:#E4E4E7; color:#27272A; border:1px solid #A1A1AA; border-radius:2px; font-weight:500; }
+        .aa-L { background:#FFF7ED; color:#9A3412; border:2px solid #DC2626; border-radius:4px; font-weight:800; }
+        .aa-MUT { background:#1C1410!important; color:#fff!important; border:2px solid #DC2626!important; border-radius:4px!important; font-weight:800; }
+        .ss-legend { display:flex; gap:1rem; font-size:.8rem; font-weight:700; flex-wrap:wrap; align-items:center; }
+        .ss-legend .swatch { display:inline-block; width:1.05rem; height:1.05rem; vertical-align:-2px; margin-right:.25rem; }
+        .ss-legend .swatch-h { background:#F4F4F5; border:1px solid #D4D4D8; }
+        .ss-legend .swatch-e { background:#E4E4E7; border:1px solid #A1A1AA; }
+        .ss-legend .swatch-l { background:#FFF7ED; border:2px solid #DC2626; }
+        .ss-legend .swatch-m { background:#1C1410; border:2px solid #DC2626; }
+        .ss-legend .quiet { color:#71717A; font-weight:500; }
+        .ss-note { font-size:.78rem; color:var(--muted); font-style:italic; margin-top:.45rem; }
+        .mut-controls { margin-top:1.5rem; padding:1.5rem; background:var(--wash); border:1px solid var(--border); border-radius:12px; }
+        .mut-controls h3 { font-family:'Outfit',sans-serif; font-size:1.15rem; font-weight:800; margin-bottom:1.1rem; }
+        .mut-status-bar { margin-top:1rem; padding:.65rem .9rem; border-radius:8px; font-size:.88rem; font-weight:600; }
+        .mut-status-active { background:#FFF1F2; border:1px solid #FECDD3; color:#B91C1C; }
+        .mut-status-none { background:var(--wash); border:1px solid var(--border); color:var(--muted); }
+        .loops-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:1rem; margin-top:1rem; }
+        .loop-card { background:#fff; border:1px solid var(--border); border-radius:10px; padding:1rem; transition:.15s; }
+        .loop-card:hover, .loop-card.selected { border-color:var(--primary); background:var(--wash-yellow); }
+        .loop-card-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:.4rem; font-weight:700; font-size:.9rem; }
+        .loop-card input.loop-edit-input { width:100%; font-family:'Fira Code',monospace; font-size:.9rem; font-weight:600; color:var(--primary); background:#fff; border:1px solid #FDE68A; border-radius:6px; padding:.4rem; margin-top:.4rem; }
+        .history-table { width:100%; border-collapse:collapse; margin-top:1rem; font-size:.88rem; background:#fff; border-radius:10px; overflow:hidden; border:1px solid var(--border); }
+        .history-table th, .history-table td { padding:.75rem .9rem; text-align:left; border-bottom:1px solid var(--border); }
+        .history-table th { background:var(--wash); color:var(--muted); font-weight:700; text-transform:uppercase; font-size:.75rem; }
+        .delta-pos { color:var(--ogt); font-weight:700; } .delta-neg { color:var(--tm); font-weight:700; }
+        .tag-badge { display:inline-block; padding:.15rem .5rem; border-radius:4px; font-size:.75rem; font-weight:600; background:var(--wash); color:var(--muted); }
+        .tag-badge.loop-tag { background:var(--wash-yellow); color:#B45309; }
+        .tag-badge.stab-tag { background:#FFEDD5; color:#C2410C; border:1px solid #FED7AA; }
+        .tag-badge.destab-tag { background:#FEE2E2; color:#B91C1C; border:1px solid #FECACA; }
+        .feature-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:1.2rem; margin-top:1.5rem; }
+        .feature-card { background:#fff; border:1px solid var(--border); border-radius:12px; padding:1.5rem; }
+        .feature-title { font-family:'Outfit',sans-serif; font-size:1.1rem; font-weight:700; margin-bottom:.4rem; }
+        .feature-desc { font-size:.9rem; color:var(--muted); line-height:1.5; }
+        .info-card { background:#fff; border:1px solid var(--border); border-radius:12px; padding:1.5rem; margin-bottom:1.2rem; }
+        .info-card h3 { font-family:'Outfit',sans-serif; font-size:1.15rem; font-weight:700; margin-bottom:.6rem; }
+        .info-card p { font-size:.92rem; color:var(--muted); line-height:1.6; margin-bottom:.8rem; }
+        .info-card p:last-child { margin-bottom:0; }
+        a { color:var(--primary); font-weight:600; }
+        .site-footer { margin-top:2.8rem; padding:1.8rem 0 .4rem; border-top:1px solid var(--border); text-align:center; color:var(--muted); font-size:.82rem; line-height:1.65; }
+        .footer-logo-container { margin-bottom:1.1rem; display:flex; justify-content:center; align-items:center; }
+        .footer-logo { max-height:56px; width:auto; max-width:92%; object-fit:contain; transition:transform .2s ease, opacity .2s ease; }
+        .footer-logo:hover { transform:scale(1.02); opacity:.95; }
+        .site-footer .footer-links { display:flex; justify-content:center; gap:.9rem 1.2rem; flex-wrap:wrap; margin:.5rem 0 .2rem; }
+        .cite-box { font-family:'Fira Code',monospace; font-size:.8rem; background:var(--wash); border:1px solid var(--border); border-radius:8px; padding:.85rem 1rem; color:var(--text); line-height:1.55; margin-top:.4rem; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <header>
+        <div class="brand-header">
+            <div class="brand-logo-title">
+                <svg class="brand-logo" width="48" height="58" viewBox="0 0 27.093406 36.427738" version="1.1" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <linearGradient id="headerFlameGrad" x1="7.7665772" y1="4.1167107" x2="14.72679" y2="18.206898" gradientUnits="userSpaceOnUse" gradientTransform="matrix(1.5917782,0,0,1.7580161,-6.3308959,-2.2485898)">
+                            <stop style="stop-color:#dc2f2f;stop-opacity:1;" offset="0" />
+                            <stop style="stop-color:#ef7605;stop-opacity:1;" offset="0.40888" />
+                            <stop style="stop-color:#6e7174;stop-opacity:1;" offset="0.74892" />
+                            <stop style="stop-color:#006db2;stop-opacity:1;" offset="1" />
+                        </linearGradient>
+                    </defs>
+                    <path fill-rule="evenodd" d="m 11.458498,18.021272 c 0.869766,-1.348295 0.772748,-2.768295 0.169618,-5.322603 C 10.435286,7.6469702 10.910263,4.8781082 15.022372,1.5999862 L 17.029414,-7.6644468e-7 17.514915,2.6806782 c 0.515886,2.848915 1.363125,4.61097 3.538507,8.0003028 0.08652,0.134608 0.08652,0.134608 0.173229,0.269838 3.133524,4.882488 4.27805,7.825771 4.27805,13.170809 0,6.484181 -5.935176,12.306111 -12.734225,12.306111 -6.7994299,0 -12.73422297,-5.821136 -12.73422297,-12.306111 0,-0.121209 1.12e-4,-0.117545 -0.01845,-0.653194 -0.14389,-4.143018 0.54977,-7.38557 3.35651007,-10.886668 0.593025,-0.739688 1.267075,-1.450692 2.02563,-2.130982 l 1.674533,-1.5017828 0.805498,2.2100268 c 0.595189,1.633014 1.292587,2.916704 2.080371,3.858728 0.6672839,0.797877 1.1622099,1.801191 1.4981779,3.003494 z M 5.7578361,14.912561 c -2.160632,2.695167 -2.674314,5.096396 -2.55889,8.421187 0.02166,0.61896 0.02059,0.597176 0.02059,0.787896 0,4.444069 4.430878,8.790082 9.5506679,8.790082 5.119379,0 9.550668,-4.346746 9.550668,-8.790082 0,-4.468513 -0.904575,-6.794679 -3.691756,-11.137563 L 18.455997,12.714345 C 16.76332,10.077078 15.75435,8.2425492 15.086839,6.1908302 c -1.090136,1.44273 -1.026001,2.877639 -0.378392,5.6206078 1.192831,5.051703 0.717854,7.820566 -3.394256,11.098684 L 8.9695121,24.77927 8.7937161,21.591514 c -0.11225,-2.036723 -0.529687,-3.419755 -1.172274,-4.188111 -0.634841,-0.759129 -1.20804,-1.647877 -1.722052,-2.664632 -0.04841,0.05766 -0.09476,0.115753 -0.141723,0.173844 z" style="fill:url(#headerFlameGrad);fill-opacity:1;fill-rule:evenodd;stroke:none;" />
+                </svg>
+                <h1>Stable<span>Prot</span></h1>
+            </div>
+            <p class="subtitle">Predict protein melting temperature (T<sub>m</sub>) and growth temperature (OGT) with calibrated confidence intervals</p>
+        </div>
+    </header>
+
+    <div class="tab-nav">
+        <button class="tab-btn active" onclick="switchTab('home-tab', event)">Home</button>
+        <button class="tab-btn" onclick="switchTab('predict-tab', event)">Predict</button>
+        <button class="tab-btn" onclick="switchTab('design-tab', event)">Design</button>
+        <button class="tab-btn" onclick="switchTab('about-tab', event)">About</button>
+    </div>
+
+    <!-- TAB 1: Home -->
+    <div id="home-tab" class="tab-content active">
+        <div class="glass-panel" style="text-align:center; padding:2.5rem 2rem;">
+            <h2 style="font-family:'Outfit',sans-serif; font-size:1.85rem; font-weight:800; margin-bottom:.8rem;">Protein Stability Predictions with Calibrated Confidence</h2>
+            <p style="max-width:740px; margin:0 auto 1.8rem; color:var(--muted); font-size:1rem; line-height:1.65;">StableProt predicts both protein melting temperature (T<sub>m</sub>) and host organism optimal growth temperature (OGT) directly from sequence. Instead of just giving a single number, it provides calibrated 95% confidence intervals so you know how much to trust each prediction before heading to the wet lab. The model uses SaProt 650M structural tokens and balanced training to avoid room-temperature bias and stay reliable on hot-adapted proteins.</p>
+            <div style="display:flex; justify-content:center; gap:1rem; flex-wrap:wrap;">
+                <button class="tab-btn active" onclick="switchTabById('predict-tab')">Predict T<sub>m</sub> &amp; OGT</button>
+                <button class="tab-btn cta-secondary" onclick="switchTabById('design-tab')">Loop Design Studio</button>
+            </div>
+        </div>
+        <div class="feature-grid">
+            <div class="feature-card">
+                <div class="feature-title">In-Domain Testing (ProThermDB)</div>
+                <div class="feature-desc">Evaluated on 3,340 clean test proteins with under 30% sequence identity to training data. StableProt achieved an average error of <b>6.16 °C</b> (MAE) and a probabilistic score (CRPS) of <b>4.52 °C</b> (r = 0.788). It correctly identifies <b>92.0%</b> of hyperthermophilic proteins (T<sub>m</sub> ≥ 80 °C).</div>
+            </div>
+            <div class="feature-card">
+                <div class="feature-title">Zero-Shot Holdout (FireProtDB)</div>
+                <div class="feature-desc">Tested on 322 out-of-distribution proteins without structural overlap. Achieved <b>11.85 °C</b> MAE and <b>8.71 °C</b> CRPS, maintaining <b>81.8%</b> recall on extreme thermophiles (T<sub>m</sub> ≥ 80 °C) without regressing toward room-temperature averages.</div>
+            </div>
+            <div class="feature-card">
+                <div class="feature-title">Calibrated 95% Intervals</div>
+                <div class="feature-desc">Uses a 5-model ensemble with variance scaling, reducing calibration error to <b>1.92%</b> (and 0.46% under temperature scaling). In prospective tests on 87 real laboratory enzymes, <b>76.5%</b> of tested candidates fell inside the predicted 95% interval.</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 2: Predict -->
+    <div id="predict-tab" class="tab-content {% if active_tab == 'predict-tab' %}active{% endif %}">
+        <div class="glass-panel">
+            <form id="predict-form" onsubmit="runPredictForm(event)">
+                <div class="input-header">
+                    <label for="sequence">Amino Acid Sequence</label>
+                    <div class="tools">
+                        <span id="seq-count-badge" class="tag-badge">0 AA</span>
+                        <button type="button" class="btn-action btn-secondary" style="padding:.25rem .6rem; font-size:.78rem;" onclick="format5AABlocks('sequence')">Format (5-AA Spacing)</button>
+                        <button type="button" class="btn-action btn-secondary" style="padding:.25rem .6rem; font-size:.78rem;" onclick="sanitizeInput('sequence')">Clean FASTA</button>
+                    </div>
+                </div>
+                <textarea id="sequence" name="sequence" placeholder="Enter protein sequence (e.g. MTEYK LVVVG AGGVG KSA...)" oninput="updateSeqBadge('sequence')">{{ sequence if sequence else '' }}</textarea>
+                
+                <div class="btn-group">
+                    <button type="submit" id="btn-predict-submit" class="btn-action btn-lg" style="flex:2;">Predict Tm & OGT</button>
+                    <button type="button" class="btn-action btn-secondary btn-sm" style="flex:1;" onclick="loadPredictSample()">Load Sample Sequence</button>
+                </div>
+            </form>
+
+            <div id="predict-results-container" style="{% if tm and ogt %}display:block;{% else %}display:none;{% endif %}">
+                <div class="result-grid">
+                    <div class="result-box"><div class="result-title">Melting Temperature (Tm)</div><div id="predict-val-tm" class="result-val">{{ tm if tm else '-' }}°C</div><div id="predict-conf-tm" style="font-size:.85rem; color:var(--muted); margin-top:.2rem;">{% if tm_conf %}± {{ tm_conf }}°C{% endif %}</div></div>
+                    <div class="result-box ogt-box"><div class="result-title">Optimal Growth (OGT)</div><div id="predict-val-ogt" class="result-val">{{ ogt if ogt else '-' }}°C</div><div id="predict-conf-ogt" style="font-size:.85rem; color:var(--muted); margin-top:.2rem;">{% if ogt_conf %}± {{ ogt_conf }}°C{% endif %}</div></div>
+                </div>
+
+                <!-- Visual Thermometer Gauge & Range Bands -->
+                <div class="gauge-card">
+                    <div style="display:flex; justify-content:space-between; align-items:center; font-weight:600; font-size:.88rem;">
+                        <span>Thermal scale</span>
+                        <span id="predict-tier-badge" class="tag-badge">-</span>
+                    </div>
+                    <div class="gauge-track">
+                        <div id="gauge-ci-bar" class="gauge-ci"></div>
+                        <div id="gauge-tm-marker" class="gauge-marker"></div>
+                    </div>
+                    <div class="gauge-labels">
+                        <span style="left:20%;">&lt;40</span>
+                        <span style="left:50%;">40–60</span>
+                        <span style="left:70%;">60–80</span>
+                        <span style="left:90%;">&gt;80</span>
+                    </div>
+
+                    <!-- AA Composition Stacked Horizontal Progress Bar -->
+                    <div style="margin-top:1.2rem;">
+                        <div style="font-size:.82rem; font-weight:600; color:var(--muted); margin-bottom:.3rem;">Amino Acid Composition Breakdown</div>
+                        <div class="stacked-bar-track">
+                            <div id="comp-seg-hydrophobic" class="stacked-bar-seg" style="background:#FDE68A; width:0%;" title="Hydrophobic"></div>
+                            <div id="comp-seg-polar" class="stacked-bar-seg" style="background:#F59E0B; width:0%;" title="Polar"></div>
+                            <div id="comp-seg-charged" class="stacked-bar-seg" style="background:#EA580C; width:0%;" title="Charged"></div>
+                            <div id="comp-seg-aromatic" class="stacked-bar-seg" style="background:#DC2626; width:0%;" title="Aromatic"></div>
+                        </div>
+                        <div id="predict-comp-legend" style="margin-top:.4rem; display:flex; gap:1.2rem; font-size:.82rem; color:var(--muted); flex-wrap:wrap;"></div>
+                        <div class="ss-note">Display composition of this sequence, not the six auxiliary ratios used by the model.</div>
+                    </div>
+
+                    <div style="margin-top:1rem; display:flex; justify-content:flex-end; gap:.9rem; flex-wrap:wrap; align-items:center;">
+                        <button type="button" class="text-link" onclick="sendSequenceToDesign()">Use this sequence in Design</button>
+                        <button type="button" class="btn-action btn-secondary" style="padding:.35rem .9rem; font-size:.8rem;" onclick="exportPredictionFASTA()">Export FASTA Prediction</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="predict-error-box" style="{% if error %}display:block;{% else %}display:none;{% endif %} margin-top:1.2rem; padding:.85rem; border-radius:8px; background:#FEF2F2; border:1px solid #FECACA; color:var(--error); text-align:center;">
+                <span id="predict-error-text">{{ error if error else '' }}</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 3: Design -->
+    <div id="design-tab" class="tab-content">
+        <div class="glass-panel">
+
+
+
+            <div class="input-header">
+                <label for="design-sequence">Active Baseline Protein Sequence</label>
+                <div class="tools">
+                    <span id="design-seq-badge" class="tag-badge">0 AA</span>
+                    <button type="button" class="btn-action btn-secondary" style="padding:.25rem .6rem; font-size:.78rem;" onclick="format5AABlocks('design-sequence')">Format (5-AA Spacing)</button>
+                    <button type="button" class="btn-action btn-secondary" style="padding:.25rem .6rem; font-size:.78rem;" onclick="sanitizeInput('design-sequence')">Clean FASTA</button>
+                </div>
+            </div>
+            <textarea id="design-sequence" placeholder="Paste protein sequence to identify loop regions..." oninput="updateSeqBadge('design-sequence')"></textarea>
+
+            <div class="btn-group">
+                <button type="button" id="btn-identify-loops" class="btn-action btn-lg" style="flex:2;" onclick="identifyLoops()">Identify Loop Regions</button>
+                <button type="button" class="btn-action btn-secondary btn-sm" style="flex:1;" onclick="loadSampleSequence()">Load Sample Sequence</button>
+            </div>
+
+            <div id="loop-output" style="display:none; margin-top:1.8rem;">
+                <div class="viewer-head">
+                    <div style="font-weight:700; font-size:1rem; font-family:'Outfit',sans-serif;">Sequence viewer</div>
+                    <div class="ss-legend">
+                        <span><span class="swatch swatch-l"></span> Loop</span>
+                        <span><span class="swatch swatch-m"></span> Mutated</span>
+                        <span class="quiet"><span class="swatch swatch-h"></span> Helix</span>
+                        <span class="quiet"><span class="swatch swatch-e"></span> Sheet</span>
+                    </div>
+                </div>
+                <div id="seq-visualizer" class="seq-visualizer"></div>
+                <p class="ss-note">Loop calls are Chou–Fasman sequence propensities (5-residue window), not a 3D structure assignment. Click a residue to drop that site into the mutation box, then type the new amino acid (e.g. G45P).</p>
+                <div id="mut-status-bar" class="mut-status-bar mut-status-none">
+                    <span>Mutation Status:</span> <span id="mut-status-text">No mutations detected (WT sequence active)</span>
+                </div>
+
+                <div style="margin-top:1.5rem;">
+                    <label>Identified Loop Regions (Click card to select or edit loop text directly)</label>
+                    <div id="loops-grid" class="loops-grid"></div>
+                </div>
+
+                <div class="mut-controls">
+                    <h3>Interactive Mutation Controls</h3>
+                    <div style="margin-bottom:1rem;">
+                        <label for="manual-mutation">Mutation (e.g. G45P or G45P, A50V)</label>
+                        <input type="text" id="manual-mutation" placeholder="e.g. G45P" oninput="onManualMutationInput(this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();evaluateDesign();}" style="width:100%; margin-top:.4rem; padding:.85rem; background:#fff; border:1px solid var(--border); border-radius:8px; font-family:'Fira Code',monospace; font-weight:600; font-size:1rem;">
+                    </div>
+                    <div class="btn-group" style="margin-top:0;">
+                        <button type="button" id="btn-evaluate-design" class="btn-action btn-lg" style="flex:3;" onclick="evaluateDesign()">Evaluate Design</button>
+                        <button type="button" class="btn-action btn-amber btn-md" style="flex:1.4;" onclick="generateRandomLoopMutation()">Random Loop Mutation</button>
+                    </div>
+                    <div class="btn-group" style="margin-top:.7rem;">
+                        <button type="button" class="btn-action btn-success btn-md" id="btn-update-baseline" style="flex:2; display:none;" onclick="updateMainBaseline()">Set as Active Baseline</button>
+                        <button type="button" class="btn-action btn-secondary btn-sm" style="flex:1;" onclick="undoLastTrial()">Undo / Retry</button>
+                    </div>
+                </div>
+
+                <div id="live-eval-card" style="display:none; margin-top:1.5rem;">
+                    <div class="result-grid">
+                        <div class="result-box wt-box">
+                            <div class="result-title">Wild-Type Tm</div>
+                            <div id="eval-wt-tm" class="result-val">-</div>
+                        </div>
+                        <div class="result-box destab-box" id="mut-tm-box">
+                            <div class="result-title">Design Mutant Tm</div>
+                            <div id="eval-mut-tm" class="result-val">-</div>
+                            <div id="eval-delta-badge" style="margin-top:.4rem; font-weight:800; font-size:1.1rem;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="margin-top:1.8rem;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:.4rem;">
+                        <label style="margin:0;">Design Trial History Log</label>
+                        <button type="button" class="btn-action btn-secondary" style="padding:.3rem .7rem; font-size:.8rem;" onclick="downloadFasta()">Download Design FASTA</button>
+                    </div>
+                    <table class="history-table">
+                        <thead><tr><th>Trial #</th><th>Mutations</th><th>New Tm (°C)</th><th>Delta Tm (°C)</th><th>Effect</th><th>Loop Targeted</th><th>Action</th></tr></thead>
+                        <tbody id="history-body"><tr><td colspan="7" style="text-align:center; color:var(--muted);">No design trials performed yet.</td></tr></tbody>
+                    </table>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 4: About -->
+    <div id="about-tab" class="tab-content">
+        <div class="glass-panel">
+            <div class="info-card">
+                <h3>What this server does</h3>
+                <p>StableProt predicts two key thermal properties for any protein sequence: its melting temperature (T<sub>m</sub>), which marks when the protein begins to unfold, and its host organism's optimal growth temperature (OGT), which reflects the thermal environment the organism evolved in.</p>
+                <p>To keep predictions accurate, StableProt uses separate neural pathways for T<sub>m</sub> and OGT so their learning goals don't conflict, while passing the predicted growth temperature as helpful physical context to the melting temperature predictor. Predictions are averaged across a 5-model ensemble and include calibrated 95% predictive intervals.</p>
+            </div>
+            <div class="info-card">
+                <h3>Data and benchmarks</h3>
+                <p>We trained the model on 28,739 clean experimental melting temperature records and 940,000 organism growth temperature records. Because most catalogued organisms live at moderate temperatures (25–40°C), standard models often default to predicting room temperature for everything. We balanced the training batches with 14% mesophilic subsampling, which increased thermophile representation by 2.3-fold (from 16.8% to 38.0%).</p>
+                <p>All test datasets—including ProThermDB (3,340 proteins), FireProtDB (322 proteins), and external BRENDA enzymes (525 organisms)—were decontaminated using bidirectional sequence clustering at &lt;30% sequence identity to ensure zero test leakage. On the FireProtDB single-point mutation benchmark (3,649 experimental mutations), the model achieves 5.05 °C ΔT<sub>m</sub> error with 56.8% directional accuracy, and its predictive interval widens appropriately to reflect single-mutation uncertainty.</p>
+            </div>
+            <div class="info-card">
+                <h3>Loop design studio</h3>
+                <p>Thermal denaturation often starts in flexible surface loops rather than rigid secondary cores. The Design tab identifies these flexible regions using secondary structure propensities and lets you test point mutations on the fly. You can see how each mutation changes the predicted T<sub>m</sub> (ΔT<sub>m</sub>) to help prioritize stabilizing candidates before testing them in the lab.</p>
+            </div>
+            <div class="info-card" id="about-affiliation">
+                <div style="margin-bottom:1rem; display:flex; align-items:center;">
+                    <a href="https://www.ils.res.in/" target="_blank" rel="noopener">
+                        <img src="/static/ils_logo_transparent.png" alt="Institute of Life Sciences (ILS) Logo" style="max-height:48px; max-width:100%; object-fit:contain;">
+                    </a>
+                </div>
+                <h3>Affiliation</h3>
+                <p>Computational Biology and Bioinformatics Laboratory, iBRIC–Institute of Life Sciences (ILS), Bhubaneswar, Odisha, India.</p>
+                <p>Contact: <a href="mailto:anshuman@ils.res.in">anshuman@ils.res.in</a> and <a href="mailto:bibhu.prasad@ils.res.in">bibhu.prasad@ils.res.in</a>.</p>
+                <p>Code: <a href="https://github.com/Bibhuprasadbehera/StableProt" target="_blank" rel="noopener">github.com/Bibhuprasadbehera/StableProt</a></p>
+            </div>
+            <div class="info-card" id="about-use">
+                <h3>Terms of use</h3>
+                <p>This server is free for academic and non-commercial research use. For commercial inquiries, please contact the authors. Predictions are computational estimates intended to help guide protein engineering and laboratory prioritization; they are not a replacement for wet-lab assays.</p>
+                <p>Predictions are generated using a 5-model ensemble and report calibrated 95% predictive intervals.</p>
+            </div>
+            <div class="info-card" id="about-privacy">
+                <h3>Privacy</h3>
+                <p>Sequences are sent to this server only to run inference. The application does not write submitted sequences to disk. The host may keep ordinary web-server access logs (time, IP, path) that do not include sequence content.</p>
+                <p>The page loads fonts from Google Fonts, which is a third-party request from your browser.</p>
+            </div>
+            <div class="info-card" id="about-cite">
+                <h3>How to cite</h3>
+                <p>If you use StableProt in your research, please cite our working manuscript and repository:</p>
+                <div class="cite-box">Behera, B. P. &amp; Dixit, A. StableProt: Structure-Aware Deep Learning for Protein Thermostability (T<sub>m</sub>) and Environmental Adaptation (OGT) Prediction. Working manuscript. <a href="https://github.com/Bibhuprasadbehera/StableProt" target="_blank" rel="noopener">https://github.com/Bibhuprasadbehera/StableProt</a></div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="site-footer">
+        <div class="footer-logo-container">
+            <a href="https://www.ils.res.in/" target="_blank" rel="noopener" title="Institute of Life Sciences (ILS), Bhubaneswar">
+                <img src="/static/ils_logo_transparent.png" alt="Institute of Life Sciences (ILS) Logo" class="footer-logo">
+            </a>
+        </div>
+        <div>Computational Biology and Bioinformatics Laboratory, iBRIC–ILS, Bhubaneswar</div>
+        <div>Academic and non-commercial research use only. No warranty.</div>
+        <div class="footer-links">
+            <button type="button" class="text-link" onclick="goAbout('about-privacy')">Privacy</button>
+            <button type="button" class="text-link" onclick="goAbout('about-use')">Terms</button>
+            <button type="button" class="text-link" onclick="goAbout('about-cite')">Cite</button>
+            <button type="button" class="text-link" onclick="goAbout('about-affiliation')">Contact</button>
+            <a href="https://github.com/Bibhuprasadbehera/StableProt" target="_blank" rel="noopener">GitHub</a>
+        </div>
+        <div>
+            <a href="mailto:bibhu.prasad@ils.res.in">bibhu.prasad@ils.res.in</a>
+            ·
+            <a href="mailto:anshuman@ils.res.in">anshuman@ils.res.in</a>
+        </div>
+    </footer>
+</div>
+
+<script>
+    let currentWTSequence = "", currentMutantSequence = "", currentLoopData = null, selectedLoopPositions = [], selectedLoopLength = null, trialHistory = [];
+
+    function updateSeqBadge(inputId) {
+        const el = document.getElementById(inputId);
+        if (!el) return;
+        const clean = el.value.replace(/[^A-Za-z]/g, '');
+        const badgeId = inputId === 'sequence' ? 'seq-count-badge' : 'design-seq-badge';
+        const badge = document.getElementById(badgeId);
+        if (badge) {
+            const valid = clean.length >= 50 && clean.length <= 1024;
+            badge.innerText = `${clean.length} AA ${valid ? '✓' : '(50–1024 valid)'}`;
+            badge.style.background = valid ? '#FEF3C7' : '#FEF2F2';
+            badge.style.color = valid ? '#B45309' : '#B91C1C';
+        }
+    }
+
+    function format5AABlocks(inputId) {
+        const el = document.getElementById(inputId);
+        if (!el) return;
+        const clean = el.value.replace(/[^A-Za-z]/g, '').toUpperCase();
+        if (!clean) return;
+        const blocks = [];
+        for (let i = 0; i < clean.length; i += 5) {
+            blocks.push(clean.substring(i, i + 5));
+        }
+        el.value = blocks.join(' ');
+        updateSeqBadge(inputId);
+    }
+
+    function sanitizeInput(inputId) {
+        const el = document.getElementById(inputId);
+        if (!el) return;
+        const lines = el.value.split('\n').filter(l => !l.startsWith('>') && !l.startsWith('#'));
+        const clean = lines.join('').replace(/[^A-Za-z]/g, '').toUpperCase();
+        el.value = clean;
+        updateSeqBadge(inputId);
+    }
+
+    function loadPredictSample() {
+        const sample = "RPDFCLEPPYTGPCKARIIRYFYNAKAGLCQTFVYGGCRAKRNNFKSAEDCMRTCGGA";
+        const el = document.getElementById('sequence');
+        el.value = sample;
+        format5AABlocks('sequence');
+    }
+
+    function updateGauge(tm, ciLow, ciHigh, tier, comp) {
+        const tmPct = Math.max(0, Math.min(100, tm));
+        const lowPct = Math.max(0, Math.min(100, ciLow));
+        const highPct = Math.max(0, Math.min(100, ciHigh));
+
+        const ciBar = document.getElementById('gauge-ci-bar');
+        if (ciBar) {
+            ciBar.style.left = lowPct + '%';
+            ciBar.style.width = Math.max(1, highPct - lowPct) + '%';
+        }
+        const marker = document.getElementById('gauge-tm-marker');
+        if (marker) marker.style.left = tmPct + '%';
+
+        const badge = document.getElementById('predict-tier-badge');
+        if (badge) {
+            let label = "Mesophilic (40–60°C)";
+            if (tm < 40) label = "Psychrophilic (<40°C)";
+            else if (tm >= 80) label = "Hyperthermophilic (>80°C)";
+            else if (tm >= 60) label = "Thermophilic (60–80°C)";
+            badge.innerText = tier || label;
+            badge.className = tm >= 60 ? 'tag-badge loop-tag' : 'tag-badge';
+        }
+
+        if (comp) {
+            const h = comp.hydrophobic || 0, p = comp.polar || 0, c = comp.charged || 0, a = comp.aromatic || 0;
+            document.getElementById('comp-seg-hydrophobic').style.width = h + '%';
+            document.getElementById('comp-seg-polar').style.width = p + '%';
+            document.getElementById('comp-seg-charged').style.width = c + '%';
+            document.getElementById('comp-seg-aromatic').style.width = a + '%';
+
+            document.getElementById('predict-comp-legend').innerHTML = `
+                <span><span style="color:#EAB308;">●</span> Hydrophobic: <b>${h}%</b></span>
+                <span><span style="color:#F59E0B;">●</span> Polar: <b>${p}%</b></span>
+                <span><span style="color:#EA580C;">●</span> Charged: <b>${c}%</b></span>
+                <span><span style="color:#DC2626;">●</span> Aromatic: <b>${a}%</b></span>
+            `;
+        }
+    }
+
+    function exportPredictionFASTA() {
+        const raw = document.getElementById('sequence').value;
+        const clean = raw.replace(/[^A-Za-z]/g, '').toUpperCase();
+        if (!clean) return;
+        const tm = document.getElementById('predict-val-tm').innerText;
+        const ogt = document.getElementById('predict-val-ogt').innerText;
+        const header = `>StableProt_Prediction | Tm=${tm} | OGT=${ogt} | Length=${clean.length}AA\n`;
+        const blob = new Blob([header + clean + '\n'], {type: 'text/plain'});
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'StableProt_Prediction.fasta'; a.click();
+    }
+
+    function sendSequenceToDesign() {
+        const raw = document.getElementById('sequence').value;
+        const dest = document.getElementById('design-sequence');
+        dest.value = raw;
+        updateSeqBadge('design-sequence');
+        switchTabById('design-tab');
+        dest.focus();
+    }
+
+    function switchTab(tabId, evt) {
+        document.querySelectorAll('.tab-nav .tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        if (evt && evt.target) evt.target.classList.add('active');
+        document.getElementById(tabId).classList.add('active');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function switchTabById(tabId) {
+        const idx = {'home-tab':0, 'predict-tab':1, 'design-tab':2, 'about-tab':3}[tabId] || 0;
+        const btns = document.querySelectorAll('.tab-nav .tab-btn');
+        btns.forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        if (btns[idx]) btns[idx].classList.add('active');
+        document.getElementById(tabId).classList.add('active');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function goAbout(sectionId) {
+        const btns = document.querySelectorAll('.tab-nav .tab-btn');
+        btns.forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        if (btns[3]) btns[3].classList.add('active');
+        document.getElementById('about-tab').classList.add('active');
+        const el = document.getElementById(sectionId);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function loadSampleSequence() {
+        const el = document.getElementById('design-sequence');
+        el.value = "RPDFCLEPPYTGPCKARIIRYFYNAKAGLCQTFVYGGCRAKRNNFKSAEDCMRTCGGA";
+        format5AABlocks('design-sequence');
+    }
+
+    async function identifyLoops() {
+        const raw = document.getElementById('design-sequence').value.trim();
+        if (!raw) { alert("Please enter a sequence first."); return; }
+        currentWTSequence = raw.replace(/[^A-Za-z]/g, '').toUpperCase();
+        currentMutantSequence = currentWTSequence;
+        const btn = document.getElementById('btn-identify-loops');
+        const prev = btn.innerText;
+        btn.disabled = true;
+        btn.innerText = "Identifying loops...";
+        try {
+            const res = await fetch('/api/identify_loops', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({sequence: currentWTSequence}) });
+            const data = await res.json();
+            if (data.error) { alert(data.error); return; }
+            currentLoopData = data;
+            renderSequenceVisualizer(currentWTSequence, data.ss_str, currentMutantSequence);
+            renderLoopsGrid(data.loops);
+            updateMutationStatusBar();
+            document.getElementById('loop-output').style.display = 'block';
+        } catch (e) {
+            alert(e.message);
+        } finally {
+            btn.disabled = false;
+            btn.innerText = prev;
+        }
+    }
+
+    function renderSequenceVisualizer(wtSeq, ssStr, mutSeq) {
+        if (!wtSeq) return;
+        let html = "";
+        for (let i = 0; i < wtSeq.length; i += 5) {
+            let blockHtml = `<span style="display:inline-block; white-space:nowrap; margin-right:0.6rem; margin-bottom:0.4rem;">`;
+            for (let j = i; j < Math.min(i + 5, wtSeq.length); j++) {
+                const aa = mutSeq[j] || wtSeq[j];
+                const isMut = (mutSeq[j] !== wtSeq[j]);
+                const ss = isMut ? 'MUT' : (ssStr[j] || 'L');
+                const title = isMut ? `Pos ${j+1}: ${wtSeq[j]} -> ${aa} (Mutated)` : `Pos ${j+1}: ${aa} (${ss})`;
+                blockHtml += `<span class="aa-res aa-${ss}" title="${title}" onclick="fillSiteInMutationBox(${j + 1})">${aa}</span>`;
+            }
+            blockHtml += `</span>`;
+            html += blockHtml;
+        }
+        document.getElementById('seq-visualizer').innerHTML = html;
+    }
+
+    function fillSiteInMutationBox(pos) {
+        if (!currentWTSequence) return;
+        const i = pos - 1;
+        if (i < 0 || i >= currentWTSequence.length) return;
+        const token = `${currentWTSequence[i]}${pos}`;
+        const el = document.getElementById('manual-mutation');
+        if (!el) return;
+        const cur = (el.value || '').trim();
+        const siteRe = new RegExp('(^|[\\s,])' + currentWTSequence[i] + pos + '(?![0-9])', 'i');
+        if (!cur) {
+            el.value = token;
+        } else if (!siteRe.test(cur)) {
+            el.value = cur.replace(/[,\s]+$/, '') + ', ' + token;
+        }
+        el.focus();
+        const n = el.value.length;
+        el.setSelectionRange(n, n);
+    }
+
+    function updateMutationStatusBar() {
+        const bar = document.getElementById('mut-status-bar'), text = document.getElementById('mut-status-text');
+        let muts = [];
+        for (let i = 0; i < currentWTSequence.length; i++) {
+            if (currentMutantSequence[i] !== currentWTSequence[i]) muts.push(`${currentWTSequence[i]}${i+1}${currentMutantSequence[i]}`);
+        }
+        if (muts.length > 0) { bar.className = "mut-status-bar mut-status-active"; text.innerText = `${muts.length} Mutation(s) Active: ${muts.join(", ")}`; }
+        else { bar.className = "mut-status-bar mut-status-none"; text.innerText = "No mutations detected (WT sequence active)"; }
+    }
+
+    function syncMutationState() {
+        renderSequenceVisualizer(currentWTSequence, currentLoopData ? currentLoopData.ss_str : '', currentMutantSequence);
+        updateMutationStatusBar();
+        let muts = [];
+        for (let i = 0; i < currentWTSequence.length; i++) {
+            if (currentMutantSequence[i] !== currentWTSequence[i]) {
+                muts.push(`${currentWTSequence[i]}${i+1}${currentMutantSequence[i]}`);
+            }
+        }
+        const mutInput = document.getElementById('manual-mutation');
+        if (mutInput && document.activeElement !== mutInput) {
+            mutInput.value = muts.join(', ');
+        }
+    }
+
+    function onManualMutationInput(val) {
+        if (!currentWTSequence) return;
+        let baseArr = currentWTSequence.split('');
+        const tokens = val.trim().split(/[\s,]+/);
+        tokens.forEach(tok => {
+            const match = tok.match(/^([A-Z])(\d+)([A-Z])$/i);
+            if (match) {
+                const pos = parseInt(match[2]) - 1;
+                const mutAA = match[3].toUpperCase();
+                if (pos >= 0 && pos < baseArr.length) {
+                    baseArr[pos] = mutAA;
+                }
+            }
+        });
+        currentMutantSequence = baseArr.join('');
+        renderSequenceVisualizer(currentWTSequence, currentLoopData ? currentLoopData.ss_str : '', currentMutantSequence);
+        updateMutationStatusBar();
+    }
+
+    function renderLoopsGrid(loops) {
+        const container = document.getElementById('loops-grid');
+        if (!loops || loops.length === 0) { container.innerHTML = `<div style="color:var(--muted);">No loop regions (>=3 aa) detected.</div>`; return; }
+        container.innerHTML = loops.map(l => `
+            <div class="loop-card" id="loop-card-${l.id}" onclick="selectLoopCard(${l.id})">
+                <div class="loop-card-header"><span>${l.label} (Pos ${l.start}–${l.end})</span><span style="font-size:.8rem; color:var(--loop);">Flex: ${l.avg_flexibility}</span></div>
+                <div style="font-size:.8rem; color:var(--muted);">Length: ${l.length} AA</div>
+                <input type="text" class="loop-edit-input" value="${l.sequence}" oninput="updateLoopSnippet(${l.id}, this.value)">
+            </div>
+        `).join('');
+    }
+
+    function selectLoopCard(loopId) {
+        document.querySelectorAll('.loop-card').forEach(c => c.classList.remove('selected'));
+        const card = document.getElementById(`loop-card-${loopId}`);
+        if (card) card.classList.add('selected');
+        const loopObj = currentLoopData.loops.find(l => l.id === loopId);
+        if (loopObj) { selectedLoopPositions = loopObj.positions; selectedLoopLength = loopObj.length; }
+    }
+
+    function updateLoopSnippet(loopId, newSnippet) {
+        const loopObj = currentLoopData.loops.find(l => l.id === loopId);
+        if (!loopObj) return;
+        const snippetClean = newSnippet.replace(/[^A-Za-z]/g, '').toUpperCase();
+        const start0 = loopObj.start - 1;
+        let baseArr = currentMutantSequence.split('');
+        for (let i = 0; i < loopObj.length; i++) {
+            const globalIdx = start0 + i;
+            if (globalIdx < baseArr.length) {
+                if (i < snippetClean.length) {
+                    baseArr[globalIdx] = snippetClean[i];
+                } else {
+                    baseArr[globalIdx] = currentWTSequence[globalIdx];
+                }
+            }
+        }
+        currentMutantSequence = baseArr.join('');
+        syncMutationState();
+    }
+
+    async function generateRandomLoopMutation() {
+        if (!currentWTSequence) { alert("Please identify loop regions first."); return; }
+        const res = await fetch('/api/random_loop_mutation', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ sequence: currentMutantSequence, loop_positions: selectedLoopPositions.length > 0 ? selectedLoopPositions : null, loop_length: selectedLoopLength })
+        });
+        const data = await res.json();
+        if (data.error) { alert(data.error); return; }
+        currentMutantSequence = data.mutant_sequence;
+        syncMutationState();
+    }
+
+    async function evaluateDesign() {
+        const manualInput = document.getElementById('manual-mutation').value.trim();
+        if (manualInput) {
+            let baseArr = currentWTSequence.split('');
+            const tokens = manualInput.split(/[\s,]+/);
+            let validMuts = 0;
+            tokens.forEach(tok => {
+                const match = tok.match(/^([A-Z])(\d+)([A-Z])$/i);
+                if (match) {
+                    const pos = parseInt(match[2]) - 1;
+                    const mutAA = match[3].toUpperCase();
+                    if (pos >= 0 && pos < baseArr.length) {
+                        baseArr[pos] = mutAA;
+                        validMuts++;
+                    }
+                }
+            });
+            if (validMuts > 0) {
+                currentMutantSequence = baseArr.join('');
+            } else if (manualInput.replace(/[^A-Za-z]/g, '').length === currentWTSequence.length) {
+                currentMutantSequence = manualInput.replace(/[^A-Za-z]/g, '').toUpperCase();
+            }
+        }
+
+        syncMutationState();
+
+        const btn = document.getElementById('btn-evaluate-design');
+        const prev = btn ? btn.innerText : '';
+        if (btn) { btn.disabled = true; btn.innerText = "Evaluating..."; }
+        try {
+            const res = await fetch('/api/evaluate_design', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ wt_sequence: currentWTSequence, mutant_sequence: currentMutantSequence })
+            });
+            const data = await res.json();
+            if (data.error) { alert(data.error); return; }
+            renderLiveEvalCard(data);
+            trialHistory.push(data);
+            renderHistoryTable();
+            document.getElementById('btn-update-baseline').style.display = 'inline-flex';
+        } catch (e) {
+            alert(e.message);
+        } finally {
+            if (btn) { btn.disabled = false; btn.innerText = prev || "Evaluate Design"; }
+        }
+    }
+
+    function renderLiveEvalCard(data) {
+        document.getElementById('live-eval-card').style.display = 'block';
+        document.getElementById('eval-wt-tm').innerText = `${data.wt_tm}°C`;
+        document.getElementById('eval-mut-tm').innerText = `${data.mut_tm}°C`;
+        const box = document.getElementById('mut-tm-box');
+        const badge = document.getElementById('eval-delta-badge');
+        const isStab = data.delta_tm > 0;
+        box.className = isStab ? "result-box stab-box" : "result-box destab-box";
+        badge.className = isStab ? "delta-pos" : "delta-neg";
+        badge.innerText = isStab ? `+${data.delta_tm}°C stabilizing` : `${data.delta_tm}°C destabilizing`;
+    }
+
+    function renderHistoryTable() {
+        const tbody = document.getElementById('history-body');
+        if (trialHistory.length === 0) { tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--muted);">No design trials performed yet.</td></tr>`; return; }
+        tbody.innerHTML = trialHistory.map((t, idx) => `
+            <tr>
+                <td>Trial ${idx + 1}</td>
+                <td><code>${t.mutations.map(m => m.label).join(", ") || "WT"}</code></td>
+                <td>${t.mut_tm}°C</td>
+                <td class="${t.delta_tm > 0 ? 'delta-pos' : 'delta-neg'}">${t.delta_tm > 0 ? '+' : ''}${t.delta_tm}°C</td>
+                <td><span class="tag-badge ${t.delta_tm > 0 ? 'stab-tag' : 'destab-tag'}">${t.delta_tm > 0 ? 'Stabilizing' : 'Destabilizing'}</span></td>
+                <td><span class="tag-badge ${t.in_loop_region ? 'loop-tag' : ''}">${t.in_loop_region ? 'Loop' : 'Non-Loop'}</span></td>
+                <td><button type="button" class="btn-action btn-secondary" style="padding:.3rem .6rem; font-size:.8rem;" onclick="revertToTrial(${idx})">Revert</button></td>
+            </tr>
+        `).join('');
+    }
+
+
+    function updateMainBaseline() {
+        if (!currentMutantSequence) return;
+        currentWTSequence = currentMutantSequence;
+        const el = document.getElementById('design-sequence');
+        el.value = currentWTSequence;
+        format5AABlocks('design-sequence');
+        identifyLoops();
+        alert("Active baseline sequence updated to current design!");
+    }
+
+    function undoLastTrial() {
+        if (trialHistory.length === 0) return;
+        trialHistory.pop();
+        if (trialHistory.length > 0) {
+            const last = trialHistory[trialHistory.length - 1];
+            currentMutantSequence = last.mutant_sequence;
+            renderLiveEvalCard(last);
+        } else {
+            currentMutantSequence = currentWTSequence;
+            document.getElementById('live-eval-card').style.display = 'none';
+        }
+        renderSequenceVisualizer(currentWTSequence, currentLoopData ? currentLoopData.ss_str : '', currentMutantSequence);
+        updateMutationStatusBar();
+        renderHistoryTable();
+    }
+
+    function revertToTrial(idx) {
+        if (idx >= 0 && idx < trialHistory.length) {
+            const target = trialHistory[idx];
+            currentMutantSequence = target.mutant_sequence;
+            renderLiveEvalCard(target);
+            renderSequenceVisualizer(currentWTSequence, currentLoopData ? currentLoopData.ss_str : '', currentMutantSequence);
+            updateMutationStatusBar();
+        }
+    }
+
+    function downloadFasta() {
+        if (!currentWTSequence || !currentMutantSequence) return;
+        const wtClean = currentWTSequence.replace(/[^A-Za-z]/g, '').toUpperCase();
+        const mutClean = currentMutantSequence.replace(/[^A-Za-z]/g, '').toUpperCase();
+
+        let muts = [];
+        for (let i = 0; i < wtClean.length; i++) {
+            if (mutClean[i] !== wtClean[i]) {
+                muts.push(`${wtClean[i]}${i+1}${mutClean[i]}`);
+            }
+        }
+        const mutStr = muts.join(', ') || 'WT_Unmodified';
+
+        let lastEvalStr = "";
+        if (trialHistory.length > 0) {
+            const last = trialHistory[trialHistory.length - 1];
+            lastEvalStr = ` | Tm=${last.mut_tm}°C | dTm=${last.delta_tm > 0 ? '+' : ''}${last.delta_tm}°C`;
+        }
+
+        const fastaContent = [
+            `>StableProt_Original_WT | Length=${wtClean.length}AA`,
+            wtClean,
+            `>StableProt_Design_Variant | Mutations=${mutStr}${lastEvalStr}`,
+            mutClean
+        ].join('\n') + '\n';
+
+        const blob = new Blob([fastaContent], {type: 'text/plain'});
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'StableProt_Design_Variant.fasta'; a.click();
+    }
+
+    async function runPredictForm(evt) {
+        if (evt) evt.preventDefault();
+        const rawSeq = document.getElementById('sequence').value.trim();
+        const errBox = document.getElementById('predict-error-box'), resBox = document.getElementById('predict-results-container'), btn = document.getElementById('btn-predict-submit');
+        if (!rawSeq) { errBox.style.display = 'block'; document.getElementById('predict-error-text').innerText = "Please enter an amino acid sequence."; resBox.style.display = 'none'; return; }
+        btn.disabled = true; btn.innerText = "Predicting Tm & OGT...";
+        try {
+            const res = await fetch('/api/predict', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({sequence: rawSeq}) });
+            const data = await res.json();
+            if (data.error || data.status === 'ERROR_TOO_SHORT') {
+                errBox.style.display = 'block'; document.getElementById('predict-error-text').innerText = data.error || "Sequence too short (<50 AA)"; resBox.style.display = 'none';
+            } else {
+                errBox.style.display = 'none'; resBox.style.display = 'block';
+                document.getElementById('predict-val-tm').innerText = `${data.tm_pred.toFixed(2)}°C`;
+                document.getElementById('predict-conf-tm').innerText = `± ${data.tm_conf.toFixed(2)}°C`;
+                document.getElementById('predict-val-ogt').innerText = `${data.ogt_pred.toFixed(2)}°C`;
+                document.getElementById('predict-conf-ogt').innerText = `± ${data.ogt_conf.toFixed(2)}°C`;
+                updateGauge(data.tm_pred, data.ci_low, data.ci_high, data.thermal_tier, data.aa_composition);
+            }
+        } catch (e) {
+            errBox.style.display = 'block'; document.getElementById('predict-error-text').innerText = e.message; resBox.style.display = 'none';
+        } finally {
+            btn.disabled = false; btn.innerText = "Predict Tm & OGT";
+        }
+    }
+</script>
+</body>
+</html>

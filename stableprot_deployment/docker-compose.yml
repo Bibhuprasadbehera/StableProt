@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  stableprot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: stableprot:latest
+    container_name: stableprot-server
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - MODELS_DIR=/app/models
+      - DEVICE=auto
+      - HF_HOME=/root/.cache/huggingface
+    volumes:
+      # Persistent named volume for HuggingFace models so SaProt is only downloaded once
+      - hf_cache:/root/.cache/huggingface
+      # OPTIONAL: If you already have the SaProt model cached on the host, you can uncomment below:
+      # - ~/.cache/huggingface:/root/.cache/huggingface:ro
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+volumes:
+  hf_cache:
+    name: stableprot_hf_cache

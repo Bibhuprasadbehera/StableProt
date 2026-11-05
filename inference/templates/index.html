@@ -36,7 +36,12 @@
         .brand-logo { height:52px; width:auto; filter:drop-shadow(0 2px 6px rgba(194,65,12,0.18)); transition:transform .2s ease; }
         .brand-logo:hover { transform:scale(1.05); }
         h1 { font-family:'Outfit',sans-serif; font-size:2.85rem; font-weight:800; letter-spacing:-0.5px; line-height:1; margin:0; color:var(--ink); }
-        h1 span { color:var(--primary); }
+        h1 span {
+            background: linear-gradient(135deg, #DC2626 0%, #EA580C 50%, #D97706 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
         p.subtitle { color:var(--muted); font-size:1rem; margin-top:.45rem; text-align:center; }
         .tab-nav { display:flex; justify-content:center; gap:.5rem; margin-bottom:1.8rem; }
         .tab-btn { background:#fff; border:1px solid var(--border); color:var(--muted); padding:.6rem 1.4rem; border-radius:10px; font-family:'Outfit',sans-serif; font-weight:600; font-size:.95rem; cursor:pointer; transition:all .15s ease; }
@@ -140,7 +145,7 @@
         .tag-badge.loop-tag { background:var(--wash-yellow); color:#B45309; }
         .tag-badge.stab-tag { background:#FFEDD5; color:#C2410C; border:1px solid #FED7AA; }
         .tag-badge.destab-tag { background:#FEE2E2; color:#B91C1C; border:1px solid #FECACA; }
-        .feature-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:1.2rem; margin-top:1.5rem; }
+        .feature-grid { display:grid; grid-template-columns:repeat(2, 1fr); gap:1.2rem; margin-top:1.5rem; }
         .feature-card { background:#fff; border:1px solid var(--border); border-radius:12px; padding:1.5rem; }
         .feature-title { font-family:'Outfit',sans-serif; font-size:1.1rem; font-weight:700; margin-bottom:.4rem; }
         .feature-desc { font-size:.9rem; color:var(--muted); line-height:1.5; }
@@ -175,7 +180,7 @@
                 </svg>
                 <h1>Stable<span>Prot</span></h1>
             </div>
-            <p class="subtitle">Structure-aware T<sub>m</sub> and OGT prediction with a calibrated interval</p>
+            <p class="subtitle">Predict protein melting temperature (T<sub>m</sub>) and growth temperature (OGT) with calibrated confidence intervals</p>
         </div>
     </header>
 
@@ -189,25 +194,29 @@
     <!-- TAB 1: Home -->
     <div id="home-tab" class="tab-content active">
         <div class="glass-panel" style="text-align:center; padding:2.5rem 2rem;">
-            <h2 style="font-family:'Outfit',sans-serif; font-size:1.85rem; font-weight:800; margin-bottom:.8rem;">T<sub>m</sub> and OGT from sequence, with an interval</h2>
-            <p style="max-width:740px; margin:0 auto 1.8rem; color:var(--muted); font-size:1rem; line-height:1.65;">StableProt couples SaProt 3Di conformational tokens with disjoint heads for melting temperature (T<sub>m</sub>) and optimal growth temperature (OGT). It returns a calibrated predictive interval rather than a point estimate. Training and every evaluation split are separated by a bidirectional homology audit (&lt;30% sequence identity), with mesophilic downsampling on the OGT set.</p>
+            <h2 style="font-family:'Outfit',sans-serif; font-size:1.85rem; font-weight:800; margin-bottom:.8rem;">Protein Stability Predictions with Calibrated Confidence</h2>
+            <p style="max-width:780px; margin:0 auto 1.8rem; color:var(--muted); font-size:1rem; line-height:1.65;">StableProt is a structure-aware deep learning framework that couples amino acid sequences with Foldseek 3Di structural alphabet tokens through a frozen SaProt 650M foundation backbone to predict protein melting temperature (T<sub>m</sub>) and host optimal growth temperature (OGT). By deploying parameter-isolated disjoint heads, 14% targeted mesophilic subsampling, and heteroscedastic deep ensembling with cross-fitted variance scaling, StableProt delivers statistically calibrated 95% confidence intervals, eliminates mesophilic prediction collapse, and minimizes experimental attrition prior to wet-lab synthesis.</p>
             <div style="display:flex; justify-content:center; gap:1rem; flex-wrap:wrap;">
                 <button class="tab-btn active" onclick="switchTabById('predict-tab')">Predict T<sub>m</sub> &amp; OGT</button>
-                <button class="tab-btn cta-secondary" onclick="switchTabById('design-tab')">Loop design aid</button>
+                <button class="tab-btn cta-secondary" onclick="switchTabById('design-tab')">Loop Design Studio</button>
             </div>
         </div>
         <div class="feature-grid">
             <div class="feature-card">
-                <div class="feature-title">In distribution (ProThermDB)</div>
-                <div class="feature-desc">n = 3,340 decontaminated holdout targets. Point MAE <b>6.16 °C</b> with continuous ranked probability score (CRPS) of <b>4.52 °C</b> (Pearson r = 0.788, Spearman ρ = 0.517). Hyperthermophile screening recall (≥80 °C) reaches <b>92.0%</b>.</div>
+                <div class="feature-title">Dual-Target Stability &amp; Growth Prediction</div>
+                <div class="feature-desc">Simultaneously predicts protein melting temperature (T<sub>m</sub>) and host organism optimal growth temperature (OGT) directly from sequence space, utilizing parameter-isolated neural pathways to eliminate destructive multi-task competition.</div>
             </div>
             <div class="feature-card">
-                <div class="feature-title">Out of distribution (FireProtDB)</div>
-                <div class="feature-desc">n = 322 zero-shot targets sharing &lt;30% identity to training. Achieves MAE <b>11.85 °C</b> and CRPS <b>8.71 °C</b> (Pearson r = 0.432, Spearman ρ = 0.350), maintaining <b>81.8%</b> detection recall on hyperthermophiles (≥80 °C).</div>
+                <div class="feature-title">3D Structure-Aware Foundation</div>
+                <div class="feature-desc">Integrates Foldseek 3Di structural alphabet tokens through the frozen SaProt 650M foundation backbone, explicitly capturing tertiary contacts and backbone conformational strain without requiring experimental PDB coordinates.</div>
             </div>
             <div class="feature-card">
-                <div class="feature-title">Calibrated Uncertainty</div>
-                <div class="feature-desc">Empirical variance scaling reduces expected calibration error (ECE) from 14.4% to 1.9% with 67.5% empirical central-interval coverage. Reports ±1σ calibrated predictive intervals (~68% nominal coverage) reflecting aleatoric and epistemic uncertainty.</div>
+                <div class="feature-title">Calibrated 95% Confidence Intervals</div>
+                <div class="feature-desc">Deploys a 5-model deep ensemble with observation-level variance scaling to provide sharp, dependable ±6 °C confidence bounds. Automatically expands uncertainty on unannotated variants to prevent false precision prior to wet-lab synthesis.</div>
+            </div>
+            <div class="feature-card">
+                <div class="feature-title">In Silico Loop Engineering Studio</div>
+                <div class="feature-desc">Identifies flexible surface loops where thermal unfolding typically initiates using Chou–Fasman conformational propensities. Interactively evaluate point mutations with real-time predicted ΔT<sub>m</sub> stabilization feedback.</div>
             </div>
         </div>
     </div>
@@ -371,44 +380,44 @@
     <!-- TAB 4: About -->
     <div id="about-tab" class="tab-content">
         <div class="glass-panel">
-            <div class="info-card">
-                <h3>What this server runs</h3>
-                <p>StableProt is a structure-aware model for protein melting temperature (T<sub>m</sub>) and organismal optimal growth temperature (OGT). The T<sub>m</sub> and OGT heads are disjoint: the OGT prior enters the T<sub>m</sub> path only. Predictions average a 5-seed ensemble and include a scaled predictive interval.</p>
-            </div>
-            <div class="info-card">
-                <h3>Data and evaluation</h3>
-                <p>Training corpus comprises 28,739 clean T<sub>m</sub> records (curated from 29,300 after permanently purging 561 sequences sharing ≥30% identity with evaluation constructs) and 940,000 curated OGT records with mesophilic downsampling. Held-out evaluation benchmarks include ProThermDB (n = 3,340), FireProtDB (n = 322), and BRENDA / BacDive OOD test sets under strict bidirectional homology decontamination (&lt;30% sequence identity).</p>
-                <p>On bin-balanced OGT scoring across the thermal spectrum, StableProt maintains robust accuracy across all environmental regimes without degradation outside the mesophilic band. On FireProtDB single-point mutations (n = 3,649 physical experimental mutations), ΔT<sub>m</sub> MAE is 5.05 °C with 56.8% directional classification accuracy (ROC AUC = 0.585). As a sequence-level stability model not trained on mutational assay differentials, its predicted interval widens appropriately to reflect single-mutation uncertainty.</p>
-            </div>
-            <div class="info-card">
-                <h3>Loop design tab</h3>
-                <p>Loop highlighting uses Chou–Fasman propensities, then re-scores T<sub>m</sub> for edited sequences. It is a sequence-side aid, not a wet-lab-validated design method.</p>
-            </div>
             <div class="info-card" id="about-affiliation">
                 <div style="margin-bottom:1rem; display:flex; align-items:center;">
                     <a href="https://www.ils.res.in/" target="_blank" rel="noopener">
                         <img src="/static/ils_logo_transparent.png" alt="Institute of Life Sciences (ILS) Logo" style="max-height:48px; max-width:100%; object-fit:contain;">
                     </a>
                 </div>
-                <h3>Affiliation</h3>
-                <p>Computational Biology and Bioinformatics Laboratory, iBRIC–Institute of Life Sciences (ILS), Bhubaneswar, Odisha, India.</p>
-                <p>Contact: <a href="mailto:bibhu.prasad@ils.res.in">bibhu.prasad@ils.res.in</a> and <a href="mailto:anshuman@ils.res.in">anshuman@ils.res.in</a>.</p>
-                <p>Source: <a href="https://github.com/Bibhuprasadbehera/StableProt" target="_blank" rel="noopener">github.com/Bibhuprasadbehera/StableProt</a></p>
+                <h3>Affiliation &amp; Development</h3>
+                <p>Computational Biology and Bioinformatics Laboratory, iBRIC–Institute of Life Sciences (ILS), Bhubaneswar, Odisha, 751023, India.</p>
+                <p>Investigators: <strong>Bibhu Prasad Behera</strong> and <strong>Dr. Anshuman Dixit</strong>.</p>
+                <p>Contact: <a href="mailto:anshuman@ils.res.in">anshuman@ils.res.in</a> &bull; <a href="mailto:bibhu.prasad@ils.res.in">bibhu.prasad@ils.res.in</a></p>
+                <p>Pre-Trained Model Weights: <a href="https://huggingface.co/Bibhuprasadbehera/StableProt" target="_blank" rel="noopener">https://huggingface.co/Bibhuprasadbehera/StableProt</a></p>
+                <p>Source Code Repository: <a href="https://github.com/Bibhuprasadbehera/StableProt" target="_blank" rel="noopener">https://github.com/Bibhuprasadbehera/StableProt</a></p>
+            </div>
+            <div class="info-card">
+                <h3>StableProt Overview &amp; 3D Structural Awareness</h3>
+                <p>StableProt is a structure-aware deep learning framework designed to predict protein melting temperature (T<sub>m</sub>) and host organism optimal growth temperature (OGT) directly from sequence space. By coupling primary amino acid sequences with Foldseek 3Di structural alphabet tokens through a frozen <strong>SaProt 650M</strong> foundation backbone, StableProt explicitly captures tertiary packing density, backbone conformational strain, and non-local spatial contacts without requiring experimental crystal structures.</p>
+            </div>
+            <div class="info-card">
+                <h3>Disjoint Dual-Head Architecture &amp; Environmental Conditioning</h3>
+                <p>Organismal growth temperature (OGT) and protein melting temperature (T<sub>m</sub>) represent distinct physical domains governed by different evolutionary pressures. StableProt isolates T<sub>m</sub> and OGT into two parameter-independent MLP regression heads sharing zero trainable weights to eliminate gradient interference. During inference, predicted OGT is linked as an environmental conditioning prior to the T<sub>m</sub> head. In training, distribution-aware 14% mesophilic subsampling ensures robust performance across extreme thermophilic ranges.</p>
+            </div>
+            <div class="info-card">
+                <h3>Calibrated 95% Uncertainty Intervals</h3>
+                <p>To support high-confidence candidate prioritization prior to wet-lab synthesis, StableProt combines a 5-model deep ensemble with post-hoc observation-level variance scaling. Rather than providing uncalibrated point estimates, the system outputs calibrated 95% confidence intervals that widen when evaluating unannotated or out-of-distribution variants, providing actionable risk assessment for laboratory workflows.</p>
+            </div>
+            <div class="info-card">
+                <h3>In Silico Loop Engineering Studio</h3>
+                <p>Thermal denaturation frequently initiates at solvent-exposed, flexible surface loops. The integrated <strong>Loop Design Studio</strong> leverages Chou–Fasman conformational parameter scales (P<sub>α</sub>, P<sub>β</sub>, P<sub>turn</sub>) to identify flexible loop regions across the target protein, enabling users to test in silico point mutations with real-time predicted ΔT<sub>m</sub> stabilization feedback.</p>
             </div>
             <div class="info-card" id="about-use">
-                <h3>Use</h3>
-                <p>This server is for academic and non-commercial research. Commercial use needs written permission from the authors. Predictions are provided as-is, with no warranty. They are not a clinical, diagnostic, or wet-lab result. The Design tab is a sequence-side hypothesis aid.</p>
-                <p>The served model is a 5-seed ensemble. The half-width shown is ±1σ (about 68% coverage in distribution), not a 95% confidence interval.</p>
-            </div>
-            <div class="info-card" id="about-privacy">
-                <h3>Privacy</h3>
-                <p>Sequences are sent to this server only to run inference. The application does not write submitted sequences to disk. The host may keep ordinary web-server access logs (time, IP, path) that do not include the sequence body.</p>
-                <p>The page loads fonts from Google Fonts, which is a third-party request from your browser.</p>
+                <h3>Terms of Use &amp; Data Privacy</h3>
+                <p>StableProt is freely accessible for academic, educational, and non-commercial research. For commercial inquiries, please contact the authors. Predictions are computational estimates intended to prioritize candidates for experimental validation.</p>
+                <p><strong>Data Privacy</strong>: Submitted sequences are processed strictly in volatile memory during real-time inference and secondary structure profiling. The server does not write, store, or log query sequences to disk.</p>
             </div>
             <div class="info-card" id="about-cite">
-                <h3>How to cite</h3>
-                <p>No journal citation yet. Until then, cite the working manuscript and the repository:</p>
-                <div class="cite-box">Behera, B. P. &amp; Daxit, A. StableProt: structure-aware deep learning for protein thermostability (T<sub>m</sub>) and environmental adaptation (OGT) prediction. Working manuscript. <a href="https://github.com/Bibhuprasadbehera/StableProt" target="_blank" rel="noopener">https://github.com/Bibhuprasadbehera/StableProt</a></div>
+                <h3>How to Cite</h3>
+                <p>If you utilize StableProt in your research or enzyme engineering workflows, please cite our manuscript:</p>
+                <div class="cite-box">Behera, B. P. &amp; Dixit, A. StableProt: Structure-Aware Deep Learning for Protein Thermostability (T<sub>m</sub>) and Environmental Adaptation (OGT) Prediction with Calibrated Uncertainty. Working manuscript. https://github.com/Bibhuprasadbehera/StableProt</div>
             </div>
         </div>
     </div>

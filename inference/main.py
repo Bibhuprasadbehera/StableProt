@@ -14,6 +14,13 @@ except ImportError:
 
 app = FastAPI(title="StableProt V9 Predictor & Loop Design Suite")
 
+try:
+    from .security import install as install_security
+except ImportError:
+    from security import install as install_security
+
+install_security(app)
+
 # Setup templates & static
 base_dir = os.path.dirname(os.path.abspath(__file__))
 templates = Jinja2Templates(directory=os.path.join(base_dir, "templates"))

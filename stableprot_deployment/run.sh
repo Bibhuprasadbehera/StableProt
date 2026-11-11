@@ -46,4 +46,4 @@ $PYTHON_CMD -m pip install -r requirements.txt
 echo "Starting StableProt server on http://localhost:8000 ..."
 export MODELS_DIR="$DIR/models"
 export DEVICE="auto"
-$PYTHON_CMD -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+$PYTHON_CMD -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --no-server-header

@@ -28,6 +28,13 @@ app = FastAPI(
     version="1.0.0",
 )
 
+try:
+    from .security import install as install_security
+except ImportError:
+    from security import install as install_security
+
+install_security(app)
+
 base_dir = os.path.dirname(os.path.abspath(__file__))
 templates = Jinja2Templates(directory=os.path.join(base_dir, "templates"))
 app.mount("/static", StaticFiles(directory=os.path.join(base_dir, "static")), name="static")

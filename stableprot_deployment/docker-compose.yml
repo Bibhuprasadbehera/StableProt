@@ -14,6 +14,7 @@ services:
       - MODELS_DIR=/app/models
       - DEVICE=auto
       - HF_HOME=/root/.cache/huggingface
+      - ALLOWED_HOSTS=localhost,127.0.0.1,192.168.4.156
     volumes:
       # Persistent named volume for HuggingFace models so SaProt is only downloaded once
       - hf_cache:/root/.cache/huggingface

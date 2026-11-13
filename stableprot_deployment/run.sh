@@ -22,7 +22,7 @@ if command -v docker &> /dev/null; then
     else
         echo "Building and running standalone Docker container..."
         docker build -t stableprot:latest .
-        docker run --rm -it -p 8000:8000 --gpus all stableprot:latest
+        docker run --rm -it -p 7300:7300 --gpus all stableprot:latest
         exit 0
     fi
 fi
@@ -43,7 +43,7 @@ echo "Using: $($PYTHON_CMD --version)"
 echo "Installing/verifying requirements..."
 $PYTHON_CMD -m pip install -r requirements.txt
 
-echo "Starting StableProt server on http://localhost:8000 ..."
+echo "Starting StableProt server on http://localhost:7300 ..."
 export MODELS_DIR="$DIR/models"
 export DEVICE="auto"
-$PYTHON_CMD -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --no-server-header
+$PYTHON_CMD -m uvicorn app.main:app --host 0.0.0.0 --port 7300 --no-server-header

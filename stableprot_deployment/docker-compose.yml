@@ -9,7 +9,7 @@ services:
     container_name: stableprot-server
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "7300:7300"
     environment:
       - MODELS_DIR=/app/models
       - DEVICE=auto
@@ -27,6 +27,16 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
+
+    networks:
+      - default
+      - genoverse
+
+networks:
+  default:
+  genoverse:
+    name: genoverse_default
+    external: true
 
 volumes:
   hf_cache:

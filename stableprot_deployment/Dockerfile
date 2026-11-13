@@ -24,12 +24,12 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 COPY models /app/models
 COPY app /app/app
 
-# Expose port 8000 for web interface and REST API
-EXPOSE 8000
+# Expose port 7300 for web interface and REST API
+EXPOSE 7300
 
 # Container healthcheck
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+    CMD curl -f http://localhost:7300/health || exit 1
 
 # Start FastAPI server with Uvicorn
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--no-server-header"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "7300", "--no-server-header"]

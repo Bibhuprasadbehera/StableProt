@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import secrets
 import time
 from collections import defaultdict, deque
 
@@ -39,6 +40,7 @@ INFER_PATHS = {
     "/api/random_loop_mutation",
 }
 SKIP_RATE_PATHS = {"/health"}
+SESSION_COOKIE = "sp_session"
 
 
 def allowed_hosts():
@@ -56,6 +58,13 @@ def client_ip(request) -> str:
     return "unknown"
 
 
+def session_id(request):
+    sid = request.cookies.get(SESSION_COOKIE, "")
+    if len(sid) == 32 and all(c in "0123456789abcdef" for c in sid):
+        return sid, False
+    return secrets.token_hex(16), True
+
+
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
         response = await call_next(request)
@@ -70,12 +79,28 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
-    def __init__(self, app, infer_limit=10, infer_window=60, global_limit=60, global_window=60):
+    """10 inference requests per browser session per minute.
+
+    Concurrent users each get their own session cookie, so ten people
+    on the same lab IP do not share one bucket. A higher per-IP cap
+    still stops cookie-reset floods (the VAPT 10k-request case).
+    """
+
+    def __init__(
+        self,
+        app,
+        session_infer_limit=10,
+        session_infer_window=60,
+        session_all_limit=60,
+        ip_infer_limit=150,
+        ip_all_limit=300,
+    ):
         super().__init__(app)
-        self.infer_limit = infer_limit
-        self.infer_window = infer_window
-        self.global_limit = global_limit
-        self.global_window = global_window
+        self.session_infer_limit = session_infer_limit
+        self.session_infer_window = session_infer_window
+        self.session_all_limit = session_all_limit
+        self.ip_infer_limit = ip_infer_limit
+        self.ip_all_limit = ip_all_limit
         self._hits = defaultdict(deque)
 
     def _allow(self, key: str, limit: int, window: float):
@@ -90,21 +115,50 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         q.append(now)
         return True, 0
 
+    def _attach_cookie(self, response, sid: str, is_new: bool):
+        if is_new:
+            response.set_cookie(
+                SESSION_COOKIE,
+                sid,
+                max_age=86400,
+                httponly=True,
+                samesite="lax",
+                path="/",
+            )
+        return response
+
     async def dispatch(self, request, call_next):
         path = request.url.path
+        sid, is_new = session_id(request)
         if path.startswith("/static") or path in SKIP_RATE_PATHS:
-            return await call_next(request)
+            response = await call_next(request)
+            return self._attach_cookie(response, sid, is_new)
+
         ip = client_ip(request)
-        ok, retry = self._allow(f"{ip}:all", self.global_limit, self.global_window)
-        if ok and path in INFER_PATHS:
-            ok, retry = self._allow(f"{ip}:infer", self.infer_limit, self.infer_window)
-        if not ok:
-            return JSONResponse(
-                {"error": "Too many requests"},
-                status_code=429,
-                headers={"Retry-After": str(retry)},
-            )
-        return await call_next(request)
+        is_infer = path in INFER_PATHS
+        checks = [
+            (f"{ip}:all", self.ip_all_limit, 60),
+            (f"{sid}:all", self.session_all_limit, 60),
+        ]
+        if is_infer:
+            checks.extend([
+                (f"{ip}:infer", self.ip_infer_limit, 60),
+                (f"{sid}:infer", self.session_infer_limit, self.session_infer_window),
+            ])
+
+        retry = 1
+        for key, limit, window in checks:
+            ok, retry = self._allow(key, limit, window)
+            if not ok:
+                response = JSONResponse(
+                    {"error": "Too many requests"},
+                    status_code=429,
+                    headers={"Retry-After": str(retry)},
+                )
+                return self._attach_cookie(response, sid, is_new)
+
+        response = await call_next(request)
+        return self._attach_cookie(response, sid, is_new)
 
 
 def install(app):

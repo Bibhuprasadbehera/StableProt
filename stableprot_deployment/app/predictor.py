@@ -35,6 +35,10 @@ def sanitize_sequence(raw_input: str) -> str:
     cleaned = re.sub(r'[^A-Za-z]', '', raw)
     return cleaned.upper()
 
+def invalid_residues(seq: str) -> list:
+    allowed = set(STANDARD_AAS)
+    return sorted(set(c for c in seq if c not in allowed))
+
 def classify_tm_tier(tm_pred: float) -> str:
     """Classify predicted melting temperature into stability regimes."""
     if tm_pred < 40.0:
@@ -273,6 +277,18 @@ class StableProtPredictor:
     def predict_single(self, raw_input: str) -> dict:
         """Sanitize raw input, apply length guardrails, and return structured prediction dict."""
         seq = sanitize_sequence(raw_input)
+        bad = invalid_residues(seq)
+        if bad:
+            return {
+                "status": "ERROR_INVALID_AA",
+                "error": (
+                    "Invalid residue(s): " + ", ".join(bad) +
+                    ". Use the 20 standard amino acids (ACDEFGHIKLMNPQRSTVWY). "
+                    "B, J, O, U, X and Z are not accepted."
+                ),
+                "sequence": seq,
+                "length": len(seq),
+            }
         if len(seq) < 50:
             return {"status": "ERROR_TOO_SHORT", "sequence": seq, "length": len(seq)}
         
@@ -339,6 +355,11 @@ class StableProtPredictor:
         res_wt = self.predict_single(wt)
         res_mut = self.predict_single(mut)
 
+        if res_wt.get("status") == "ERROR_INVALID_AA" or res_mut.get("status") == "ERROR_INVALID_AA":
+            return {
+                "status": "ERROR_INVALID_AA",
+                "error": res_wt.get("error") or res_mut.get("error"),
+            }
         if res_wt.get("status") == "ERROR_TOO_SHORT" or res_mut.get("status") == "ERROR_TOO_SHORT":
             return {"status": "ERROR_TOO_SHORT", "error": "Sequence too short (<50 aa)"}
 

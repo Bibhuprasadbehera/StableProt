@@ -70,6 +70,7 @@
             .result-val { font-size:2rem; }
             .btn-group { flex-direction:column; }
             .btn-group .btn-action { width:100%; flex:none !important; }
+            .sample-picks { width:100%; }
             .feature-grid { grid-template-columns:1fr; }
             .loops-grid { grid-template-columns:1fr; }
             .gauge-labels { font-size:.65rem; }
@@ -82,6 +83,8 @@
         textarea { width:100%; height:120px; background:#fff; border:1px solid var(--border); border-radius:10px; font-family:'Fira Code',monospace; font-size:.9rem; padding:.85rem; resize:vertical; line-height:1.5; }
         textarea:focus { outline:none; border-color:var(--primary); box-shadow:0 0 0 3px var(--focus); }
         .btn-group { display:flex; gap:.75rem; flex-wrap:wrap; margin-top:1rem; align-items:stretch; }
+        .sample-picks { display:flex; flex-wrap:wrap; gap:.4rem; flex:1; }
+        .sample-picks .btn-action { flex:1; min-width:7.2rem; }
         .btn-action { display:inline-flex; align-items:center; justify-content:center; padding:.65rem 1.4rem; font-family:'Outfit',sans-serif; font-weight:700; font-size:.95rem; color:#fff; background:var(--primary); border:none; border-radius:8px; cursor:pointer; transition:all .15s ease; }
         .btn-action:hover { background:var(--primary-hover); }
         .btn-lg { padding:1rem 1.6rem; font-size:1.12rem; font-weight:800; letter-spacing:.01em; border-radius:10px; }
@@ -447,18 +450,59 @@
 
 <script>
     let currentWTSequence = "", currentMutantSequence = "", currentLoopData = null, selectedLoopPositions = [], selectedLoopLength = null, trialHistory = [];
+    const STANDARD_AA = "ACDEFGHIKLMNPQRSTVWY";
+
+    function lettersOnly(raw) {
+        const lines = String(raw || "").split("\n").filter(l => {
+            const t = l.trim();
+            return t && !t.startsWith(">") && !t.startsWith("#");
+        });
+        return lines.join("").replace(/[^A-Za-z]/g, "").toUpperCase();
+    }
+
+    function invalidResidues(seq) {
+        return [...new Set([...seq].filter(c => !STANDARD_AA.includes(c)))].sort();
+    }
+
+    function validateProteinSequence(raw, minLen) {
+        const seq = lettersOnly(raw);
+        const bad = invalidResidues(seq);
+        if (!seq) return { ok: false, seq, error: "Please enter an amino acid sequence." };
+        if (bad.length) {
+            return {
+                ok: false,
+                seq,
+                error: "Invalid residue(s): " + bad.join(", ") +
+                    ". Use the 20 standard amino acids (ACDEFGHIKLMNPQRSTVWY). B, J, O, U, X and Z are not accepted.",
+            };
+        }
+        if (typeof minLen === "number" && seq.length < minLen) {
+            return { ok: false, seq, error: "Sequence too short (" + seq.length + " aa). StableProt requires at least " + minLen + " residues." };
+        }
+        if (seq.length > 1024) {
+            return { ok: false, seq, error: "Sequence too long (" + seq.length + " aa). Maximum is 1024." };
+        }
+        return { ok: true, seq, error: null };
+    }
 
     function updateSeqBadge(inputId) {
         const el = document.getElementById(inputId);
         if (!el) return;
-        const clean = el.value.replace(/[^A-Za-z]/g, '');
+        const seq = lettersOnly(el.value);
+        const bad = invalidResidues(seq);
         const badgeId = inputId === 'sequence' ? 'seq-count-badge' : 'design-seq-badge';
         const badge = document.getElementById(badgeId);
         if (badge) {
-            const valid = clean.length >= 50 && clean.length <= 1024;
-            badge.innerText = `${clean.length} AA ${valid ? '✓' : '(50–1024 valid)'}`;
-            badge.style.background = valid ? '#FEF3C7' : '#FEF2F2';
-            badge.style.color = valid ? '#B45309' : '#B91C1C';
+            if (bad.length) {
+                badge.innerText = `Invalid: ${bad.join(', ')}`;
+                badge.style.background = '#FEF2F2';
+                badge.style.color = '#B91C1C';
+            } else {
+                const valid = seq.length >= 50 && seq.length <= 1024;
+                badge.innerText = `${seq.length} AA ${valid ? '✓' : '(50–1024 valid)'}`;
+                badge.style.background = valid ? '#FEF3C7' : '#FEF2F2';
+                badge.style.color = valid ? '#B45309' : '#B91C1C';
+            }
         }
     }
 
@@ -484,10 +528,32 @@
         updateSeqBadge(inputId);
     }
 
+    const SAMPLE_LIBRARY = {
+        psychrophilic: [
+            "MKLIRLVISLIAVSFTVNVMAAPPSSFSKAKKEAVKIYLDYPTSFYCGCDITWKNKKKGIPELESCGYQVRKQEKRASRIEWEHVVPAWQFGHQRQCWQKGGRKNCTRNDKQFKSMEADLHNLVPAIGEVNGDRSNFRFSQWNGSKGAFYGQCAFKVDFKGRVAEPPAQSRGAIARTYLYMNNEYKFNLSKAQRQLMEAWNKQYPVSTWECTRDERIAKIQGNHNQFVYKACTK",
+            "VEVDCSRFPNTTNEEGKDVLVCTEDLRPICGTDGVTHSECLLCAYNIEYGTNISKEHDGECREAVPMDCSRYPNTTSEEGKVMILCNKALNPVCGTDGVTYDNECVLCAHNLEQGTSVGKKHDGECRKELAAVSVDCSEYPKPACTLEYRPLCGSDNKTYGNKCNFCNAVVESNGTLTLSHFGKC",
+            "MDMRVPAQLLGLLLLWLSGARCDIQMTQSPSSLSASVGDRVTITCQASQDISNYLNWYQQKPGKAPKLLIYDASNLETGVPSRFSGSGSGTDFTFTISSLQPEDIATYYCQQYDNLP"
+        ],
+        mesophilic: [
+            "MKADPTLQQKISQYQVVGRKQPTEAEPNPSLFRMRLFARNKVLAVSKFWYLLKKMKKVKKSTGEILAVNEIREKRPTFVKNFGVWLRYDSRTGTHNMYKEVRDISQNGAVSQLYAEMAGRHRALPSNIQIIRVAEIKASQCRRAHMQQLFDSKLKLPAIRRIFPTPKDKKSVFCARKPTLFLH",
+            "MATVQQLEGRWRLVDSKGFDEYMKELGVGIALRKMGAMAKPDCIITCDGKNLTIKTESTLKTTQFSCTLGEKFEETTADGRKTQTVCNFTDGALVQHQEWDGKESTITRKLKDGKLVVECVMNNVTCTRIYEKVE",
+            "MQIFVKTLTGKTITLEVESSDTIDNVKSKIQDKEGIPPDQQRLIFAGKQLEDGRTLSDYNIQKESTLHLVLRLRGGGKKRKKKVYTTPKKIKHKHKKVKLAVLSYYKVDAEGKVTKLRRECSNPTCGAGVFLANHKDRLYCGKCHSVYKVNA"
+        ],
+        thermophilic: [
+            "MAQVLQTLVDQKVEIVTVDGRVFVGTLKGFDQSTNLILDKCEERIYSVDAAVEQIALGLYLIRGDNIAVVGEVDVEVDESIQLSSVRAAPLKPVRFCFLSVSFYFRHFSRSRSSPRSRKGPCMFWSRLG",
+            "MAKAPIRARKRVRKQVSDGVAHIHASFNNTIVTITDRQGNALGWATAGGSGFRGSRKSTPFAAQVAAERCADAVKEYGIKNLEVMVKGPGPGRESTIRALNAAGFRITNITDVTPIPHNGCRPPKKRRV",
+            "MAKKPSKKKVKRQVASGRAYIHASYNNTIVTITDPDGNPITWSSGGVIGYKGSRKGTPYAAQLAALDAAKKAMAYGMQSVDVIVRGTGAGREQAIRALQASGLQVKSIVDDTPVPHNGCRPKKKFRKAS"
+        ]
+    };
+
+    function pickSample() {
+        const pool = Object.values(SAMPLE_LIBRARY).flat();
+        return pool[Math.floor(Math.random() * pool.length)];
+    }
+
     function loadPredictSample() {
-        const sample = "RPDFCLEPPYTGPCKARIIRYFYNAKAGLCQTFVYGGCRAKRNNFKSAEDCMRTCGGA";
         const el = document.getElementById('sequence');
-        el.value = sample;
+        el.value = pickSample();
         format5AABlocks('sequence');
     }
 
@@ -580,14 +646,15 @@
 
     function loadSampleSequence() {
         const el = document.getElementById('design-sequence');
-        el.value = "RPDFCLEPPYTGPCKARIIRYFYNAKAGLCQTFVYGGCRAKRNNFKSAEDCMRTCGGA";
+        el.value = pickSample();
         format5AABlocks('design-sequence');
     }
 
     async function identifyLoops() {
         const raw = document.getElementById('design-sequence').value.trim();
-        if (!raw) { alert("Please enter a sequence first."); return; }
-        currentWTSequence = raw.replace(/[^A-Za-z]/g, '').toUpperCase();
+        const check = validateProteinSequence(raw, 50);
+        if (!check.ok) { alert(check.error); return; }
+        currentWTSequence = check.seq;
         currentMutantSequence = currentWTSequence;
         const btn = document.getElementById('btn-identify-loops');
         const prev = btn.innerText;
@@ -754,6 +821,7 @@
                 if (match) {
                     const pos = parseInt(match[2]) - 1;
                     const mutAA = match[3].toUpperCase();
+                    if (!STANDARD_AA.includes(mutAA)) return;
                     if (pos >= 0 && pos < baseArr.length) {
                         baseArr[pos] = mutAA;
                         validMuts++;
@@ -889,12 +957,18 @@
         if (evt) evt.preventDefault();
         const rawSeq = document.getElementById('sequence').value.trim();
         const errBox = document.getElementById('predict-error-box'), resBox = document.getElementById('predict-results-container'), btn = document.getElementById('btn-predict-submit');
-        if (!rawSeq) { errBox.style.display = 'block'; document.getElementById('predict-error-text').innerText = "Please enter an amino acid sequence."; resBox.style.display = 'none'; return; }
+        const check = validateProteinSequence(rawSeq, 50);
+        if (!check.ok) {
+            errBox.style.display = 'block';
+            document.getElementById('predict-error-text').innerText = check.error;
+            resBox.style.display = 'none';
+            return;
+        }
         btn.disabled = true; btn.innerText = "Predicting Tm & OGT...";
         try {
-            const res = await fetch('/api/predict', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({sequence: rawSeq}) });
+            const res = await fetch('/api/predict', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({sequence: check.seq}) });
             const data = await res.json();
-            if (data.error || data.status === 'ERROR_TOO_SHORT') {
+            if (data.error || data.status === 'ERROR_TOO_SHORT' || data.status === 'ERROR_INVALID_AA') {
                 errBox.style.display = 'block'; document.getElementById('predict-error-text').innerText = data.error || "Sequence too short (<50 AA)"; resBox.style.display = 'none';
             } else {
                 errBox.style.display = 'none'; resBox.style.display = 'block';

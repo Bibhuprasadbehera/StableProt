@@ -97,6 +97,8 @@ async def predict_gui(request: Request, sequence: str = Form(...)):
             return templates.TemplateResponse(request=request, name="index.html", context={"error": "Empty sequence", "sequence": sequence})
             
         res = predictor.predict_single(seq)
+        if res.get("status") == "ERROR_INVALID_AA":
+            return templates.TemplateResponse(request=request, name="index.html", context={"error": res.get("error", "Invalid amino acids in sequence."), "sequence": sequence})
         if res.get("status") == "ERROR_TOO_SHORT":
             return templates.TemplateResponse(request=request, name="index.html", context={"error": "Sequence too short (<50 aa)", "sequence": sequence})
 
